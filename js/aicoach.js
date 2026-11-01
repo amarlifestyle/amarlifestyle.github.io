@@ -2,7 +2,7 @@
 import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, todayStr, addDays, DAYS, PALETTE, dhakaIso, durLabel, fmtHM } from "./ui.js";
 import { store, catNames, rerender } from "./app.js";
-import { micButton } from "./voice.js";
+import { voiceRecorder } from "./voice.js";
 
 // card on the Today page (loads after the page so nothing waits for it)
 export function coachCard() {
@@ -34,15 +34,22 @@ export function coachCard() {
 }
 
 export function askSheet() {
-  const q = h("textarea.input", { placeholder: "e.g. এই মাসে কোথায় টাকা বাঁচাতে পারি? / আমার পড়ার সবচেয়ে ভালো সময় কোনটা?", maxlength: "600" });
+  const q = h("textarea.input", { placeholder: "লিখে প্রশ্ন করুন… e.g. এই মাসে কোথায় টাকা বাঁচাতে পারি?", maxlength: "600" });
   const out = h("div");
-  return sheet("Ask AI", [h("div.row.between", h("span.small.muted", "Ask about your routine, DP or money"), micButton(t => q.value = t)), q, out], {
+  const show = r => out.replaceChildren(h("div.card", { style: { marginTop: "10px", whiteSpace: "pre-wrap" } }, r.answer || "No answer. Try again."));
+  const voice = voiceRecorder(async audio => {
+    out.replaceChildren(h("p.small.muted", "Thinking…"));
+    const r = await api.ai("ask", { audio });
+    if (r.heard) q.value = r.heard;
+    show(r);
+  }, { label: "বলে প্রশ্ন করুন" });
+  return sheet("Ask AI", [voice, h("div.small.faint", { style: { textAlign: "center", margin: "10px 0 6px" } }, "— অথবা লিখুন —"), q, out], {
     actions: close => {
       const go = h("button.btn.primary", "Ask");
       go.onclick = busy(go, async () => {
+        if (!q.value.trim()) throw new Error("প্রশ্ন লিখুন বা মাইকে বলুন।");
         out.replaceChildren(h("p.small.muted", "Thinking…"));
-        const r = await api.ai("ask", { question: q.value });
-        out.replaceChildren(h("div.card", { style: { marginTop: "10px", whiteSpace: "pre-wrap" } }, r.answer));
+        show(await api.ai("ask", { question: q.value }));
       });
       return [h("button.btn", { onclick: () => close() }, "Close"), go];
     },
@@ -52,7 +59,7 @@ export function askSheet() {
 // build a routine from one long voice/text description
 const DAYMAP = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 export function aiPlanSheet(ctx) {
-  const text = h("textarea.input", { placeholder: "Say or type your whole week. e.g. শনি, বুধ আর বৃহস্পতি বিকাল ৫টা C.P পড়াই ১ ঘণ্টা, তারপর ৬টায় C.B। প্রতিদিন রাত ১০টা থেকে ১২টা পড়ি।", style: { minHeight: "110px" } });
+  const text = h("textarea.input", { placeholder: "e.g. শনি, বুধ আর বৃহস্পতি বিকাল ৫টা C.P পড়াই ১ ঘণ্টা, তারপর ৬টায় C.B। প্রতিদিন রাত ১০টা থেকে ১২টা পড়ি।", style: { minHeight: "80px" } });
   const result = h("div");
   let items = [];
   const draw = () => {
@@ -68,22 +75,33 @@ export function aiPlanSheet(ctx) {
         rep);
     })) : null);
   };
+  let save, make;
+  const apply = r => {
+    if (r.heard) text.value = r.heard;
+    items = (r.items || []).filter(x => x.title && x.start && (x.days || []).length);
+    draw();
+    if (r.question) result.prepend(h("div.card.small.warn.mt", "❓ ", r.question));
+    if (!items.length) result.append(h("p.small.bad", "কোনো কাজ পাওয়া যায়নি। দিন, সময় আর কী করবেন — বলুন।"));
+    if (save) save.disabled = !items.length;
+    if (make) make.textContent = "🤖 Make again";
+  };
+  const voice = voiceRecorder(async audio => {
+    result.replaceChildren(h("p.small.muted.mt", "🤖 AI is reading your routine…"));
+    apply(await api.ai("plan", { audio }));
+  }, { label: "Tap and say your routine" });
   return sheet("🤖 Build routine with AI", [
-    h("p.hint", "Tell your whole routine in your own words. AI understands Bangla, English or mixed, and fills gaps from your usual routine. You check before saving."),
-    h("div.row.between", h("span.small.muted", "Speak or type"), micButton(t => text.value = (text.value ? text.value + " " : "") + t)),
+    h("p.hint", "যেমন: “শনিবার ৫টা ৬ সিপি, প্রতিদিন সকাল ৬টায় আধা ঘণ্টা দৌড়”। শেষ হলে আবার চাপুন — AI শুনে লিস্ট বানাবে। কিছু না বললে আগের রুটিন দেখে অনুমান করবে। Save করার আগে দেখে নিন।"),
+    voice,
+    h("div.small.faint", { style: { textAlign: "center", margin: "10px 0 6px" } }, "— অথবা লিখুন / ঠিক করুন —"),
     text, result,
   ], {
     actions: close => {
-      const make = h("button.btn", "🤖 Make plan");
-      const save = h("button.btn.primary", { disabled: true }, "Save selected");
+      make = h("button.btn", "🤖 Make plan");
+      save = h("button.btn.primary", { disabled: true }, "Save selected");
       make.onclick = busy(make, async () => {
+        if (!text.value.trim()) throw new Error("মাইকে বলুন বা লিখুন।");
         result.replaceChildren(h("p.small.muted.mt", "AI is reading your routine…"));
-        const r = await api.ai("plan", { text: text.value });
-        items = (r.items || []).filter(x => x.title && x.start && (x.days || []).length);
-        draw();
-        if (r.question) result.prepend(h("div.card.small.warn.mt", "❓ ", r.question));
-        if (!items.length) result.append(h("p.small.bad", "Couldn't find tasks. Mention day, time and what you do."));
-        save.disabled = !items.length; make.textContent = "🤖 Try again";
+        apply(await api.ai("plan", { text: text.value }));
       });
       save.onclick = busy(save, async () => {
         const chosen = items.filter(x => x.on !== false);

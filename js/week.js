@@ -4,7 +4,6 @@ import { h, icon, t, toast, sheet, confirmBox, busy, todayStr, addDays, fmtTime,
 import { route, store, catColor, catNames, catDp, rerender } from "./app.js";
 import { addTask } from "./today.js";
 import { editRoutine } from "./more.js";
-import { parseLine, micButton } from "./voice.js";
 import { aiPlanSheet } from "./aicoach.js";
 
 function weekStart(s) { const back = (new Date(s + "T00:00:00").getDay() + 1) % 7; return addDays(s, -back); } // week starts Saturday
@@ -45,8 +44,7 @@ route("week", async (page, offset = "0") => {
   }));
   page.append(h("div.row.wrap", { style: { gap: "8px", marginBottom: "10px" } },
     h("button.btn.primary.small", { onclick: () => planSheet(ctx, {}) }, icon("plus"), "Add to week"),
-    h("button.btn.small", { onclick: () => aiPlanSheet(ctx) }, "🤖 Build with AI"),
-    h("button.btn.small", { onclick: () => planSheet(ctx, { voice: true }) }, icon("mic"), "Add by voice")));
+    h("button.btn.small", { onclick: () => aiPlanSheet(ctx) }, icon("mic"), "Build with AI") ));
   page.append(h("div.week-scroll", grid));
   page.append(h("p.small.faint", "↻ = repeats every week. Tap a box to edit or remove. ✓ = done, faded = missed."));
 
@@ -68,7 +66,6 @@ route("week", async (page, offset = "0") => {
 export function planSheet(ctx, pre = {}) {
   const { ws, we, today, students } = ctx;
   const cats = catNames();
-  const line = h("input.input", { placeholder: "Say or type: Sat 5 pm Leon tuition 1 hour every week" });
   const title = h("input.input", { placeholder: "e.g. C.P", maxlength: "80" });
   const cat = h("select.input", cats.map(n => h("option", { value: n }, `${n} · ${catDp(n)} DP/hour`)));
   const stu = h("select.input", h("option", { value: "" }, "— none —"), students.map(s => h("option", { value: s.id }, s.name)));
@@ -89,26 +86,7 @@ export function planSheet(ctx, pre = {}) {
   stu.onchange = () => { const s = students.find(x => x.id === stu.value); if (s && !title.value.trim()) title.value = s.name; };
   showStu();
 
-  const fill = text => {
-    line.value = text;
-    const p = parseLine(text, students, cats);
-    if (p.days.length) { days = p.days; drawDays(); }
-    if (p.time) start.value = p.time;
-    if (p.duration) dur.value = p.duration;
-    if (p.category && cats.includes(p.category)) cat.value = p.category;
-    if (p.studentId) stu.value = p.studentId;
-    if (p.title) title.value = p.title;
-    if (p.repeat) setRepeat(p.repeat);
-    showStu();
-    toast(`Filled: ${days.map(d => DAYS[d]).join(", ") || "pick days"} · ${start.value} · ${durLabel(Number(dur.value))}. Check and Save.`);
-  };
-  const fillBtn = h("button.btn.small", { type: "button", onclick: () => line.value.trim() && fill(line.value) }, "Fill");
-
   return sheet("Add to week", [
-    h("div.card", { style: { background: "var(--bg2)", marginBottom: "12px" } },
-      h("div.row.between", h("b.small", "🎤 Quick add"), micButton(fill)),
-      h("div.row.mt", h("div.grow", line), fillBtn),
-      h("p.hint.mt.mb0", "Example: “শনি সোম বুধ বিকাল ৫টা Leon টিউশন ১ ঘণ্টা প্রতি সপ্তাহে”")),
     h("label.f", h("span", "What"), title),
     h("div.grid2", h("label.f", h("span", "Category"), cat), stuRow),
     h("label.f", h("span", "Days"), dayBox),

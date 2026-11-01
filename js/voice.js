@@ -1,7 +1,6 @@
 // Amar Lifestyle — voice: speak a routine line and the form fills itself.
 // e.g. "শনিবার বিকাল ৫টা সিপি টিউশন ১ ঘণ্টা প্রতি সপ্তাহে" or "Monday 9 pm study 2 hours this week"
 import { h, icon, toast, pad } from "./ui.js";
-import { LS } from "./api.js";
 
 const BN_DIGITS = "০১২৩৪৫৬৭৮৯";
 const toAscii = s => s.replace(/[০-৯]/g, d => BN_DIGITS.indexOf(d));
@@ -78,21 +77,64 @@ export function parseLine(raw, students = [], categories = []) {
   return out;
 }
 
-// microphone button: tap, speak, get text
-export function micButton(onText) {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const lang = () => LS.get("al_voice_lang", "bn-BD");
-  const b = h("button.btn.small", { type: "button", "aria-label": "Speak" }, icon("mic"), "Speak");
-  const lb = h("button.btn.small.ghost", { type: "button", "aria-label": "Voice language" }, lang() === "bn-BD" ? "বাংলা" : "EN");
-  lb.onclick = () => { LS.set("al_voice_lang", lang() === "bn-BD" ? "en-US" : "bn-BD"); lb.textContent = lang() === "bn-BD" ? "বাংলা" : "EN"; };
-  b.onclick = () => {
-    if (!SR) { toast("Voice isn't supported in this browser. Use Chrome, or type the line instead.", "bad"); return; }
-    const r = new SR(); r.lang = lang(); r.interimResults = false; r.maxAlternatives = 1;
-    b.classList.add("primary"); b.lastChild.textContent = "Listening…";
-    r.onresult = e => onText(e.results[0][0].transcript);
-    r.onerror = e => toast(e.error === "not-allowed" ? "Allow microphone access to use voice." : e.error === "network" ? "Voice needs internet." : "Didn't catch that. Try again.", "bad");
-    r.onend = () => { b.classList.remove("primary"); b.lastChild.textContent = "Speak"; };
-    try { r.start(); } catch { r.onend(); }
+// microphone: records your voice and AI (Gemini) listens to it — works for Bangla and English,
+// on iPhone/iPad Safari too (the browser's own speech typing doesn't know Bangla there).
+const MAX_SEC = 90;
+function toWav(buf) { // AudioBuffer → 16 kHz mono 16-bit WAV (small, every AI understands it)
+  const rate = 16000, src = buf.getChannelData(0), ratio = buf.sampleRate / rate, n = Math.floor(src.length / ratio);
+  const out = new DataView(new ArrayBuffer(44 + n * 2));
+  const w = (o, t) => [...t].forEach((c, i) => out.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); out.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); out.setUint32(16, 16, true);
+  out.setUint16(20, 1, true); out.setUint16(22, 1, true); out.setUint32(24, rate, true); out.setUint32(28, rate * 2, true);
+  out.setUint16(32, 2, true); out.setUint16(34, 16, true); w(36, "data"); out.setUint32(40, n * 2, true);
+  let peak = 0.0001; for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(src[Math.floor(i * ratio)]));
+  const gain = Math.min(8, 0.9 / peak); // make quiet voices louder
+  for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, src[Math.floor(i * ratio)] * gain)); out.setInt16(44 + i * 2, v * 0x7fff, true); }
+  return out.buffer;
+}
+const b64 = ab => { let s = ""; const u = new Uint8Array(ab); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
+
+// big round button: tap to start, tap again to finish → onAudio({ mime, data }) (async, may throw)
+export function voiceRecorder(onAudio, { label = "Tap and speak" } = {}) {
+  let rec = null, stream = null, chunks = [], timer = null, sec = 0, working = false;
+  const dot = h("span", { style: { width: "10px", height: "10px", borderRadius: "50%", background: "currentColor", display: "inline-block" } });
+  const txt = h("span", label);
+  const b = h("button.btn", { type: "button", style: { width: "100%", minHeight: "52px", fontSize: "16px", gap: "10px" } }, icon("mic"), txt);
+  const hint = h("div.small.muted", { style: { textAlign: "center", marginTop: "4px" } }, "বাংলা, English বা মিশিয়ে বলুন — AI নিজে শুনে বুঝবে");
+  const reset = () => {
+    clearInterval(timer); stream?.getTracks().forEach(t => t.stop()); stream = null; rec = null;
+    b.classList.remove("rec"); b.replaceChildren(icon("mic"), txt); txt.textContent = label; b.disabled = false; working = false;
   };
-  return h("div.row", { style: { gap: "6px" } }, b, lb);
+  const finish = async () => {
+    working = true; b.disabled = true; b.replaceChildren(h("span", "🤖 AI শুনছে…"));
+    try {
+      const blob = new Blob(chunks, { type: rec?.mimeType || chunks[0]?.type || "audio/mp4" });
+      if (blob.size < 1500) throw new Error("কিছু শোনা যায়নি। আবার চাপুন, তারপর কথা বলুন।");
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new Ctx();
+      const ab = await blob.arrayBuffer();
+      const buf = await new Promise((ok, bad) => { const p = ctx.decodeAudioData(ab, ok, bad); if (p?.then) p.then(ok, bad); });
+      ctx.close?.();
+      await onAudio({ mime: "audio/wav", data: b64(toWav(buf)) });
+    } catch (e) { toast(e.message || "Voice failed. Try again.", "bad"); }
+    reset();
+  };
+  b.onclick = async () => {
+    if (working) return;
+    if (rec) { rec.stop(); return; }
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { toast("This browser can't record. Update Safari/Chrome, or type instead.", "bad"); return; }
+    if (!navigator.onLine) { toast("Voice needs internet.", "bad"); return; }
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+    catch { toast("Allow microphone: tap ‘aA’/🔒 in the address bar → Microphone → Allow.", "bad"); return; }
+    chunks = []; sec = 0;
+    rec = new MediaRecorder(stream);
+    rec.ondataavailable = e => e.data?.size && chunks.push(e.data);
+    rec.onstop = finish;
+    rec.start();
+    b.classList.add("rec");
+    const show = () => b.replaceChildren(dot, h("span", `Listening… ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} — tap to finish`));
+    show();
+    timer = setInterval(() => { sec++; show(); if (sec >= MAX_SEC) rec?.state === "recording" && rec.stop(); }, 1000);
+  };
+  return h("div", b, hint);
 }
