@@ -1,11 +1,12 @@
 // Amar Lifestyle — Today page, tasks, timer, Pomodoro
 import * as api from "./api.js";
-import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate } from "./ui.js";
+import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate, chime } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation, myRoles } from "./app.js";
 import { prayerNow, prayerCount, religionPicker, saveReligion } from "./prayer.js";
 import { askSheet } from "./aicoach.js";
 import { showTour } from "./tour.js";
-import { examsCard } from "./exams.js";
+import { installFirst, isStandalone, showInstall } from "./install.js";
+import { examRows } from "./exams.js";
 import { quoteFor } from "./quotes.js";
 import { mealNow, classesBetween, classCard } from "./timetable.js";
 
@@ -69,14 +70,10 @@ route("today", async page => {
   // a task done 50% counts as half
   const doneW = realTasks.reduce((s, x) => s + (["completed", "late_completed"].includes(x.status) ? (x.done_pct || 100) / 100 : queued.has(x.id) ? 1 : 0), 0);
   const pct = realTasks.length ? doneW / realTasks.length : 0;
+  let nightRow = null;
   if (realTasks.length && (nowMin >= sleepMin - 30 || nowMin < 240)) {
     const pc = await prayerCount(nowMin < 240 ? addDays(today, -1) : today).catch(() => null);
-    body.append(h("a.card", { href: "#/day", style: { display: "block", color: "inherit", background: "linear-gradient(135deg, color-mix(in srgb, var(--cyan) 14%, var(--card)), var(--card))" } },
-      h("div.row.between", h("h3.mb0", "🌙 Today's report"), h("span.small", { style: { color: "var(--brand)" } }, "Full report & AI review →")),
-      h("div.big", `${Math.round(pct * 100)}% tasks done`),
-      h("p.muted.mb0", `${doneN} of ${realTasks.length} tasks · ${stats.today.dp >= 0 ? "+" : ""}${stats.today.dp} DP · ${stats.today.coins} coins today. `,
-        pct >= 0.8 ? "Great discipline — streak kept! 🔥" : "Tomorrow is a new chance. Mark the rest before 12 AM."),
-      pc !== null ? h("p.mb0", { style: { marginTop: "6px" } }, "🕌 আজ নামাজ: ", h("b", `${pc}/5`), " ওয়াক্ত", pc === 5 ? " — মাশাআল্লাহ! 🤲" : "") : null));
+    nightRow = ["🌙", h("span", h("b", "Today's report"), ` · ${Math.round(pct * 100)}% done`), pc !== null ? `🕌 নামাজ ${pc}/5 · ` + (pct >= 0.8 ? "দারুণ দিন 🔥" : "বাকিগুলো ১২টার আগে মার্ক করুন") : (pct >= 0.8 ? "Great day 🔥" : "Mark the rest before 12 AM"), h("span.s-tag", { style: { color: "var(--brand)" } }, "AI review →"), "#/day"];
   }
 
   // running timer
@@ -119,50 +116,58 @@ route("today", async page => {
       h("i.dot"), h("div.what", h("span", emg ? (live ? "Emergency — now" : "Emergency — next") : "Up next"), h("b", upNext.title)),
       h("time", live ? `until ${fmtTime(upNext.end_at)}` : fmtTime(upNext.start_at), h("em", live ? `${durLabel(Math.max(1, Math.round((new Date(upNext.end_at) - now0) / 60000)))} left` : `in ${m >= 60 ? Math.floor(m / 60) + "h " : ""}${m % 60}m`))));
   }
+  // everything extra (prayer, exams, bills, events, meal, setup) sits in ONE small box — tasks keep the space
+  const stack = h("div.stack");
+  body.append(stack);
+  const srow = (ic, main, sub, right, href, cls = "") => {
+    const inner = [h("span.s-ic", ic), h("div.s-main", h("div.ell", main), sub ? h("div.s-sub.ell", sub) : null), right || null];
+    return href ? h("a.srow" + cls, { href }, inner) : h("div.srow" + cls, inner);
+  };
+  const dismiss = (key, row, val = 1) => h("button.s-x", { type: "button", "aria-label": "Hide", onclick: e => { e.preventDefault(); api.LS.set(key, val); row().remove(); } }, "✕");
   // bills due in the next 3 days (not paid yet)
   try {
     const mo = today.slice(0, 8) + "01", dnum = Number(today.slice(8));
     const [bl, bp] = await Promise.all([api.select("bills", "select=id,title,amount,due_day,monthly,start_month&active=eq.true&due_day=not.is.null"), api.select("bill_payments", `select=bill_id&month=eq.${mo}`)]);
     const soon = bl.filter(b => (b.monthly ? b.start_month <= mo : b.start_month === mo) && !bp.some(p => p.bill_id === b.id) && b.due_day - dnum <= 3);
-    if (soon.length) body.append(h("a.small", { href: "#/money/overview", style: { display: "block", margin: "-2px 4px 8px", color: "var(--amber)" } },
-      "🧾 ", soon.map(b => `${b.title} ${b.due_day < dnum ? "(late)" : b.due_day === dnum ? "today" : "by " + b.due_day}`).join(" · "), " — tap to pay"));
+    if (soon.length) stack.append(srow("🧾", soon.map(b => b.title).join(", "), soon.map(b => b.due_day < dnum ? "late" : b.due_day === dnum ? "due today" : "due " + b.due_day + "th").join(" · "), h("span.s-tag.warn", "Pay"), "#/money/overview"));
   } catch { /* offline: skip */ }
   // meal reminder (from your meal plan)
-  try { const meal = await mealNow(); if (meal) body.append(meal); } catch { /* offline */ }
+  try { const meal = await mealNow(true); if (meal) stack.append(srow("🍽️", meal.title, meal.when, null, "#/schedule/meal")); } catch { /* offline */ }
   // one line that changes every few seconds: today's AI advice + a quote (tap → AI)
   body.append(tipTicker(today));
 
   // today's events + countdowns
   const evToday = events.filter(e => e.kind !== "countdown" && (e.date === today || (e.yearly && e.date.slice(5) === today.slice(5))));
   const cds = events.filter(e => e.kind === "countdown" && e.date >= today).slice(0, 3);
-  if (evToday.length || cds.length) {
-    body.append(h("div.row.wrap", { style: { gap: "8px", marginBottom: "14px" } },
-      evToday.map(e => h("span.badge.warn", e.kind === "birthday" ? "🎂 " : e.kind === "meeting" ? "🤝 " : "📌 ", e.title, e.time ? " · " + fmtHM(e.time) : "")),
-      cds.map(e => { const d = Math.round((new Date(e.date) - new Date(today)) / 864e5); return h("span.badge", "⏳ ", e.title, ": ", d === 0 ? "today" : `${d} day${d > 1 ? "s" : ""}`); })));
-  }
+  evToday.forEach(e => stack.append(srow(e.kind === "birthday" ? "🎂" : e.kind === "meeting" ? "🤝" : "📌", e.title, e.kind === "birthday" ? "Birthday today" : e.time ? fmtHM(e.time) : "Today", null, "#/calendar")));
+  cds.forEach(e => { const d = Math.round((new Date(e.date) - new Date(today)) / 864e5); stack.append(srow("⏳", e.title, null, h("span.s-tag", d === 0 ? "today" : `${d}d`), "#/calendar")); });
 
   // task list
   // university classes from the timetable sit in the list by time (no DP)
   let classes = [];
   try { classes = await classesBetween(today, today); } catch { /* offline */ }
-  try { const ex = await examsCard(); if (ex) body.append(ex); } catch { /* offline */ }
+  try { (await examRows()).forEach(e => stack.append(srow(e.ic, e.title, e.sub, h("span.s-tag", { style: { color: e.color } }, e.left), "#/exams"))); } catch { /* offline */ }
+  try { const pn = await prayerNow(); if (pn) stack.prepend(pn); } catch { /* offline */ }
+  if (nightRow) stack.prepend(srow(...nightRow));
+  if (!isStandalone() && Date.now() - (api.LS.get("al_inst_strip") || 0) > 864e5) {
+    const r = srow("📱", "Home Screen-এ অ্যাপটা রাখুন", "নোটিফিকেশন ঠিকমতো আসবে", [h("button.btn.small.primary", { onclick: () => showInstall() }, "Add"), dismiss("al_inst_strip", () => r, Date.now())], null, ".setup");
+    stack.append(r);
+  }
   // notifications off on this phone? ask once in a while (they are the heart of the reminders)
   if (Date.now() - (api.LS.get("al_push_nudge") || 0) > 3 * 864e5) api.pushState().then(st => {
-    if (st === "on" || st === "unsupported" && !/iPhone|iPad|Android/.test(navigator.userAgent)) return;
+    if (st === "on" || st === "unsupported" && (!isStandalone() || !/iPhone|iPad|Android/.test(navigator.userAgent))) return; // the Home Screen row covers it
     const on = h("button.btn.small.primary", "Turn on");
     on.onclick = busy(on, async () => { if (st === "unsupported") { location.hash = "#/notifications"; return; } await api.enablePush(); toast("Notifications on ✓", "ok"); await api.pushTest().catch(() => {}); c.remove(); });
-    const c = h("div.tg-hint", { style: { marginBottom: "10px", alignItems: "center", borderColor: "color-mix(in srgb, var(--amber) 45%, transparent)", background: "color-mix(in srgb, var(--amber) 8%, var(--card))" } },
-      h("span", "🔔"), h("span.grow", st === "unsupported" ? "নোটিফিকেশন পেতে আগে অ্যাপটা Home Screen-এ যোগ করুন (Share → Add to Home Screen)।" : st === "blocked" ? "নোটিফিকেশন বন্ধ করা আছে — ফোনের Settings থেকে এই সাইটের নোটিফিকেশন চালু করুন।" : "নোটিফিকেশন চালু নেই — টাস্ক, পরীক্ষা আর রাতের রিপোর্টের রিমাইন্ডার পাবেন না।"),
-      st === "off" ? on : null, h("button.linkbtn.small", { onclick: () => { api.LS.set("al_push_nudge", Date.now()); c.remove(); } }, "✕"));
-    body.querySelector(".upnext")?.after(c);
+    const c = srow("🔔", st === "blocked" ? "নোটিফিকেশন ব্লক করা" : st === "unsupported" ? "নোটিফিকেশন পেতে Home Screen-এ রাখুন" : "নোটিফিকেশন বন্ধ", st === "blocked" ? "ফোনের Settings থেকে চালু করুন" : "রিমাইন্ডার পাবেন না",
+      [st === "off" ? on : null, dismiss("al_push_nudge", () => c, Date.now())], null, ".setup");
+    stack.append(c);
   }).catch(() => {});
   if (!api.LS.get("al_tg_nudge") && navigator.onLine) {
     api.rpc("has_telegram").then(has => { if (has) { api.LS.set("al_tg_nudge", 1); return; }
-      const c = h("div.tg-hint", { style: { marginBottom: "10px" } }, h("span", "✈️"), h("span.grow", "পাসওয়ার্ড ভুলে গেলে যেন সহজে ফেরত পান — ", h("a", { href: "#/notifications" }, "Telegram কানেক্ট করুন")), h("button.linkbtn.small", { onclick: () => { api.LS.set("al_tg_nudge", 1); c.remove(); } }, "✕"));
-      body.querySelector(".upnext")?.after(c);
+      const c = srow("✈️", "Telegram কানেক্ট করুন", "পাসওয়ার্ড রিসেট + সাউন্ডসহ রিমাইন্ডার", [h("span.s-tag", "Connect"), dismiss("al_tg_nudge", () => c)], "#/notifications", ".setup");
+      stack.append(c);
     }).catch(() => {});
   }
-  try { const pn = await prayerNow(); if (pn) body.append(pn); } catch { /* offline */ }
   body.append(h("div.section-title", h("h2", "Today's tasks"), h("div.row", { style: { gap: "10px", alignItems: "center" } }, h("button.btn.small.emg", { onclick: () => emergencySheet(tasks) }, "🚨 Emergency"), h("a.small", { href: "#/routine" }, "Set routine"))));
   if (!realTasks.length && !running && !classes.length) {
     body.append(h("div.card.empty", icon("today"), h("p", "No tasks today."),
@@ -181,7 +186,8 @@ route("today", async page => {
   }
   body.append(h("p.center.small.faint.mt", "Unplanned work? Use ", h("button.linkbtn", { onclick: openTimer }, "the timer"), " to earn DP."));
   notifyLoop(tasks);
-  setTimeout(() => { if (location.hash.startsWith("#/today") && !document.querySelector(".backdrop")) showTour(); }, 700);
+  // first: put the app on the home screen, then the guide
+  setTimeout(async () => { if (!location.hash.startsWith("#/today") || document.querySelector(".backdrop")) return; await installFirst(); if (location.hash.startsWith("#/today") && !document.querySelector(".backdrop")) showTour(); }, 700);
 }, { tab: "today" });
 
 // ---------- task card
@@ -372,7 +378,7 @@ export function openTimer() {
 // ---------- in-app reminders (while the app is open)
 function askNotify() { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); }
 function notify(msg) {
-  toast(msg); // phone notifications come from the server (push), so inside the app just show a toast
+  chime("urgent"); toast(msg); // phone notifications come from the server (push), so inside the app just show a toast
 }
 let nTimer = null;
 function notifyLoop(tasks) {

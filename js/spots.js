@@ -9,7 +9,7 @@ const TODAY = [
   [".ticker", "💡 পরামর্শ", "কয়েক সেকেন্ড পরপর বদলায় — আপনার রুটিন আর টাকার হিসাব দেখে। চাপলে AI খোলে।"],
   [".btn.emg", "🚨 Emergency", "হঠাৎ জরুরি কাজ? এখানে দিন — যে কাজ চলছিল সেটা তখনই শেষ হবে।"],
   [".fab", "＋ নতুন টাস্ক", "একবারের কাজ যোগ করুন। ধরে টেনে বোতামটা সরানো যায়।"],
-  [".nav", "নিচের মেনু", "Routine = সাপ্তাহিক রুটিন, Exams, Prayer · Money = আয়-খরচ, Daily spending, Tuition · Me = লেভেল, অভ্যাস · More = Calendar, Reports, Settings, গাইড।"],
+  [".nav", "নিচের মেনু", "Routine = সাপ্তাহিক রুটিন, Exams, Prayer · Money = আয়-খরচ, Daily spending, Tuition · Me = লেভেল, অভ্যাস · 🔔 Alerts = নোটিফিকেশন, Telegram · More = Share, Calendar, Reports, Settings, গাইড।"],
 ];
 
 export function showSpots(force = false, list = TODAY) {

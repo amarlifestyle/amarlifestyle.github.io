@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Today's tasks</title>
+  <meta name="theme-color" content="#07090D">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="../assets/tasks-192.png">
+  <link rel="apple-touch-icon" href="../assets/tasks-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Today's tasks">
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #07090D; --card: #12161D; --line: #232A35; --text: #F1F5F9; --muted: #94A3B8; --brand: #2DD4BF; --green: #22C55E; --red: #F43F5E; --amber: #F59E0B; }
+    :root[data-theme="light"] { --bg: #F4F4EF; --card: #FFFFFF; --line: #E2E5EA; --text: #0F172A; --muted: #64748B; --brand: #0D9488; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 "Hind Siliguri", system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    main { max-width: 520px; margin: 0 auto; padding: calc(14px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom)); }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    h1 { font-size: 20px; margin: 0; }
+    .sub { color: var(--muted); font-size: 13px; }
+    .bar { height: 8px; border-radius: 6px; background: var(--line); overflow: hidden; margin: 6px 0 14px; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--brand), var(--green)); border-radius: 6px; transition: width .5s; }
+    .big { border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; border: 1px solid var(--line); background: var(--card); display: block; color: inherit; text-decoration: none; }
+    .big.now { border-color: color-mix(in srgb, var(--c) 60%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--c) 16%, var(--card)), var(--card)); }
+    .big small { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+    .big b { display: block; font-size: 18px; margin: 2px 0; }
+    .list { border: 1px solid var(--line); border-radius: 16px; background: var(--card); overflow: hidden; }
+    .row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; color: inherit; text-decoration: none; min-height: 48px; }
+    .row + .row { border-top: 1px solid var(--line); }
+    .t { width: 64px; flex-shrink: 0; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .dot { width: 4px; align-self: stretch; border-radius: 3px; background: var(--c); flex-shrink: 0; }
+    .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .row.done .name { color: var(--muted); text-decoration: line-through; }
+    .st { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; flex-shrink: 0; border: 1.5px solid var(--line); color: var(--muted); }
+    .st.ok { background: var(--green); border-color: var(--green); color: #fff; }
+    .st.bad { background: var(--red); border-color: var(--red); color: #fff; }
+    .st.live { border-color: var(--brand); color: var(--brand); animation: p 1.6s infinite; }
+    @keyframes p { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--brand) 25%, transparent); } }
+    .open { display: block; text-align: center; margin-top: 14px; padding: 12px; border-radius: 14px; background: var(--brand); color: #04211d; font-weight: 700; text-decoration: none; }
+    .empty { text-align: center; color: var(--muted); padding: 28px 10px; }
+    .ref { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 10px; width: 38px; height: 38px; font-size: 16px; }
+  </style>
+  <script>try { if (JSON.parse(localStorage.getItem("al_theme")) === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}</script>
+</head>
+<body>
+  <main id="w"><p class="empty">Loading…</p></main>
+  <script type="module" src="../js/widget.js"></script>
+</body>
+</html>

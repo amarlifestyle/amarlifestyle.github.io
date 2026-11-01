@@ -1,5 +1,6 @@
 // Amar Lifestyle — money: income, expenses, budgets, history, tuition, dues, savings
 import * as api from "./api.js";
+import { pinGate, lockedCard } from "./pin.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, donut, PALETTE, pad, colorPicker, barChart } from "./ui.js";
 import { route, store, rerender, backbar, role, showTuition } from "./app.js";
 
@@ -211,6 +212,8 @@ async function requestEdit(r) {
 }
 
 async function editEntry(r) {
+  // money edits always need the PIN — set one first if there is none
+  if (!(await api.rpc("has_pin").catch(() => true))) { const { setPinFlow } = await import("./pin.js"); toast("আগে একটা PIN সেট করুন — টাকার এডিট PIN দিয়ে সুরক্ষিত থাকে"); if (!(await setPinFlow().catch(e => { toast(e.message, "bad"); return false; }))) return; }
   const amt = h("input.input", { type: "number", inputmode: "decimal", min: "0", step: "0.01", value: r.amount });
   const note = h("input.input", { value: r.note || "", maxlength: "120" });
   const ok = await sheet("Edit entry", [h("p.hint", "The old amount stays in history and every report will show “Edited”."),
@@ -314,7 +317,7 @@ async function tuition(body, m) {
       h("div.row.between", h("div.t", s.name, h("span.small.muted", "  · see graph ›")), h("span.dp", tk(s.monthly_fee) + "/mo")),
       h("div.meta", `Attendance this month: ${present} day${present === 1 ? "" : "s"}`, p ? h("span.ok", ` · paid ${tk(p.amount)}`) : m < cur ? h("span.bad", " · due") : m === cur ? h("span.muted", " · this month (not due yet)") : h("span.muted", " · advance"),
         dueMonths(s).length ? h("div.bad", `Due: ${dueMonths(s).map(x => monthLabel(x).split(" ")[0]).join(", ")}`) : null),
-      h("div.acts", m === monthStart(today) ? attBtn : null, payBtn, h("button.btn.small.ghost", { onclick: () => addStudent(s) }, icon("edit"))))));
+      h("div.acts", m === monthStart(today) ? attBtn : null, payBtn, h("button.btn.small.ghost", { onclick: async () => { if (await pinGate("student", "স্টুডেন্টের ফি/তথ্য বদলাতে PIN দিন")) addStudent(s); } }, icon("edit"))))));
   });
 }
 
@@ -494,7 +497,7 @@ route("student", async (page, id) => {
   ]);
   const s = rows[0];
   if (!s) throw new Error("Student not found.");
-  page.append(backbar(s.name, "#/money/tuition", h("div.row", h("button.btn.small.primary", { onclick: () => receivePayment(s) }, icon("money"), "Receive fee"), h("button.icon-btn", { "aria-label": "Edit student", onclick: () => addStudent(s) }, icon("edit")))));
+  page.append(backbar(s.name, "#/money/tuition", h("div.row", h("button.btn.small.primary", { onclick: () => receivePayment(s) }, icon("money"), "Receive fee"), h("button.icon-btn", { "aria-label": "Edit student", onclick: async () => { if (await pinGate("student", "স্টুডেন্টের ফি/তথ্য বদলাতে PIN দিন")) addStudent(s); } }, icon("edit")))));
   // last 12 months
   const today = todayStr();
   const months = [...Array(12)].map((_, i) => shiftMonth(monthStart(today), i - 11));
@@ -536,6 +539,7 @@ route("student", async (page, id) => {
 route("payments", async (page, yr) => {
   const today = todayStr(), cur = monthStart(today);
   const year = Number(yr) || Number(today.slice(0, 4));
+  if (!(await pinGate("sheet", "পুরো টিউশন শিট দেখতে PIN দিন"))) { page.append(backbar("All payments", "#/money/tuition"), lockedCard(() => rerender())); return; }
   page.append(backbar("All payments", "#/money/tuition", h("div.row",
     h("a.icon-btn", { href: `#/payments/${year - 1}`, "aria-label": "Previous year" }, icon("back")), h("b", year),
     h("a.icon-btn", { href: `#/payments/${year + 1}`, "aria-label": "Next year" }, icon("chev")))));

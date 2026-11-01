@@ -1,0 +1,16 @@
+{
+  "id": "/tasks/",
+  "name": "Today's tasks — Amar Lifestyle",
+  "short_name": "Today's tasks",
+  "description": "Today's task list from Amar Lifestyle.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07090D",
+  "theme_color": "#07090D",
+  "icons": [
+    { "src": "../assets/tasks-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "../assets/tasks-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

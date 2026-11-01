@@ -247,7 +247,7 @@ function photoImport(tab) {
 }
 
 // Today page: meal reminder from 30 minutes before until the meal ends
-export async function mealNow() {
+export async function mealNow(data = false) {
   await loadTabs();
   if (!hasTab("meal")) return null;
   const items = await api.select("timetable_items", "select=*&kind=eq.meal&start_time=not.is.null&order=start_time");
@@ -256,6 +256,7 @@ export async function mealNow() {
   const it = items.find(x => onDay(x, dow) && now >= m(x.start_time) - 30 && now <= m(x.end_time || x.start_time) + (x.end_time ? 0 : 20));
   if (!it) return null;
   const soon = now < m(it.start_time);
+  if (data) return { title: it.title, when: soon ? `in ${m(it.start_time) - now} min` : "now" };
   return h("a.card", { href: "#/schedule/meal", style: { display: "block", color: "inherit", borderColor: "color-mix(in srgb, var(--amber) 55%, transparent)", background: "linear-gradient(160deg, color-mix(in srgb, var(--amber) 10%, var(--card)), var(--card))" } },
     h("div.row.between", h("b", "🍽️ ", it.title), h("span.small", { style: { color: "var(--amber)" } }, soon ? `in ${m(it.start_time) - now} min` : "now")),
     h("div.small.muted", range(it)), it.detail ? h("div", { style: { marginTop: "4px" } }, it.detail) : null);

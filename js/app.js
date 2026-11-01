@@ -1,6 +1,6 @@
 // Amar Lifestyle — app shell, router and shared state
 import * as api from "./api.js";
-import { h, icon, t, toast, todayStr, addDays } from "./ui.js";
+import { h, icon, t, toast, todayStr, addDays, chime } from "./ui.js";
 
 export const store = { profile: null, cfg: {}, userCats: [], announcements: [] };
 
@@ -101,7 +101,7 @@ const snapshots = new Map();
 let renderTurn = 0;
 const routes = {};
 export function route(path, render, opts = {}) { routes[path] = { render, ...opts }; }
-const NAV = [["today", "#/today", "Today"], ["week", "#/week", "Routine"], ["money", "#/money", "Money"], ["me", "#/me", "Me"], ["more", "#/more", "More"]];
+const NAV = [["today", "#/today", "Today"], ["week", "#/week", "Routine"], ["money", "#/money", "Money"], ["me", "#/me", "Me"], ["alerts", "#/notifications", "Alerts"], ["more", "#/more", "More"]];
 
 export function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
 
@@ -140,11 +140,23 @@ async function render() {
   if (same) window.scrollTo(0, prevY);
   snapshots.set(key, page);
   dragFab();
-  if (!r.public) daily();
+  if (!r.public) { daily(); checkUnread(); }
 }
 function navBar(active) {
   return h("nav.nav", { "aria-label": "Main" }, h("div.nav-inner",
-    NAV.map(([k, href, label]) => h("a" + (k === active ? ".on" : ""), { href, "aria-current": k === active ? "page" : null }, icon(k), t(label)))));
+    NAV.map(([k, href, label]) => h("a" + (k === active ? ".on" : ""), { href, "aria-current": k === active ? "page" : null }, icon(k), t(label),
+      k === "alerts" && unread > 0 && active !== "alerts" ? h("i.nav-badge", unread > 9 ? "9+" : String(unread)) : null))));
+}
+// unread count on the 🔔 Alerts tab
+let unread = 0, unreadAt = 0;
+export function setUnread(n) { unread = n; document.querySelector(".nav-badge")?.remove(); }
+async function checkUnread() {
+  if (Date.now() - unreadAt < 60000 || !api.getSession()) return;
+  unreadAt = Date.now();
+  try {
+    const r = await api.select("inbox", "select=id&read=eq.false&limit=20");
+    if (r.length !== unread) { unread = r.length; const a = document.querySelector('.nav a[href="#/notifications"]'); a?.querySelector(".nav-badge")?.remove(); if (a && unread && !a.classList.contains("on")) a.append(h("i.nav-badge", unread > 9 ? "9+" : String(unread))); }
+  } catch { /* offline */ }
 }
 export const rerender = () => render();
 
@@ -204,10 +216,19 @@ function track(newPage) {
     let sid = sessionStorage.getItem("al_sid"); if (!sid) { sid = crypto.randomUUID?.() || "00000000-0000-4000-8000-" + String(Date.now()).slice(-12).padStart(12, "0"); sessionStorage.setItem("al_sid", sid); }
     const ua = navigator.userAgent, standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
     const device = (/iPhone|iPod/.test(ua) ? "iPhone" : /iPad|Macintosh.*Mobile/.test(ua) || (navigator.maxTouchPoints > 1 && /Mac/.test(ua)) ? "iPad" : /Android/.test(ua) ? "Android" : "Computer") + (standalone ? " (app)" : " (browser)");
-    api.rpc("track_visit", { p_visit: sid, p_visitor: vis, p_device: device, p_path: (location.hash.split("/")[1] || "home").slice(0, 30), p_new_page: !!newPage }).catch(() => {});
+    const ref = api.LS.get("al_ref");
+    api.rpc("track_visit", { p_visit: sid, p_visitor: vis, p_device: device, p_path: (location.hash.split("/")[1] || "home").slice(0, 30), p_new_page: !!newPage })
+      .then(() => { if (ref && !sessionStorage.getItem("al_refd")) { sessionStorage.setItem("al_refd", 1); return api.rpc("track_ref", { p_visit: sid, p_ref: ref }); } }).catch(() => {});
   } catch { /* never block the app */ }
 }
 export function start() {
+  // came from a friend's shared link (?r=code): remember it so the admin can count visits / new accounts from shares
+  try { const r = new URLSearchParams(location.search).get("r"); if (r && /^[0-9a-f]{8}$/.test(r)) { if (!api.LS.get("al_ref")) api.LS.set("al_ref", r); history.replaceState(null, "", location.pathname + location.hash); } } catch {}
+  // a reminder arrived while the app is open: play a sound and show it
+  navigator.serviceWorker?.addEventListener("message", e => {
+    if (e.data?.type !== "push") return;
+    chime(e.data.level); toast(e.data.title, e.data.level === "urgent" ? "bad" : ""); unreadAt = 0; checkUnread();
+  });
   window.addEventListener("hashchange", render);
   track(false);
   window.addEventListener("hashchange", () => track(true));

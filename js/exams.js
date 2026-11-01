@@ -41,6 +41,11 @@ const urgency = iso => { const hrs = (new Date(iso) - Date.now()) / 3600e3; retu
 export async function upcomingExams(days = 3) {
   try { return await api.select("exams", `select=*&done=eq.false&due_at=gt.${new Date().toISOString()}&due_at=lt.${new Date(Date.now() + days * 864e5).toISOString()}&order=due_at`); } catch { return []; }
 }
+// Today page: small rows inside the shared box
+export async function examRows() {
+  const list = await upcomingExams(3);
+  return list.slice(0, 3).map(e => ({ ic: EXAM_KINDS[e.kind][0], title: e.title, sub: [EXAM_KINDS[e.kind][1], e.course].filter(Boolean).join(" · "), left: leftLabel(e.due_at).replace(" left", ""), color: urgency(e.due_at) }));
+}
 // Today page: what is due in the next 3 days
 export async function examsCard() {
   const list = await upcomingExams(3);

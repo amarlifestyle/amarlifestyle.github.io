@@ -17,19 +17,19 @@ async function boot() {
   if (Date.now() - last > 30 * 60000) {
     const pin = await askPin("Admin check: enter your PIN.");
     if (!pin) return app.replaceChildren(h("div.auth", h("div.card.empty", h("p", "Cancelled."), h("button.btn", { onclick: boot }, "Try again"))));
-    try { await api.rpc("check_pin", { p_pin: pin }); } catch (e) { toast(e.message, "bad"); return boot(); }
+    try { if (!(await api.rpc("check_pin", { p_pin: pin }))) { toast("Wrong PIN.", "bad"); return boot(); } } catch (e) { toast(e.message, "bad"); return boot(); }
     sessionStorage.setItem(UNLOCK_KEY, Date.now());
   }
   render();
 }
 
 function render() {
-  const tabs = [["overview", "Overview"], ["traffic", "Visitors"], ["wishes", "Feature wishes"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
+  const tabs = [["overview", "Overview"], ["traffic", "Visitors"], ["capacity", "Capacity & AI"], ["shares", "Shares"], ["wishes", "Feature wishes"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
   const body = h("div");
   app.replaceChildren(
     h("header.topbar", h("div.brandmark", h("img", { src: "../assets/icon-64.png", width: 30, alt: "", style: { borderRadius: "8px" } }), h("span", "Amar ", h("b", "Lifestyle"), h("span.muted", " · Control"))), h("a.btn.small", { href: "../" }, "Open app")),
     h("div.tabs", tabs.map(([k, l]) => h("button" + (k === tab ? ".on" : ""), { onclick: () => { tab = k; render(); } }, l))), body);
-  ({ overview, traffic, wishes, requests, users, logins, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
+  ({ overview, traffic, capacity, shares, wishes, requests, users, logins, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
 }
 
 async function overview(b) {
@@ -199,6 +199,64 @@ async function traffic(b) {
   b.append(h("div.card", h("h3", "Devices — last 7 days"), h("div.list", dev.map(([d, n]) => h("div.li", h("div.grow", d), h("span.small", `${n} · ${Math.round(n / totalDev * 100)}%`)))),
     h("p.small.muted.mb0", { style: { marginTop: "8px" } }, `Coming back again: ${a.returning_pct ?? 0}% of visitors this week · All-time visitors: ${a.total_visitors ?? 0}`)));
   b.append(h("p.small.faint", "Counted with a random id per device — names, phone numbers and what people write are not tracked here."));
+}
+
+// how much of the free limits is used, and roughly how many more people the app can take
+async function capacity(b) {
+  const c = await api.rpc("admin_capacity");
+  const MB = 1048576, LIM = { db: 500 * MB, storage: 1024 * MB, fn: 500000, mau: 50000 };
+  const aiCap = Number(String(c.cfg_ai_day).replace(/"/g, "")) || 1000;
+  const active = Math.max(1, c.mau), dau = Math.max(1, c.dau), days = Math.max(1, (c.ai_by_day || []).length);
+  const aiAvg = c.ai_30d / days / active || 0.5, aiPeak = Math.max(c.ai_peak_day, c.ai_today) / dau || 1;
+  const dbPer = Math.max((c.db_bytes - 12 * MB) / Math.max(1, c.users), 0.2 * MB);
+  const fnFree = LIM.fn - c.cron_fn_month;
+  const est = {
+    ai: [aiCap / Math.max(aiPeak, 0.1), aiCap / Math.max(aiAvg, 0.1)],
+    db: [(LIM.db * 0.9) / (dbPer * 4), (LIM.db * 0.9) / dbPer],
+    fn: [fnFree / (aiPeak * 30 + 10), fnFree / (aiAvg * 30 + 5)],
+    mau: [LIM.mau, LIM.mau],
+  };
+  const lo = Math.floor(Math.min(...Object.values(est).map(x => x[0]))), hi = Math.floor(Math.min(...Object.values(est).map(x => x[1])));
+  const neck = Object.entries(est).sort((p, q) => p[1][0] - q[1][0])[0][0];
+  const NAME = { ai: "AI (Gemini daily limit)", db: "Database size", fn: "Server function calls", mau: "Monthly users (auth)" };
+  const pct = (u, l) => Math.min(100, Math.round(u / l * 1000) / 10);
+  const meter = (label, used, limit, sub) => { const p = pct(used, limit); return h("div.li", { style: { display: "block" } },
+    h("div.row.between", h("b", label), h("span.small", `${p}%`)),
+    h("div", { style: { height: "8px", borderRadius: "6px", background: "var(--line)", margin: "6px 0 4px", overflow: "hidden" } }, h("div", { style: { width: Math.max(p, 1) + "%", height: "100%", background: p > 80 ? "var(--red)" : p > 50 ? "var(--amber)" : "var(--brand)" } })),
+    h("div.small.muted", sub)); };
+  const stat = (k, v, sub) => h("div.stat", h("div.k", k), h("div.v", v), sub ? h("div.small.muted", sub) : null);
+  b.append(h("div.card", { style: { borderColor: "color-mix(in srgb, var(--brand) 45%, transparent)" } },
+    h("div.small.muted", "আরও কতজন ব্যবহার করতে পারবে (আনুমানিক)"),
+    h("div", { style: { fontSize: "28px", fontWeight: 700, margin: "4px 0" } }, `${Math.max(0, lo - active).toLocaleString()} – ${Math.max(0, hi - active).toLocaleString()} জন`),
+    h("div.small.muted", `মোট ${lo.toLocaleString()}–${hi.toLocaleString()} জন active user পর্যন্ত চলবে। প্রথমে শেষ হবে: `, h("b", NAME[neck]), "।"),
+    h("p.small.faint.mb0", { style: { marginTop: "6px" } }, "এখনকার ব্যবহারের হার দেখে হিসাব — ইউজার যত বাড়বে, হিসাব তত ঠিক হবে।")));
+  b.append(h("div.grid3", stat("Users", c.users, `${c.mau} active (30d)`), stat("Today", c.dau, `${c.wau} this week`), stat("AI today", c.ai_today, `${c.ai_users_today} people`)));
+  b.append(h("div.section-title", h("h2", "Free limits used")), h("div.list",
+    meter("✨ AI — today", c.ai_today, aiCap, `${c.ai_today} / ${aiCap} requests today · avg ${aiAvg.toFixed(1)} per person per day`),
+    meter("🗄️ Database", c.db_bytes, LIM.db, `${(c.db_bytes / MB).toFixed(1)} MB / 500 MB · ~${(dbPer / MB).toFixed(2)} MB per user`),
+    meter("⚙️ Server functions — this month (est.)", c.cron_fn_month + c.ai_30d, LIM.fn, `${(c.cron_fn_month + c.ai_30d).toLocaleString()} / 500,000 · reminders run every minute = ${c.cron_fn_month.toLocaleString()}`),
+    meter("👥 Monthly active users", c.mau, LIM.mau, `${c.mau} / 50,000`),
+    meter("📁 File storage", c.storage_bytes, LIM.storage, `${(c.storage_bytes / MB).toFixed(1)} MB / 1 GB`)));
+  b.append(h("div.card.mt", h("h3", "AI requests — last 14 days"), barChart((c.ai_by_day || []).map(x => ({ l: String(x.d).slice(8), v: x.n }))),
+    h("p.small.muted.mb0", "Each person can use AI up to 40 times a day.")));
+  const capIn = h("input.input", { type: "number", min: "50", value: aiCap, style: { maxWidth: "140px" } });
+  const save = h("button.btn.small", "Save");
+  save.onclick = busy(save, async () => { await api.rpc("admin_set_config", { p_key: "cap_ai_day", p_value: Number(capIn.value) }); toast("Saved ✓", "ok"); });
+  b.append(h("div.card", h("h3", "Gemini daily limit"), h("p.small.muted", "Google AI Studio → your API key → Rate limits. Put the requests-per-day number here so the estimate is right."), h("div.row", { style: { gap: "8px" } }, capIn, save)));
+  b.append(h("p.small.faint", "Not counted here: download traffic (Supabase free: 5 GB/month) — check it in the Supabase dashboard → Usage. The website files themselves are served free by GitHub Pages."));
+}
+
+// who shared the app, and how many people came / joined from their links
+async function shares(b) {
+  const s = await api.rpc("admin_shares");
+  const stat = (k, v) => h("div.stat", h("div.k", k), h("div.v", v));
+  b.append(h("div.grid3", stat("Shares", s.total), stat("Visitors from links", s.visitors), stat("Joined from links", s.joined)));
+  const ch = Object.entries(s.by_channel || {}).sort((p, q) => q[1] - p[1]);
+  if (ch.length) b.append(h("p.small.muted.mt", "By: ", ch.map(([k, n]) => `${k === "phone" ? "phone share menu" : k} ${n}`).join(" · ")));
+  b.append(h("div.section-title", h("h2", "People who shared")));
+  b.append((s.people || []).length ? h("div.list", s.people.map(p => h("div.li", h("div.grow", h("b", p.name || "—"), h("div.small.muted", [p.occupation, p.last ? "last " + new Date(p.last).toLocaleDateString("en-GB") : null].filter(Boolean).join(" · "))),
+    h("span.small", `${p.shares} shares · ${p.visitors} came · ${p.joined} joined`)))) : h("div.card.small.muted", "No shares yet. Users share from More → Share the app."));
+  b.append(h("p.small.faint", "“Came” = different phones that opened a shared link. “Joined” = of those, how many logged in."));
 }
 
 // things users asked the AI for that the app can't do yet — ideas for the next update

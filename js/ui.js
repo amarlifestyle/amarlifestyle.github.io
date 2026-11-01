@@ -58,6 +58,7 @@ const P = {
   focus: '<circle cx="12" cy="12" r="3"/><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/>',
   download: '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  alerts: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
@@ -266,4 +267,26 @@ export function pickPhoto(title = "ছবি দিন") {
     sheet(title, [h("div.list", opt("📷", "Camera", "এখনই ছবি তুলুন", true), opt("🖼️", "Gallery", "আগে তোলা ছবি থেকে বেছে নিন", false))],
       { actions: close => [h("button.btn", { onclick: () => { close(null); fin(null); } }, "Cancel")] }).then(v => { if (v === null) setTimeout(() => { /* picker may still answer */ }, 0); });
   });
+}
+
+// a short alert sound while the app is open (phones play their own sound for notifications when it's closed)
+let actx = null;
+const unlockAudio = () => { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch {} };
+addEventListener("pointerdown", unlockAudio, { once: true, capture: true });
+export function chime(level = "normal") {
+  try {
+    unlockAudio(); if (!actx) return;
+    const notes = level === "urgent" ? [880, 1175, 1568, 0, 880, 1175, 1568] : [784, 1047];
+    let t = actx.currentTime + 0.02;
+    for (const f of notes) {
+      if (f) {
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.type = "triangle"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+        o.connect(g).connect(actx.destination); o.start(t); o.stop(t + 0.25);
+      }
+      t += 0.14;
+    }
+    if (level === "urgent") navigator.vibrate?.([300, 120, 300]);
+  } catch { /* no sound on this device */ }
 }

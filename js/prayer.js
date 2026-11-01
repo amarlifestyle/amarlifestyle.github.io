@@ -94,7 +94,7 @@ export async function prayerLogs(from, to) {
 const canMark = day => day === todayStr() || (day === addDays(todayStr(), -1) && dhakaHour() < 6);
 const dhakaHour = () => (new Date().getUTCHours() + 6) % 24;
 // two answers: prayed / not prayed
-function answerBtns(day, w, status, after) {
+function answerBtns(day, w, status, after, mini = false) {
   if (status === "unmarked") return h("span.small", { style: { color: "var(--red)" } }, `Not marked · −${pen(w.key)} DP`);
   if (!canMark(day)) return h("span.small.faint", status === "prayed" ? "✓ Prayed" : status === "not_prayed" ? "Not prayed" : "—");
   const send = st => async e => {
@@ -103,8 +103,8 @@ function answerBtns(day, w, status, after) {
     toast(st === "prayed" ? `${w.bn} ✓ Alhamdulillah · +${r.dp} DP` : "Noted — next time, in sha Allah. (No DP cut)", st === "prayed" ? "ok" : "");
     after();
   };
-  const yes = h("button.btn.small" + (status === "prayed" ? ".primary" : ""), { type: "button" }, status === "prayed" ? "✓ Prayed" : `Prayed +${pdp(w.key)}`);
-  const no = h("button.btn.small" + (status === "not_prayed" ? ".danger" : ""), { type: "button" }, "Not prayed");
+  const yes = h("button.btn.small" + (status === "prayed" ? ".primary" : ""), { type: "button", title: "Prayed" }, mini ? `✓ +${pdp(w.key)}` : status === "prayed" ? "✓ Prayed" : `Prayed +${pdp(w.key)}`);
+  const no = h("button.btn.small" + (status === "not_prayed" ? ".danger" : ""), { type: "button", title: "Not prayed" }, mini ? "✕" : "Not prayed");
   yes.onclick = busy(yes, send("prayed")); no.onclick = busy(no, send("not_prayed"));
   return h("div.row", { style: { gap: "6px", flexShrink: 0 } }, yes, no);
 }
@@ -117,13 +117,11 @@ export async function prayerNow() {
   if (!w) { const y = waqts(addDays(today, -1))[4]; if (now >= y.start && now < y.end) { w = y; day = addDays(today, -1); } }
   if (!w) return null;
   const st = (await prayerLogs(day, day)).find(r => r.prayer === w.key)?.status;
-  return h("div.card", { style: { padding: "8px 12px", marginBottom: "10px", borderColor: `color-mix(in srgb, ${C} 55%, transparent)`, background: `color-mix(in srgb, ${C} 8%, var(--card))` } },
-    h("div.row.between", { style: { gap: "8px", alignItems: "center" } },
-      h("a", { href: "#/prayer", style: { color: "inherit", minWidth: 0 } },
-        h("div", h("b", "🕌 ", w.bn, " time now"), st === "prayed" ? h("span.small", { style: { color: "var(--green)", marginLeft: "6px" } }, "Prayed") : st === "not_prayed" ? h("span.small", { style: { color: "var(--red)", marginLeft: "6px" } }, "Not prayed") : null),
-        h("div.small.muted", `Ends ${tm(w.end)} · ${left(w.end - now)} left`)),
-      st === "prayed" ? h("span.mark.ok.big", "✓") : st === "not_prayed" ? h("span.mark.bad.big", "✕") : answerBtns(day, w, st, rerender)),
-    st === "not_prayed" ? h("div.small", { style: { marginTop: "6px", color: "var(--amber)" } }, "⚠️ নামাজ ফরজ — সময় থাকতে এখনো পড়ে নিতে পারেন। পরের ওয়াক্ত যেন মিস না হয়, ইনশাআল্লাহ।") : null);
+  // one small row; once answered it shrinks to a single line
+  const ic = h("span.s-ic", "🕌");
+  if (st === "prayed") return h("a.srow", { href: "#/prayer" }, ic, h("div.s-main", h("div.ell", w.bn, " ", h("span", { style: { color: "var(--green)" } }, "✓ Prayed"))), h("span.s-tag", left(w.end - now)));
+  if (st === "not_prayed") return h("a.srow", { href: "#/prayer" }, ic, h("div.s-main", h("div.ell", w.bn, " ", h("span", { style: { color: "var(--red)" } }, "✕ Not prayed")), h("div.s-sub.ell", { style: { color: "var(--amber)" } }, `সময় আছে আর ${left(w.end - now)} — এখনো পড়ে নিতে পারেন`)));
+  return h("div.srow.prayer", ic, h("a.s-main", { href: "#/prayer", style: { color: "inherit" } }, h("div.ell", h("b", w.bn), " time now"), h("div.s-sub", `${left(w.end - now)} left`)), answerBtns(day, w, st, rerender, true));
 }
 // one line for the night report
 export async function prayerCount(day) {

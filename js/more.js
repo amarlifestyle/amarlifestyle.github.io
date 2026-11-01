@@ -2,18 +2,18 @@
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";
 import { RELIGIONS, religionPicker } from "./prayer.js";
-import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go, ROLES, occupationPicker, myRoles, role } from "./app.js";
+import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go, ROLES, occupationPicker, myRoles, role, setUnread } from "./app.js";
 import { codeResetForm } from "./auth.js";
 
 const li = (href, ic, title, sub) => h("a.li", { href }, h("div.ic", icon(ic)), h("div.grow", h("b", title), sub ? h("div.small.muted", sub) : null), icon("chev", "chev"));
 
 route("more", page => {
   page.append(topbar(t("More")));
+  page.append(h("button.share-card", { onclick: shareApp }, h("span.share-ic", "📤"), h("div.grow", h("b", "Share the app with friends"), h("div.small.muted", "WhatsApp, Messenger, Facebook…")), icon("chev", "chev")));
   page.append(h("div.list",
     li("#/calendar", "cal", "Calendar", "Extra classes, birthdays, meetings"),
     li("#/reports", "report", t("Reports"), "PDF with QR verification")));
   page.append(h("div.list",
-    li("#/notifications", "bell", "Notifications", "Turn on reminders · Telegram · recent alerts"),
     li("#/settings", "gear", t("Settings"), "PIN, theme, language, privacy"),
     li("#/download", "download", "Get the app", "Install on your phone"),
     li("#/about", "info", t("About Us")),
@@ -24,6 +24,27 @@ route("more", page => {
   out.onclick = async () => { if (await confirmBox("Log out?", "You'll need your phone number and password to log in again.", "Log out", true)) { api.logout(); localStorage.removeItem("al_basics"); store.profile = null; go("#/login"); } };
   page.append(out, h("p.center.small.faint.mt", "Amar Lifestyle · made by Musfiqur Rahman"));
 }, { tab: "more" });
+
+// ---------- share with friends: the phone's own share menu, with the link and a few lines on why
+const PITCH = "Amar Lifestyle — a free app that keeps your day on track:\n✅ Daily routine with reminders before every task\n📝 Exam & deadline alerts that get stronger as the day comes\n৳ Track income and spending in one tap\n✨ An AI helper that plans with you (Bangla or English)\n🏅 Earn points, level up from Bronze to Diamond\nTry it 👇";
+async function shareApp() {
+  let code = null;
+  try { code = await api.rpc("log_share", { p_channel: navigator.share ? "phone" : "menu" }); } catch { /* offline: share anyway */ }
+  const url = api.SITE_URL + (code ? `?r=${code}` : "");
+  if (navigator.share) {
+    try { await navigator.share({ title: "Amar Lifestyle", text: PITCH, url }); toast("Thanks for sharing! 💚", "ok"); } catch { /* closed */ }
+    return;
+  }
+  const msg = `${PITCH}\n${url}`, enc = encodeURIComponent;
+  const log = ch => () => api.rpc("log_share", { p_channel: ch }).catch(() => {});
+  sheet("Share the app", [h("p.hint", "Your link: ", h("b", url)),
+    h("div.grid2", { style: { gap: "8px" } },
+      h("a.btn", { href: `https://wa.me/?text=${enc(msg)}`, target: "_blank", rel: "noopener", onclick: log("whatsapp") }, "WhatsApp"),
+      h("a.btn", { href: `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`, target: "_blank", rel: "noopener", onclick: log("facebook") }, "Facebook"),
+      h("a.btn", { href: `fb-messenger://share/?link=${enc(url)}`, onclick: log("messenger") }, "Messenger"),
+      h("a.btn", { href: `https://t.me/share/url?url=${enc(url)}&text=${enc(PITCH)}`, target: "_blank", rel: "noopener", onclick: log("telegram") }, "Telegram")),
+    h("button.btn.primary.block.mt", { onclick: () => { navigator.clipboard?.writeText(msg).then(() => toast("Copied — paste it anywhere ✓", "ok")); log("copy")(); } }, "📋 Copy message + link")]);
+}
 
 // ---------- routine (repeats for 365 days)
 route("routine", async page => {
@@ -259,7 +280,7 @@ route("settings", async (page, open) => {
   });
   const forgotPin = h("button.linkbtn.small", "Forgot PIN?");
   forgotPin.onclick = () => sheet("Forgot PIN", close => codeResetForm("pin", null, () => { close(); rerender(); }));
-  page.append(fold("shield", "PIN", hasPin ? "PIN is set" : "Not set yet", [h("p.hint", "Needed only to edit money entries and to export reports. You stay logged in otherwise."), pinBtn, hasPin ? h("div.center", forgotPin) : null]));
+  page.append(fold("shield", "PIN", hasPin ? "PIN is set" : "Not set yet", [h("p.hint", "Needed to edit money entries, open the full tuition sheet, download a backup and make reports. Adding new money or students never needs it."), pinBtn, hasPin ? h("div.center", forgotPin) : null]));
 
   // nobody can see anyone else's points or profile, so there is nothing to hide here
 
@@ -280,6 +301,7 @@ route("settings", async (page, open) => {
   page.append(...await alertFolds(p));
   const exp = h("button.btn.block", icon("download"), "Download my data (backup)");
   exp.onclick = busy(exp, async () => {
+    const { pinGate } = await import("./pin.js"); if (!(await pinGate("backup", "ব্যাকআপ ডাউনলোড করতে PIN দিন"))) return;
     const tables = ["profiles", "tasks", "routines", "dp_ledger", "finance_entries", "finance_history", "budgets", "recurring_costs", "dues", "savings_goals", "students", "attendance", "tuition_payments", "life_logs", "bad_habits", "habit_logs", "events", "goals", "reports"];
     const out = {};
     for (const tb of tables) out[tb] = await api.select(tb, "select=*");
@@ -327,6 +349,9 @@ route("download", async page => {
     h("ol.small", { style: { paddingLeft: "18px", margin: 0 } },
       h("li", h("b", "Android (Chrome): "), "tap ⋮ → “Add to Home screen” / “Install app”."),
       h("li", h("b", "iPhone / iPad (Safari): "), "tap Share ⬆ → “Add to Home Screen”."))));
+  page.append(h("div.card", h("h3", "🗂️ Today's tasks — home screen widget"), h("p.hint", "A separate small icon on your home screen that opens straight to today's task list — big, simple, with what's running now and what's next."),
+    h("a.btn.primary.block", { href: "tasks/" }, "Open it → then add to Home Screen"),
+    h("p.small.muted.mb0", { style: { marginTop: "8px" } }, "Android: long-press the Amar Lifestyle icon → “Today's tasks” also works.")));
   page.append(h("div.card", h("h3", "🤖 Download for Android"),
     hasApk ? [h("p.hint", "The Android app adds Focus Mode and reminders without internet."), h("a.btn.primary.block", { href: api.apkUrl(), download: "amar-lifestyle.apk" }, icon("download"), "Download APK")]
       : h("p.hint.mb0", "Coming soon. The Android app will add Focus Mode and reminders without internet.")));
@@ -437,7 +462,10 @@ async function alertFolds(p) {
   if (hasTg) {
     const off = h("button.btn.block.danger", "Disconnect Telegram");
     off.onclick = busy(off, async () => { await api.rpc("telegram_unlink"); toast("Disconnected"); rerender(); });
-    tgBody.push(h("p.hint", "✅ Connected. If you forget your password, a reset code will come to your Telegram."), off);
+    const tgOn = { ...(p.notify || {}) }.tg !== false;
+    tgBody.push(h("p.hint", "✅ Connected. Reset codes come here, and important reminders (15 min before, at start, exams, night report) also come with Telegram's sound."),
+      h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", "Send reminders to Telegram"),
+        h("input", { type: "checkbox", checked: tgOn, onchange: async e => { const nt = { ...(p.notify || {}), tg: e.target.checked }; await api.update("profiles", `id=eq.${p.id}`, { notify: nt }); p.notify = nt; } })), off);
   } else {
     const con = h("button.btn.primary.block", "Connect Telegram");
     con.onclick = busy(con, async () => {
@@ -445,17 +473,19 @@ async function alertFolds(p) {
       window.open(`https://t.me/${api.TG_BOT}?start=${code}`, "_blank");
       toast("Tap START in Telegram, then come back here.", "ok");
     });
-    tgBody.push(h("p.hint", "Used only for password reset: forgot your password? Get a code on Telegram."), con,
+    tgBody.push(h("p.hint", "Forgot your password or PIN? Get a code here. Important reminders also come to Telegram with its own sound."), con,
       h("button.linkbtn.small", { onclick: () => rerender() }, "I've pressed START — refresh"));
   }
-  const f2 = fold("lock", "Telegram (password reset)", hasTg ? "Connected" : "Not connected", tgBody);
+  const f2 = fold("lock", "Telegram", hasTg ? "Connected" : "Not connected", tgBody);
   return [f1, f2];
 
 }
 
 // ---------- Notifications page: turn on, Telegram, and the latest important notifications
 route("notifications", async page => {
-  page.append(backbar("Notifications", "#/more"));
+  page.append(topbar("Alerts", "Notifications · Telegram · Home Screen"));
+  const { isStandalone, installBody } = await import("./install.js");
+  if (!isStandalone()) { const f = fold("download", "Home Screen", "Not added yet", installBody()); f.open = true; page.append(f); }
   const folds = await alertFolds(store.profile);
   folds.forEach(f => { if (/Off|Not connected/.test(f.textContent.slice(0, 80))) f.open = true; });
   page.append(...folds);
@@ -467,5 +497,5 @@ route("notifications", async page => {
     h("div.grow", h("b", n.title), n.body ? h("div.small.muted", n.body) : null, h("div.small.faint", new Date(n.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }))),
     n.read ? null : h("span.badge.warn", "New")))));
   const unread = list.filter(n => !n.read).map(n => n.id);
-  if (unread.length) api.update("inbox", `id=in.(${unread.join(",")})`, { read: true }).catch(() => {});
-}, { tab: "more" });
+  if (unread.length) api.update("inbox", `id=in.(${unread.join(",")})`, { read: true }).then(() => setUnread(0)).catch(() => {});
+}, { tab: "alerts" });
