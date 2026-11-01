@@ -338,7 +338,7 @@ export function openTimer() {
 // ---------- in-app reminders (while the app is open)
 function askNotify() { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); }
 function notify(msg) {
-  try { if ("Notification" in window && Notification.permission === "granted") new Notification("Amar Lifestyle", { body: msg, icon: "assets/icon-192.png" }); else toast(msg); } catch { toast(msg); }
+  toast(msg); // phone notifications come from the server (push), so inside the app just show a toast
 }
 let nTimer = null;
 function notifyLoop(tasks) {
@@ -350,7 +350,7 @@ function notifyLoop(tasks) {
       if (tk.status !== "pending") continue;
       const s = new Date(tk.start_at).getTime(), u = unlockAt(tk).getTime();
       const k1 = tk.id + ":start", k2 = tk.id + ":unlock";
-      if (now >= s - 10 * 60000 && now < s && !fired.has(k1)) { fired.add(k1); notify(`In 10 min: ${tk.title}`); }
+      if (now >= s - 15 * 60000 && now < s && !fired.has(k1)) { fired.add(k1); notify(`In 15 min: ${tk.title}`); }
       if (now >= u && now < u + 5 * 60000 && !fired.has(k2)) { fired.add(k2); notify(`You can now mark “${tk.title}” as Completed.`); }
     }
     api.LS.set("al_fired", [...fired].slice(-200));
