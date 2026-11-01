@@ -99,6 +99,14 @@ route("today", async page => {
     const m = Math.round((new Date(upNext.start_at) - new Date()) / 60000);
     body.append(h("div.small.muted", { style: { margin: "-2px 4px 8px" } }, "⏭ Next: ", h("b", { style: { color: upNext.color || catColor(upNext.category) } }, upNext.title), ` at ${fmtTime(upNext.start_at)} · in ${m >= 60 ? Math.floor(m / 60) + "h " : ""}${m % 60}m`));
   }
+  // bills due in the next 3 days (not paid yet)
+  try {
+    const mo = today.slice(0, 8) + "01", dnum = Number(today.slice(8));
+    const [bl, bp] = await Promise.all([api.select("bills", "select=id,title,amount,due_day,monthly,start_month&active=eq.true&due_day=not.is.null"), api.select("bill_payments", `select=bill_id&month=eq.${mo}`)]);
+    const soon = bl.filter(b => (b.monthly ? b.start_month <= mo : b.start_month === mo) && !bp.some(p => p.bill_id === b.id) && b.due_day - dnum <= 3);
+    if (soon.length) body.append(h("a.small", { href: "#/money/overview", style: { display: "block", margin: "-2px 4px 8px", color: "var(--amber)" } },
+      "🧾 ", soon.map(b => `${b.title} ${b.due_day < dnum ? "(late)" : b.due_day === dnum ? "today" : "by " + b.due_day}`).join(" · "), " — tap to pay"));
+  } catch { /* offline: skip */ }
   if (navigator.onLine) body.append(coachCard());
   // quote of the day (tap for another)
   let qShift = 0;

@@ -38,6 +38,84 @@ route("money", async (page, tab = "overview", month) => {
   else await plans(body);
 }, { tab: "money" });
 
+// ---------- bills to pay: written in advance, counted as spent only when ticked
+async function billsCard(body, m, savedNow) {
+  const [bills, pays] = await Promise.all([
+    api.select("bills", "select=*&active=eq.true&order=due_day.nullslast,created_at"),
+    api.select("bill_payments", `select=*&month=eq.${m}`),
+  ]);
+  const list = bills.filter(b => b.monthly ? b.start_month <= m : b.start_month === m);
+  const cur = todayStr().slice(0, 8) + "01";
+  const paidOf = b => pays.find(p => p.bill_id === b.id);
+  const total = list.reduce((a, b) => a + (paidOf(b) ? +paidOf(b).amount : +b.amount), 0);
+  const paid = list.filter(paidOf).reduce((a, b) => a + +paidOf(b).amount, 0);
+  const left = total - paid;
+  const card = h("div.card", h("div.row.between", h("h3.mb0", "🧾 Bills to pay"), h("button.btn.small", { onclick: () => billSheet(null, m) }, icon("plus"), "Add bill")));
+  if (!list.length) {
+    card.append(h("p.hint.mt", "Write down bills you have to pay this month (loan, internet, subscriptions…). They are NOT counted as spent until you tick them as paid."));
+    body.append(card); return;
+  }
+  card.append(h("div.small", { style: { margin: "8px 0 4px" } }, h("b.ok", `Paid ${tk(paid)}`), ` of ${tk(total)} · `, h("b" + (left ? ".bad" : ".ok"), left ? `${tk(left)} left to pay` : "all paid ✓")),
+    h("div.bar", h("i", { style: { width: (total ? paid / total * 100 : 0) + "%", background: "var(--green)" } })),
+    left ? h("p.small" + (savedNow - left < 0 ? ".bad" : ".muted"), { style: { margin: "6px 0 0" } }, savedNow - left >= 0 ? `After paying the rest, this month you'd keep ${tk(savedNow - left)}.` : `After paying the rest, this month you'd be short by ${tk(left - savedNow)}.`) : null);
+  list.forEach(b => {
+    const p = paidOf(b);
+    const tick = h("button", { "aria-label": p ? "Paid" : "Mark as paid", disabled: !!p || m > cur, style: { width: "28px", height: "28px", borderRadius: "8px", border: `2px solid ${p ? "var(--green)" : "var(--line2)"}`, background: p ? "var(--green)" : "transparent", color: "#04211D", fontWeight: 800, flexShrink: 0, cursor: p ? "default" : "pointer" } }, p ? "✓" : "");
+    tick.onclick = () => payBill(b, m);
+    card.append(h("div.row", { style: { gap: "10px", padding: "10px 0", borderTop: "1px solid var(--line)", alignItems: "center" } }, tick,
+      h("div.grow", { role: "button", tabindex: "0", style: { cursor: "pointer" }, onclick: () => billSheet(b, m) },
+        h("b", { style: { textDecoration: p ? "line-through" : "", opacity: p ? .7 : 1 } }, b.title),
+        h("div.small.muted", p ? `Paid ${fmtDate(p.paid_on)}` : [b.due_day ? `Due by ${b.due_day} ${monthLabel(m).split(" ")[0]}` : "Not paid yet", b.monthly ? " · every month" : " · one time"].join(""))),
+      h("b" + (p ? ".ok" : ""), tk(p ? p.amount : b.amount))));
+  });
+  body.append(card);
+}
+function payBill(b, m) {
+  const amt = h("input.input", { type: "number", inputmode: "decimal", min: "0", value: b.amount });
+  sheet(`Paid: ${b.title}?`, [h("p.hint", "This adds the money to today's expenses."), h("label.f", h("span", "Amount paid (৳)"), amt)], {
+    actions: close => {
+      const ok = h("button.btn.primary", "✓ Yes, paid");
+      ok.onclick = busy(ok, async () => {
+        const a = Number(amt.value); if (!(a >= 0)) throw new Error("Write the amount.");
+        await api.rpc("pay_bill", { p_bill: b.id, p_month: m, p_amount: a });
+        toast(`${b.title} paid ✓ added to expenses`, "ok"); close(true); rerender();
+      });
+      return [h("button.btn", { onclick: () => close(null) }, t("Cancel")), ok];
+    },
+  });
+}
+function billSheet(b, m) {
+  const title = h("input.input", { placeholder: "e.g. GPFi internet · bKash loan", value: b?.title || "" });
+  const amt = h("input.input", { type: "number", inputmode: "decimal", min: "0", value: b?.amount ?? "" });
+  const cat = h("select.input", expCats().map(c => h("option", { selected: c === (b?.category || "Bills") }, c)));
+  const due = h("input.input", { type: "number", min: "1", max: "31", placeholder: "optional", value: b?.due_day ?? "" });
+  const monthly = h("input", { type: "checkbox", id: "bm", checked: b ? b.monthly : true });
+  sheet(b ? "Edit bill" : "Add bill to pay", [h("label.f", h("span", "Bill"), title), h("div.grid2", h("label.f", h("span", "Amount (৳)"), amt), h("label.f", h("span", "Pay by day"), due)),
+    h("label.f", h("span", "Category"), cat), h("label.check", { for: "bm" }, monthly, h("span", "Every month (comes back next month too)")),
+    h("p.hint", "Not counted as spent until you tick it as paid.")], {
+    actions: close => {
+      const save = h("button.btn.primary", t("Save"));
+      save.onclick = busy(save, async () => {
+        if (!title.value.trim()) throw new Error("Write the bill name.");
+        if (!(Number(amt.value) >= 0) || amt.value === "") throw new Error("Write the amount.");
+        const row = { title: title.value.trim(), amount: Number(amt.value), category: cat.value, due_day: due.value ? Math.min(31, Math.max(1, Number(due.value))) : null, monthly: monthly.checked };
+        if (b) await api.update("bills", `id=eq.${b.id}`, row); else await api.insert("bills", { ...row, user_id: api.userId(), start_month: m });
+        toast("Saved ✓", "ok"); close(true); rerender();
+      });
+      const out = [h("button.btn", { onclick: () => close(null) }, t("Cancel")), save];
+      if (b) {
+        const stop = h("button.btn.danger", { "aria-label": "Remove bill" }, icon("trash"));
+        stop.onclick = busy(stop, async () => {
+          if (!(await confirmBox("Remove this bill?", "It won't show any more. Bills you already paid stay in your expenses.", "Remove", true))) return;
+          await api.update("bills", `id=eq.${b.id}`, { active: false }); close(true); rerender();
+        });
+        out.unshift(stop);
+      }
+      return out;
+    },
+  });
+}
+
 async function overview(body, m, me) {
   const [rows, budgets, all] = await Promise.all([
     api.select("finance_entries", `select=kind,category,amount&entry_date=gte.${m}&entry_date=lte.${me}`),
@@ -52,6 +130,7 @@ async function overview(body, m, me) {
     h("div.stat", h("div.k", t("Expense")), h("div.v.bad", tk(exp))),
     h("div.stat", h("div.k", "Saved this month"), h("div.v", tk(inc - exp)))));
   body.append(h("p.small.muted", { style: { margin: "8px 2px 14px" } }, `Total savings (all time): `, h("b", tk(totalSaved)), " = all income − all expenses."));
+  await billsCard(body, m, inc - exp);
 
   // budgets
   const bmap = Object.fromEntries(budgets.map(b => [b.category, +b.amount]));

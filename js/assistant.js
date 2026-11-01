@@ -16,23 +16,28 @@ const incCats = () => role()?.income || INCOME_DEFAULT;
 // everything the AI may need to know to act (ids included so it can point at the right thing)
 async function gather() {
   const today = todayStr();
-  const [tasks, routines, students, pays, habits] = await Promise.all([
+  const month = today.slice(0, 8) + "01";
+  const [tasks, routines, students, pays, habits, bills, billPays] = await Promise.all([
     api.select("tasks", `select=id,title,category,day,start_at,end_at,status,routine_id,student_id,color&day=gte.${addDays(today, -1)}&day=lte.${addDays(today, 7)}&status=neq.running&order=start_at`),
     api.select("routines", "select=id,title,category,days,start_time,duration_min,student_id,color,template&active=eq.true"),
     api.select("students", "select=id,name,monthly_fee,active,color,created_at&order=name"),
     api.select("tuition_payments", `select=student_id,month&month=gte.${addDays(today, -190).slice(0, 7)}-01`),
-    api.select("bad_habits", "select=id,name"),
+    api.select("bad_habits", "select=id,name&archived=eq.false"),
+    api.select("bills", "select=id,title,amount,category,due_day,monthly,start_month&active=eq.true"),
+    api.select("bill_payments", `select=bill_id&month=eq.${month}`),
   ]);
+  const billsNow = bills.filter(b => b.monthly ? b.start_month <= month : b.start_month === month);
   const sName = id => students.find(s => s.id === id)?.name || null;
   const forAi = {
     tasks: tasks.map(t => ({ id: t.id, title: t.title, category: t.category, date: t.day, weekday: DAYS[new Date(t.day + "T00:00:00").getDay()], start: hm(t.start_at), end: hm(t.end_at), status: t.status, repeats: !!t.routine_id, student: sName(t.student_id) })),
     routines: routines.map(r => ({ id: r.id, title: r.title, category: r.category, days: r.days.map(d => DAYS[d]), start: r.start_time.slice(0, 5), minutes: r.duration_min, student: sName(r.student_id), color: r.color })),
     students: students.map(s => ({ id: s.id, name: s.name, monthly_fee: +s.monthly_fee, active: s.active, paid_months: pays.filter(p => p.student_id === s.id).map(p => p.month.slice(0, 7)).sort() })),
     habits: habits.map(x => ({ id: x.id, name: x.name })),
+    bills_this_month: billsNow.map(b => ({ id: b.id, title: b.title, amount: +b.amount, due_day: b.due_day, monthly: b.monthly, paid: billPays.some(p => p.bill_id === b.id) })),
     task_categories: Object.fromEntries(catNames().map(c => [c, catDp(c)])),
     expense_categories: expCats(), income_categories: incCats(),
   };
-  return { tasks, routines, students, habits, forAi };
+  return { tasks, routines, students, habits, bills: billsNow, billPaid: new Set(billPays.map(p => p.bill_id)), month, forAi };
 }
 
 // one plain line for each proposed change, made from the real data (not from the AI's words)
@@ -69,6 +74,10 @@ function describe(a, c) {
     case "add_goal": if (!a.title) return null; return { ic: "🎯", area: "goal", text: `লক্ষ্য (${{ year: "বছর", month: "মাস", week: "সপ্তাহ" }[a.span] || "বছর"}): ${a.title}` };
     case "habit": { const name = c.habits.find(x => x.id === a.habit_id)?.name || a.name; if (!name || !(+a.count > 0)) return null;
       return { ic: "🚫", area: "habit", text: `খারাপ অভ্যাস: ${name} · আজ +${+a.count}${c.habits.some(x => x.id === a.habit_id) ? "" : " (নতুন যোগ হবে)"}` }; }
+    case "add_bill": if (!a.title || !(+a.amount >= 0)) return null;
+      return { ic: "🧾", area: "bill", text: `বিল লিখে রাখা (এখনো দেওয়া হয়নি): ${a.title} · ${money(+a.amount)}${a.monthly === false ? " · শুধু এই মাস" : " · প্রতি মাসে"}${a.due_day ? ` · ${a.due_day} তারিখের মধ্যে` : ""}` };
+    case "pay_bill": { const b = c.bills.find(x => x.id === a.bill_id); if (!b || c.billPaid.has(b.id)) return null;
+      return { ic: "✅", area: "expense", amount: +a.amount || +b.amount, text: `বিল দেওয়া হয়েছে: ${b.title} · ${money(+a.amount || +b.amount)} (আজকের খরচে যোগ হবে)` }; }
     case "add_due": if (!a.person || !(+a.amount > 0)) return null;
       return { ic: "🤝", area: "due", text: `${a.direction === "i_owe" ? "আমি দেব" : "আমি পাব"}: ${a.person} · ${money(+a.amount)}` };
   }
@@ -84,6 +93,7 @@ function summary(items) {
     (sum("income") + sum("fee")) && `💰 আয় বাড়বে: ${money(sum("income") + sum("fee"))}`,
     sum("expense") && `💸 খরচ বাড়বে: ${money(sum("expense"))}`,
     (n("student") || n("fee")) && `🎓 টিউশন: ${[n("student") && n("student") + "টা স্টুডেন্ট যোগ/বদল", n("fee") && n("fee") + "টা মাসের ফি"].filter(Boolean).join(", ")}`,
+    n("bill") && `🧾 +${n("bill")} বিল লিস্টে (দেওয়া না হওয়া পর্যন্ত খরচ ধরা হবে না)`,
     n("cat") && `🏷️ +${n("cat")} ক্যাটাগরি`, n("event") && `🗓️ +${n("event")} ক্যালেন্ডারে`, n("goal") && `🎯 +${n("goal")} লক্ষ্য`, n("habit") && `🚫 ${n("habit")}টা অভ্যাসের হিসাব`, n("due") && `🤝 +${n("due")} পাওনা/দেনা`,
   ].filter(Boolean);
 }
@@ -147,6 +157,8 @@ async function run(a, c) {
       for (let i = 0; i < Math.min(50, +a.count); i++) await api.insert("habit_logs", { user_id: api.userId(), habit_id: id, day: todayStr() });
       return;
     }
+    case "add_bill": return api.insert("bills", { user_id: api.userId(), title: a.title.trim(), amount: +a.amount || 0, category: expCats().includes(a.category) ? a.category : "Bills", due_day: +a.due_day >= 1 && +a.due_day <= 31 ? +a.due_day : null, monthly: a.monthly !== false, start_month: c.month });
+    case "pay_bill": return api.rpc("pay_bill", { p_bill: a.bill_id, p_month: c.month, p_amount: +a.amount || null });
     case "add_due": return api.insert("dues", { user_id: api.userId(), person: a.person, amount: +a.amount, direction: a.direction === "i_owe" ? "i_owe" : "they_owe", note: a.note || null });
   }
 }
@@ -233,7 +245,7 @@ export function askSheet() {
   };
   const voice = voiceRecorder(audio => ask({ audio }), { label: "বলুন — প্রশ্ন বা কাজ" });
   return sheet("🤖 Ask AI", [
-    h("p.hint", { style: { marginTop: 0 } }, "প্রশ্ন করুন, বা যেকোনো কাজ বলুন — টাস্ক যোগ/বাদ, সময় বদল, মার্ক, রুটিন, ক্যাটাগরি, স্টুডেন্ট, ফি, আয়-খরচ, ক্যালেন্ডার, লক্ষ্য, অভ্যাস। ছবিও দিতে পারেন (রুটিনের ছবি, রসিদ…)। করার আগে দেখিয়ে নেবে।"),
+    h("p.hint", { style: { marginTop: 0 } }, "প্রশ্ন করুন, বা যেকোনো কাজ বলুন — টাস্ক যোগ/বাদ, সময় বদল, মার্ক, রুটিন, ক্যাটাগরি, স্টুডেন্ট, ফি, আয়-খরচ, মাসের বিল, ক্যালেন্ডার, লক্ষ্য, অভ্যাস। ছবিও দিতে পারেন (রুটিনের ছবি, রসিদ…)। করার আগে দেখিয়ে নেবে।"),
     voice, h("div.small.faint", { style: { textAlign: "center", margin: "10px 0 6px" } }, "— অথবা লিখুন —"), q, h("div.row", { style: { gap: "8px", marginTop: "6px" } }, photoBtn, fileIn), thumb, out], {
     actions: close => {
       const go = h("button.btn.primary", "Send");
