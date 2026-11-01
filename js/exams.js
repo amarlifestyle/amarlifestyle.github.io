@@ -1,9 +1,26 @@
 // Amar Lifestyle — Exams: class tests, lab reports, assignments. Reminders get more frequent as the day comes.
 import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, confirmBox, todayStr, addDays, fmtDate, pad } from "./ui.js";
-import { route, rerender } from "./app.js";
+import { route, rerender, store } from "./app.js";
 
-export const EXAM_KINDS = { ct: ["📝", "CT"], lab: ["🧪", "Lab report"], assignment: ["📄", "Assignment"], exam: ["🎓", "Exam"], other: ["📌", "Other"] };
+export const EXAM_KINDS = {
+  ct: ["📝", "CT"], lab: ["🧪", "Lab report"], assignment: ["📄", "Assignment"], exam: ["🎓", "Exam"],
+  paper: ["🖨️", "Question paper"], checking: ["✍️", "Script checking"], result: ["📊", "Result submit"],
+  delivery: ["📦", "Delivery"], payment: ["💰", "Payment"], meeting: ["🤝", "Meeting"],
+  report: ["📑", "Report"], presentation: ["📽️", "Presentation"],
+  appointment: ["🩺", "Appointment"], fee: ["🏫", "School fee"], shopping: ["🛒", "Shopping"], occasion: ["🎉", "Occasion"],
+  other: ["📌", "Other"],
+};
+// each kind of person gets the deadlines that fit their day
+const ROLE_DEADLINES = {
+  school: { tab: "📝 Exams", sub: "Class tests & exams", add: "Add CT / exam", kinds: ["ct", "exam", "assignment", "other"], eg: "e.g. Physics CT — chapter 3" },
+  student: { tab: "📝 Exams", sub: "CT, lab reports & exams", add: "Add CT / lab report / exam", kinds: ["ct", "lab", "assignment", "exam", "presentation", "other"], eg: "e.g. CT-2: Kinematics" },
+  teacher: { tab: "📋 Exam work", sub: "Question papers, checking & results", add: "Add exam work", kinds: ["paper", "checking", "result", "exam", "meeting", "other"], eg: "e.g. Class 9 Physics question paper" },
+  business: { tab: "📦 Deadlines", sub: "Deliveries, payments & meetings", add: "Add deadline", kinds: ["delivery", "payment", "meeting", "report", "other"], eg: "e.g. 50 pcs order to Rahim Traders" },
+  job: { tab: "📌 Deadlines", sub: "Reports, meetings & presentations", add: "Add deadline", kinds: ["report", "meeting", "presentation", "exam", "other"], eg: "e.g. Monthly sales report" },
+  homemaker: { tab: "🗓️ Reminders", sub: "Appointments, fees & occasions", add: "Add reminder", kinds: ["appointment", "fee", "payment", "shopping", "occasion", "other"], eg: "e.g. Doctor appointment — Ammu" },
+};
+export const deadlines = () => ROLE_DEADLINES[store.profile?.occupation] || ROLE_DEADLINES.student;
 const when = iso => new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Dhaka" });
 export function leftLabel(iso) {
   const ms = new Date(iso) - Date.now();
@@ -31,34 +48,36 @@ export async function examsCard() {
 
 route("exams", async page => {
   const { routineTabsAsync } = await import("./timetable.js");
-  page.append(h("header.topbar", h("div", h("h1", "Routine"), h("div.sub", "CT, lab reports & exams"))), await routineTabsAsync("exams"));
+  const R = deadlines();
+  page.append(h("header.topbar", h("div", h("h1", "Routine"), h("div.sub", R.sub))), await routineTabsAsync("exams"));
   const all = await api.select("exams", "select=*&order=due_at");
   const now = Date.now();
   const open = all.filter(e => !e.done && new Date(e.due_at) > now), past = all.filter(e => e.done || new Date(e.due_at) <= now).reverse().slice(0, 15);
-  page.append(h("button.btn.primary.block", { onclick: () => examSheet() }, icon("plus"), "Add CT / lab report / exam"));
+  page.append(h("button.btn.primary.block", { onclick: () => examSheet() }, icon("plus"), R.add));
   const row = e => h("button.li", { onclick: () => examSheet(e), style: { textAlign: "left", opacity: e.done ? .6 : 1 } },
     h("div.ic", EXAM_KINDS[e.kind][0]),
     h("div.grow", { style: { minWidth: 0 } }, h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.title), h("div.small.muted", [EXAM_KINDS[e.kind][1], e.course, when(e.due_at)].filter(Boolean).join(" · "))),
     e.done ? h("span.badge.ok", "Done") : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)));
   page.append(h("div.section-title", h("h2", "Coming up")));
-  page.append(open.length ? h("div.list", open.map(row)) : h("div.card.empty", h("p", "Nothing due. Add your next CT or lab report.")));
+  page.append(open.length ? h("div.list", open.map(row)) : h("div.card.empty", h("p", "Nothing due right now.")));
   page.append(h("p.hint.mt", "Reminders: daily → twice a day in the last week → 3 times in the last 3 days → every 3 hours in the last 2 days → every 2 hours on the last day → every hour in the last 3 hours."));
   if (past.length) page.append(h("div.section-title", h("h2", "Done & past")), h("div.list", past.map(row)));
 }, { tab: "week" });
 
 function examSheet(e) {
-  let kind = e?.kind || "ct";
+  const R = deadlines();
+  let kind = e?.kind || R.kinds[0];
   const seg = h("div.row.wrap", { style: { gap: "6px" } });
-  const drawSeg = () => seg.replaceChildren(...Object.entries(EXAM_KINDS).map(([k, [ic, l]]) => h("button.chip" + (k === kind ? ".on" : ""), { type: "button", onclick: () => { kind = k; drawSeg(); } }, ic, " ", l)));
+  const drawSeg = () => seg.replaceChildren(...Object.entries(EXAM_KINDS).filter(([k]) => R.kinds.includes(k) || k === kind).map(([k, [ic, l]]) => h("button.chip" + (k === kind ? ".on" : ""), { type: "button", onclick: () => { kind = k; drawSeg(); } }, ic, " ", l)));
   drawSeg();
   const d0 = e ? new Date(new Date(e.due_at).getTime() + 6 * 3600e3) : null;
-  const title = h("input.input", { value: e?.title || "", placeholder: "e.g. CT-2: Kinematics", maxlength: "120" });
-  const course = h("input.input", { value: e?.course || "", placeholder: "e.g. PHY 101 (optional)", maxlength: "60" });
+  const title = h("input.input", { value: e?.title || "", placeholder: R.eg, maxlength: "120" });
+  const course = h("input.input", { value: e?.course || "", placeholder: "optional", maxlength: "60" });
   const date = h("input.input", { type: "date", value: d0 ? d0.toISOString().slice(0, 10) : addDays(todayStr(), 3) });
   const time = h("input.input", { type: "time", value: d0 ? `${pad(d0.getUTCHours())}:${pad(d0.getUTCMinutes())}` : "10:00" });
-  const note = h("textarea.input", { placeholder: "Syllabus, chapters… (optional)", style: { minHeight: "56px" } }, e?.note || "");
-  sheet(e ? "Edit" : "Add CT / lab report / exam", [
-    h("label.f", h("span", "Type"), seg), h("label.f", h("span", "Title"), title), h("label.f", h("span", "Course"), course),
+  const note = h("textarea.input", { placeholder: ["student", "school"].includes(store.profile?.occupation) ? "Syllabus, chapters… (optional)" : "Details (optional)", style: { minHeight: "56px" } }, e?.note || "");
+  sheet(e ? "Edit" : R.add, [
+    h("label.f", h("span", "Type"), seg), h("label.f", h("span", "Title"), title), (["student", "school", "teacher"].includes(store.profile?.occupation) || !store.profile?.occupation) ? h("label.f", h("span", store.profile?.occupation === "teacher" ? "Class / subject" : "Course"), course) : h("label.f", h("span", "With / where (optional)"), course),
     h("div.grid2", h("label.f", h("span", "Due date"), date), h("label.f", h("span", "Time"), time)),
     h("label.f", h("span", "Notes"), note)], {
     actions: close => {
