@@ -289,7 +289,7 @@ async function tuition(body, m) {
   // a month becomes due only after it ends: during November, October and before are due
   const cur = monthStart(today);
   const paidAll = new Set(allPays.map(p => p.student_id + p.month.slice(0, 7)));
-  const dueMonths = st => { const out = []; for (let mo = [monthStart(joinDay(st)), shiftMonth(cur, -3)].sort().pop(); mo < cur; mo = shiftMonth(mo, 1)) if (!paidAll.has(st.id + mo.slice(0, 7))) out.push(mo); return out; };
+  const dueMonths = st => { const out = []; for (let mo = monthStart(joinDay(st)); mo < cur; mo = shiftMonth(mo, 1)) if (!paidAll.has(st.id + mo.slice(0, 7))) out.push(mo); return out; };
   const due = students.reduce((a, st) => a + dueMonths(st).length * +st.monthly_fee, 0);
   const got = pays.reduce((a, p) => a + +p.amount, 0);
   body.append(h("div.grid2", h("div.stat", h("div.k", `Fees for ${monthLabel(m).split(" ")[0]} received`), h("div.v.ok", tk(got))), h("div.stat", h("div.k", "Due (past months)"), h("div.v.bad", tk(due)))));
@@ -322,18 +322,66 @@ function addStudent(s = null) {
   const fee = h("input.input", { type: "number", inputmode: "decimal", value: s?.monthly_fee || "", placeholder: "0" });
   let color = s?.color || PALETTE[Math.floor(Math.random() * 8)];
   const colors = colorPicker(color, c => color = c);
-  return sheet(s ? "Edit student" : "Add student", [h("label.f", h("span", "Name"), name), h("label.f", h("span", "Monthly fee (৳)"), fee), h("label.f", h("span", "Colour (used in the week chart)"), colors)], {
+  // only when adding: from which month, and which past months are still due (set once, then it runs by itself)
+  const cur = monthStart(todayStr());
+  const start = h("input.input", { type: "month", value: cur.slice(0, 7), max: cur.slice(0, 7) });
+  const due = new Set();
+  const monthsBox = h("div");
+  const drawMonths = () => {
+    const from = (start.value || cur.slice(0, 7)) + "-01";
+    const list = []; for (let m = from; m < cur; m = shiftMonth(m, 1)) list.push(m);
+    if (!list.length) { monthsBox.replaceChildren(h("p.small.muted", "Starts this month — nothing is due yet.")); return; }
+    monthsBox.replaceChildren(h("p.small.muted", { style: { margin: "0 0 6px" } }, "Tap the months that are still DUE (not paid). The others count as already cleared."),
+      h("div.row.wrap", { style: { gap: "6px" } }, list.map(m => h("button.btn.small" + (due.has(m) ? ".danger" : ""), { type: "button", style: due.has(m) ? { borderColor: "var(--red)" } : {}, onclick: () => { due.has(m) ? due.delete(m) : due.add(m); drawMonths(); } },
+        monthLabel(m).split(" ")[0].slice(0, 3), " ", due.has(m) ? "· Due" : "· Cleared"))));
+  };
+  start.onchange = () => { [...due].forEach(m => { if (m < start.value + "-01") due.delete(m); }); drawMonths(); };
+  drawMonths();
+  const setup = s ? [] : [h("label.f", h("span", "Teaching since (month)"), start), monthsBox, h("p.hint", "⚠️ This is set once. After saving, months are added automatically and this can't be changed.")];
+  return sheet(s ? "Edit student" : "Add student", [h("label.f", h("span", "Name"), name), h("label.f", h("span", "Monthly fee (৳)"), fee), ...setup, h("label.f", h("span", "Colour (used in the week chart)"), colors)], {
     actions: close => {
       const save = h("button.btn.primary", t("Save"));
       save.onclick = busy(save, async () => {
         if (!name.value.trim()) throw new Error("Write the student's name.");
         const row = { name: name.value.trim(), monthly_fee: Number(fee.value) || 0, color };
-        if (s) await api.update("students", `id=eq.${s.id}`, row); else await api.insert("students", { ...row, user_id: api.userId() });
+        if (s) await api.update("students", `id=eq.${s.id}`, row);
+        else {
+          const from = (start.value || cur.slice(0, 7)) + "-01";
+          if (due.size && !(await confirmBox("Save student?", `Due months: ${[...due].sort().map(m => monthLabel(m).split(" ")[0]).join(", ") || "none"}. This can't be changed later.`, "Save"))) return;
+          const r = await api.insert("students", { ...row, user_id: api.userId(), created_at: new Date(from + "T12:00:00+06:00").toISOString() });
+          const sid = (Array.isArray(r) ? r[0] : r)?.id;
+          const cleared = []; for (let m = from; m < cur; m = shiftMonth(m, 1)) if (!due.has(m)) cleared.push(m);
+          if (sid && cleared.length) await api.insert("tuition_payments", cleared.map(m => ({ user_id: api.userId(), student_id: sid, month: m, amount: row.monthly_fee, cleared: true })));
+        }
         toast("Saved ✓", "ok"); close(true); rerender();
       });
       const b = [h("button.btn", { onclick: () => close(null) }, t("Cancel")), save];
       if (s) b.unshift(h("button.btn.danger", { onclick: async () => { if (await confirmBox("Remove student?", "Old payments stay in your money history.", "Remove", true)) { await api.update("students", `id=eq.${s.id}`, { active: false }); close(true); rerender(); } } }, icon("trash")));
       return b;
+    },
+  });
+}
+
+// a paid box in the sheet: change the amount, or turn it back into "Due" — only while the month is open (until the 5th of next month)
+function paidCell(st, p, e) {
+  const open = e && !isLocked(e.entry_date);
+  sheet(`${st.name} · ${monthLabel(p.month)}`, [h("p", "Paid ", h("b", tk(e ? e.amount : p.amount)), ` on ${fmtDate(p.paid_on)}`),
+    h("p.hint", open ? "You can change this until the 5th of next month. All changes stay in the history." : "This month is locked now (after the 5th of next month). Use “Request special edit” in the entry to ask the Admin.")], {
+    actions: close => {
+      const out = [h("button.btn", { onclick: () => close(null) }, "Close")];
+      if (e) out.push(h("button.btn", { onclick: () => { close(null); entryDetail(e); } }, open ? "Edit amount" : "Details"));
+      if (open) {
+        const undo = h("button.btn.danger", "Mark as Due");
+        undo.onclick = busy(undo, async () => {
+          if (!(await confirmBox("Mark as Due?", `${st.name}'s ${monthLabel(p.month)} fee goes back to Due and the income becomes ৳0 (kept in history).`, "Mark as Due", true))) return;
+          const pin = await askPin("Enter your PIN"); if (!pin) return;
+          await api.rpc("edit_finance", { p_entry: e.id, p_amount: 0, p_note: (e.note || "") + " — marked as due again", p_pin: pin });
+          await api.remove("tuition_payments", `id=eq.${p.id}`);
+          toast("Marked as Due ✓", "ok"); close(true); rerender();
+        });
+        out.push(undo);
+      }
+      return out;
     },
   });
 }
@@ -396,7 +444,7 @@ export async function receivePayment(s, preMonth) {
   const today = todayStr();
   const cur = monthStart(today);
   const paid = new Set((await api.select("tuition_payments", `select=month&student_id=eq.${s.id}`)).map(x => x.month.slice(0, 7)));
-  const months = [...Array(8)].map((_, i) => shiftMonth(cur, i - 6)).filter(x => !paid.has(x.slice(0, 7)) && x >= [monthStart(joinDay(s)), shiftMonth(cur, -3)].sort().pop()); // last 3 months (or since joined) … next month
+  const months = [...Array(8)].map((_, i) => shiftMonth(cur, i - 6)).filter(x => !paid.has(x.slice(0, 7)) && x >= monthStart(joinDay(s))); // last 3 months (or since joined) … next month
   if (!months.length) { toast("All recent months are already paid."); return; }
   const pick = new Set([preMonth && months.includes(preMonth) ? preMonth : (months.filter(x => x < cur).pop() || months[0])]);
   const amounts = {};
@@ -441,13 +489,14 @@ route("student", async (page, id) => {
   // last 12 months
   const today = todayStr();
   const months = [...Array(12)].map((_, i) => shiftMonth(monthStart(today), i - 11));
-  const paid = Object.fromEntries(pays.map(p => [p.month.slice(0, 7), +p.amount]));
+  const paid = Object.fromEntries(pays.map(p => [p.month.slice(0, 7), p.cleared ? 0 : +p.amount]));
+  const settled = new Set(pays.map(p => p.month.slice(0, 7)));
   const days = {}; att.filter(a => a.present).forEach(a => days[a.date.slice(0, 7)] = (days[a.date.slice(0, 7)] || 0) + 1);
   const firstM = [pays[0]?.month, att[0]?.date, joinDay(s)].filter(Boolean).sort()[0]?.slice(0, 7) || today.slice(0, 7);
   const shown = months.filter(m => m.slice(0, 7) >= firstM);
   const lbl = m => new Date(m + "T00:00:00").toLocaleDateString("en-GB", { month: "short" });
-  const total = pays.reduce((a, p) => a + +p.amount, 0);
-  const unpaid = shown.filter(m => !paid[m.slice(0, 7)] && m.slice(0, 7) < today.slice(0, 7)).length;
+  const total = pays.reduce((a, p) => a + (p.cleared ? 0 : +p.amount), 0);
+  const unpaid = shown.filter(m => !settled.has(m.slice(0, 7)) && m.slice(0, 7) < today.slice(0, 7) && m >= monthStart(joinDay(s))).length;
   const thisM = today.slice(0, 7);
   const last = shown.length > 1 ? paid[shown[shown.length - 2].slice(0, 7)] || 0 : 0;
   const cur = paid[thisM] || 0;
@@ -488,9 +537,9 @@ route("payments", async (page, yr) => {
   ]);
   const ent = Object.fromEntries(entries.map(e => [e.id, e]));
   const months = [...Array(12)].map((_, i) => `${year}-${pad(i + 1)}-01`);
-  const startOf = st => [monthStart(joinDay(st)), shiftMonth(cur, -3)].sort().pop();
+  const startOf = st => monthStart(joinDay(st));
   const list = students.filter(st => st.active || pays.some(p => p.student_id === st.id));
-  const amountOf = p => +(ent[p.finance_entry_id]?.amount ?? p.amount);
+  const amountOf = p => p.cleared ? 0 : +(ent[p.finance_entry_id]?.amount ?? p.amount);
 
   // money that came in (by the day it was entered)
   const thisMonthIncome = entries.filter(e => e.entry_date.slice(0, 7) === today.slice(0, 7)).reduce((a, e) => a + +e.amount, 0);
@@ -508,10 +557,11 @@ route("payments", async (page, yr) => {
   const cell = (st, mo) => {
     const p = pays.find(x => x.student_id === st.id && x.month === mo);
     const base = { padding: "6px 4px", borderRadius: "8px", textAlign: "center", fontSize: "12px", fontWeight: 600, minWidth: "64px", cursor: "pointer", border: "1px solid" };
+    if (p && p.cleared) return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, cursor: "default", color: "var(--muted)", borderColor: "var(--line2)" }, title: "Cleared before using the app" }, "✓ cleared"));
     if (p) {
       const e = ent[p.finance_entry_id];
       return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, color: "var(--green)", borderColor: "color-mix(in srgb, var(--green) 55%, transparent)", background: "color-mix(in srgb, var(--green) 12%, transparent)" },
-        title: `Paid on ${fmtDate(p.paid_on)}`, onclick: () => e ? entryDetail(e) : null }, tk(amountOf(p)).replace("৳", "৳ "), e?.edit_count ? " ✎" : ""));
+        title: `Paid on ${fmtDate(p.paid_on)}`, onclick: () => paidCell(st, p, e) }, tk(amountOf(p)).replace("৳", "৳ "), e?.edit_count ? " ✎" : ""));
     }
     if (!st.active || mo < startOf(st) || mo > cur) return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, cursor: "default", color: "var(--faint)", borderColor: "transparent" } }, "·"));
     const isDue = mo < cur;
