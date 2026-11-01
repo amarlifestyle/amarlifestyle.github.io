@@ -5,7 +5,7 @@ import { route, store, catColor, catNames, catDp, rerender } from "./app.js";
 import { addTask } from "./today.js";
 import { editRoutine } from "./more.js";
 import { aiPlanSheet } from "./aicoach.js";
-import { classesBetween, classSheet } from "./timetable.js";
+import { routineTabsAsync } from "./timetable.js";
 
 function weekStart(s) { const back = (new Date(s + "T00:00:00").getDay() + 1) % 7; return addDays(s, -back); } // week starts Saturday
 
@@ -14,18 +14,28 @@ route("week", async (page, offset = "0") => {
   const today = todayStr();
   const ws = addDays(weekStart(today), off * 7), we = addDays(ws, 6);
   page.append(h("header.topbar",
-    h("div", h("h1", t("Week")), h("div.sub", off === 0 ? "This week · " : off === 1 ? "Next week · " : "", `${fmtDate(ws)} – ${fmtDate(we)}`)),
+    h("div", h("h1", "Routine"), h("div.sub", off === 0 ? "This week · " : off === 1 ? "Next week · " : "", `${fmtDate(ws)} – ${fmtDate(we)}`)),
     h("div.row", off !== 0 ? h("a.btn.small", { href: "#/week/0" }, "Today") : null,
       h("a.icon-btn", { href: `#/week/${off - 1}`, "aria-label": "Previous week" }, icon("back")),
       h("a.icon-btn", { href: `#/week/${off + 1}`, "aria-label": "Next week" }, icon("chev")))));
+  page.append(await routineTabsAsync("week"));
   if (we >= today) { try { await api.rpc("ensure_tasks", { p_from: ws < today ? today : ws, p_to: we }); } catch {} }
-  const [tasks0, routines, students, classes] = await Promise.all([
+  const [tasks0, routines, students] = await Promise.all([
     api.select("tasks", `select=*&day=gte.${ws}&day=lte.${we}&order=start_at`),
     api.select("routines", "select=*&active=eq.true"),
     api.select("students", "select=id,name,color&active=eq.true&order=name"),
-    classesBetween(ws, we).catch(() => []),
   ]);
-  const tasks = [...tasks0, ...classes].sort((a, b) => a.start_at.localeCompare(b.start_at));
+  // a day with no tasks yet (e.g. a day before the routine was made) shows the weekly routine itself
+  const fromRoutine = [];
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(ws, i), dow = new Date(d + "T00:00:00").getDay();
+    if (tasks0.some(t => t.day === d)) continue;
+    routines.filter(r => r.days.includes(dow) && r.template !== "_removed" && (!r.starts_on || r.starts_on <= d || d < today)).forEach(r => {
+      const s0 = dhakaIso(d, r.start_time.slice(0, 5));
+      fromRoutine.push({ id: `r:${r.id}:${d}`, isPlan: true, routine_id: r.id, student_id: r.student_id, title: r.title, category: r.category, day: d, start_at: s0, end_at: new Date(new Date(s0).getTime() + r.duration_min * 60000).toISOString(), status: "plan", color: r.color, dp_value: 0 });
+    });
+  }
+  const tasks = [...tasks0, ...fromRoutine].sort((a, b) => a.start_at.localeCompare(b.start_at));
   const rMap = Object.fromEntries(routines.map(r => [r.id, r]));
   const sMap = Object.fromEntries(students.map(s => [s.id, s]));
   const colorOf = tk => tk.color || rMap[tk.routine_id]?.color || sMap[tk.student_id]?.color || catColor(tk.category);
@@ -48,7 +58,8 @@ route("week", async (page, offset = "0") => {
   }));
   page.append(h("div.row.wrap", { style: { gap: "8px", marginBottom: "10px" } },
     h("button.btn.primary.small", { onclick: () => planSheet(ctx, {}) }, icon("plus"), "Add to week"),
-    h("button.btn.small", { onclick: () => aiPlanSheet(ctx) }, icon("mic"), "Build with AI") ));
+    h("button.btn.small", { onclick: () => aiPlanSheet(ctx) }, icon("mic"), "Build with AI"),
+    h("a.btn.small", { href: "#/routine" }, icon("routine"), "Repeating tasks")));
   const scroller = h("div.week-scroll", grid);
   const zl = h("span.small.muted");
   const setZoom = z => {
@@ -79,7 +90,7 @@ route("week", async (page, offset = "0") => {
   done.forEach(x => byCat[x.category] = (byCat[x.category] || 0) + mins(x.start_at, x.end_at));
   const dp = tasks.reduce((s, x) => s + (x.dp_awarded || 0), 0);
   page.append(h("div.card.week-total", h("h3", "This week"),
-    h("div.grid3", h("div.stat", h("div.k", "Tasks done"), h("div.v", `${done.filter(x => !x.is_timer).length}/${tasks.filter(x => !x.is_timer && !x.isClass).length}`)),
+    h("div.grid3", h("div.stat", h("div.k", "Tasks done"), h("div.v", `${done.filter(x => !x.is_timer).length}/${tasks.filter(x => !x.is_timer && !x.isPlan).length}`)),
       h("div.stat", h("div.k", "DP"), h("div.v", dp)), h("div.stat", h("div.k", "Hours"), h("div.v", (Object.values(byCat).reduce((a, b) => a + b, 0) / 60).toFixed(1)))),
     Object.keys(byCat).length ? h("div.mt", Object.entries(byCat).map(([c, m]) => h("div.row.between.small", { style: { padding: "3px 0" } },
       h("span", h("i", { style: { display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: catColor(c), marginRight: "6px" } }), c), h("b", durLabel(m))))) : null));
@@ -155,7 +166,7 @@ export function planSheet(ctx, pre = {}) {
 
 // ---------- tap a box
 function detail(tk, ctx) {
-  if (tk.isClass) return classSheet(tk);
+  if (tk.isPlan) { const r = ctx.routines.find(x => x.id === tk.routine_id); if (r) editRoutine(r); return; }
   const st = { pending: "Not marked yet", completed: `Done · +${tk.dp_awarded} DP`, late_completed: "Done late · 0 DP", not_completed: `Not done · ${tk.dp_awarded} DP`, missed: `Missed · ${tk.dp_awarded} DP` }[tk.status] || tk.status;
   const routine = ctx.routines.find(r => r.id === tk.routine_id);
   const student = ctx.students.find(s => s.id === tk.student_id);

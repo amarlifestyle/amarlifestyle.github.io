@@ -6,16 +6,20 @@ import { route, store, rerender, backbar } from "./app.js";
 import { shrink } from "./assistant.js";
 
 export const KINDS = {
-  university: { label: "University", icon: "🎓", who: ["student"], hint: "Your university class timetable. Tap a day to see its classes." },
-  coaching: { label: "Coaching", icon: "🏫", who: ["school", "student"], hint: "Your coaching / private batch classes." },
-  meal: { label: "Meals", icon: "🍽️", who: null, hint: "Your own meal times. The Today page reminds you a little before each one." },
+  university: { label: "University", icon: "🎓", hint: "Your university class timetable. Tap a day to see its classes. They also show in Today (no DP) — tap ✕ there on a day you don't go." },
+  coaching: { label: "Coaching", icon: "🏫", hint: "Your coaching / private batch classes." },
+  meal: { label: "Meals", icon: "🍽️", hint: "Your own meal times. The Today page reminds you a little before each one." },
+  custom: { label: "My tab", icon: "📌", hint: "Your own timetable." },
 };
-// which tabs this person sees (no occupation chosen yet → show all)
-let hasMeals = !!api.LS.get("al_has_meals");
-export const visibleKinds = () => Object.keys(KINDS).filter(k => k === "meal" ? hasMeals : (!store.profile?.occupation || KINDS[k].who.includes(store.profile.occupation)));
-async function checkMeals() {
-  try { const r = await api.select("timetable_items", "select=id&kind=eq.meal&limit=1"); hasMeals = r.length > 0; api.LS.set("al_has_meals", hasMeals); } catch { /* keep last */ }
+// the extra tabs this person has added under Routine (Weekly is always first)
+let TABS = api.LS.get("al_tt_tabs") || [];
+export async function loadTabs() {
+  try { TABS = await api.select("timetable_tabs", "select=*&order=created_at"); api.LS.set("al_tt_tabs", TABS); } catch { /* offline: keep last */ }
+  return TABS;
 }
+export const hasTab = kind => TABS.some(t => t.kind === kind);
+export const visibleKinds = () => [...new Set(TABS.map(t => t.kind))];
+const tabKey = t => t.kind === "custom" ? t.id : t.kind;
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const ORDER = [6, 0, 1, 2, 3, 4, 5]; // Sat first, like Bangladesh
@@ -44,35 +48,72 @@ const DEMO = {
   ],
 };
 
-export async function routineTabsAsync(active) { await checkMeals(); return routineTabs(active); }
+// tab bar shown on top of Routine (Weekly) and every timetable tab
+export async function routineTabsAsync(active) { await loadTabs(); return routineTabs(active); }
 export function routineTabs(active) {
-  const tabs = [["routine", "📋 My routine", "#/routine"], ...visibleKinds().map(k => [k, `${KINDS[k].icon} ${KINDS[k].label}`, `#/schedule/${k}`])];
-  return h("div.seg", { style: { marginBottom: "12px", overflowX: "auto" } }, tabs.map(([k, l, href]) => h("button" + (k === active ? ".on" : ""), { onclick: () => { location.hash = href; }, style: { whiteSpace: "nowrap" } }, l)));
+  const tabs = [["week", "📅 Weekly", "#/week"], ...TABS.map(t => [tabKey(t), `${t.icon} ${t.name}`, `#/schedule/${tabKey(t)}`])];
+  return h("div.seg", { style: { marginBottom: "12px", overflowX: "auto" } },
+    tabs.map(([k, l, href]) => h("button" + (k === active ? ".on" : ""), { onclick: () => { location.hash = href; }, style: { whiteSpace: "nowrap" } }, l)),
+    h("button", { onclick: addTabSheet, style: { whiteSpace: "nowrap" }, "aria-label": "Add a tab" }, "＋"));
+}
+function addTabSheet() {
+  const name = h("input.input", { placeholder: "e.g. Gym plan · Exam routine" });
+  const pick = async (kind, nm, ic) => {
+    const r = await api.insert("timetable_tabs", { user_id: api.userId(), kind, name: nm, icon: ic });
+    const row = Array.isArray(r) ? r[0] : r;
+    await loadTabs(); location.hash = `#/schedule/${kind === "custom" ? row?.id || "" : kind}`;
+  };
+  const opt = (kind, nm, ic, sub) => {
+    if (kind !== "custom" && hasTab(kind)) return null;
+    const b = h("button.li", { style: { textAlign: "left" } }, h("div.ic", ic), h("div.grow", h("b", nm), h("div.small.muted", sub)));
+    b.onclick = busy(b, async () => { await pick(kind, nm, ic); document.querySelector(".backdrop")?.click(); });
+    return b;
+  };
+  sheet("Add a tab to Routine", [
+    h("p.hint", "📷 টিপ: রুটিনের ছবি তুলে AI-কে দিলে AI নিজেই পুরো রুটিন বানিয়ে দেবে — ট্যাব খুলে “From a photo (AI)” চাপুন।"),
+    h("div.list", opt("university", "University", "🎓", "Class timetable — also shows in Today (no DP)"), opt("coaching", "Coaching", "🏫", "Coaching / batch classes"), opt("meal", "Meals", "🍽️", "Meal times with a reminder on Today")),
+    h("label.f.mt", h("span", "Or your own tab"), name),
+  ], {
+    actions: close => {
+      const add = h("button.btn.primary", "Add my tab");
+      add.onclick = busy(add, async () => { if (!name.value.trim()) throw new Error("Write a name."); await pick("custom", name.value.trim(), "📌"); close(true); });
+      return [h("button.btn", { onclick: () => close(null) }, "Cancel"), add];
+    },
+  });
 }
 
 const onDay = (it, dow) => !it.days?.length || it.days.includes(dow);
 
-route("schedule", async (page, kind = "university", dayArg) => {
-  if (!KINDS[kind]) kind = "university";
-  page.append(backbar("Routine", "#/more"), await routineTabsAsync(kind));
-  const K = KINDS[kind];
-  const items = (await api.select("timetable_items", `select=*&kind=eq.${kind}&order=start_time.nullslast,title`));
+route("schedule", async (page, key = "university", dayArg) => {
+  await loadTabs();
+  const tab = TABS.find(t => tabKey(t) === key) || (KINDS[key] && key !== "custom" ? { kind: key, name: KINDS[key].label, icon: KINDS[key].icon, virtual: true } : null);
+  page.append(backbar("Routine", "#/week"), routineTabs(key));
+  if (!tab) { page.append(h("div.card.empty", h("p", "This tab was removed."))); return; }
+  const kind = tab.kind, K = KINDS[kind];
+  const items = await api.select("timetable_items", `select=*&kind=eq.${kind}${kind === "custom" ? `&tab_id=eq.${tab.id}` : ""}&order=start_time.nullslast,title`);
   const todayDow = dhakaNow().getDay();
   const dow = dayArg !== undefined && dayArg !== "" ? Number(dayArg) : todayDow;
   page.append(h("p.hint", K.hint));
-
+  page.append(h("div.card.small", { style: { borderColor: "color-mix(in srgb, var(--brand) 40%, transparent)", padding: "8px 12px" } }, "📷 রুটিনের একটা ছবি দিন — AI পড়ে নিজেই রুটিন বানিয়ে দেবে। আপনি দেখে নিয়ে সেভ করবেন।"));
   const tools = h("div.row.wrap", { style: { gap: "8px", marginBottom: "10px" } },
-    h("button.btn.small.primary", { onclick: () => itemSheet(kind, null, kind === "meal" ? [] : [dow]) }, icon("plus"), "Add"),
-    h("button.btn.small", { onclick: () => photoImport(kind) }, "📷 From a photo (AI)"));
+    h("button.btn.small", { onclick: () => photoImport(tab) }, "📷 From a photo (AI)"),
+    h("button.btn.small.primary", { onclick: () => itemSheet(tab, null, kind === "meal" ? [] : [dow]) }, icon("plus"), "Add"));
   page.append(tools);
+  const removeTab = h("button.linkbtn.small", { style: { color: "var(--red)", marginTop: "16px" } }, "Remove this tab");
+  removeTab.onclick = async () => {
+    if (tab.virtual) return;
+    if (!(await confirmBox(`Remove “${tab.name}” tab?`, kind === "custom" ? "Everything in this tab is deleted." : "The tab is hidden. Its items stay saved and come back if you add the tab again.", "Remove", true))) return;
+    try { await api.remove("timetable_tabs", `id=eq.${tab.id}`); await loadTabs(); location.hash = "#/week"; } catch (e) { toast(e.message, "bad"); }
+  };
+  setTimeout(() => page.append(h("div.center", removeTab)), 0);
 
   if (!items.length) {
-    const demo = DEMO[kind];
+    const demo = DEMO[kind] || DEMO.coaching;
     page.append(h("div.card", { style: { opacity: .75, borderStyle: "dashed" } },
       h("b", "Example — you can make yours like this:"),
       h("div.list.mt", demo.map(d => h("div.li", h("div.grow", h("b", d.title), h("div.small.muted", [d.days.length ? d.days.map(x => DAYS[x]).join(", ") : (d.start_time ? "Every day" : "Note"), range(d), d.detail].filter(Boolean).join(" · ")))))),
       h("div.row.mt", { style: { gap: "8px" } },
-        (() => { const b = h("button.btn.small", "Use this example"); b.onclick = busy(b, async () => { await api.insert("timetable_items", demo.map(d => ({ ...d, kind, user_id: api.userId() }))); toast("Example added — tap any item to change it ✓", "ok"); rerender(); }); return b; })())));
+        (() => { const b = h("button.btn.small", "Use this example"); b.onclick = busy(b, async () => { await api.insert("timetable_items", demo.map(d => ({ ...d, kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId() }))); toast("Example added — tap any item to change it ✓", "ok"); rerender(); }); return b; })())));
     return;
   }
 
@@ -80,7 +121,7 @@ route("schedule", async (page, kind = "university", dayArg) => {
     // day chips (Sat → Fri), today marked
     page.append(h("div.row", { style: { gap: "6px", overflowX: "auto", marginBottom: "10px", paddingBottom: "2px" } }, ORDER.map(d => {
       const n = items.filter(it => onDay(it, d) && it.start_time).length;
-      return h("a.btn.small" + (d === dow ? ".primary" : ""), { href: `#/schedule/${kind}/${d}`, style: { flexShrink: 0, minWidth: "54px", position: "relative" } },
+      return h("a.btn.small" + (d === dow ? ".primary" : ""), { href: `#/schedule/${key}/${d}`, style: { flexShrink: 0, minWidth: "54px", position: "relative" } },
         DAYS[d], d === todayDow ? " •" : "", n ? h("span.small", { style: { opacity: .7, marginLeft: "3px" } }, n) : null);
     })));
   }
@@ -91,15 +132,16 @@ route("schedule", async (page, kind = "university", dayArg) => {
   const nextIt = dow === todayDow ? list.find(it => mins(it.start_time) > nowMin) : null;
   page.append(h("h3", { style: { margin: "4px 2px 8px" } }, kind === "meal" ? "Every day" : (dow === todayDow ? "Today · " : "") + ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dow]));
   if (!list.length) page.append(h("div.card.empty", h("p", kind === "meal" ? "No meal times yet." : "No classes this day 🎉")));
-  else page.append(h("div.list", list.map(it => h("button.li", { onclick: () => itemSheet(kind, it), style: { alignItems: "flex-start", textAlign: "left", ...(live(it) ? { borderColor: "var(--brand)", background: "color-mix(in srgb, var(--brand) 10%, var(--card))" } : {}) } },
+  else page.append(h("div.list", list.map(it => h("button.li", { onclick: () => itemSheet(tab, it), style: { alignItems: "flex-start", textAlign: "left", ...(live(it) ? { borderColor: "var(--brand)", background: "color-mix(in srgb, var(--brand) 10%, var(--card))" } : {}) } },
     h("div", { style: { minWidth: "92px", fontWeight: 700, fontSize: "13px", color: live(it) ? "var(--brand)" : "var(--muted)" } }, fmtHM(hm(it.start_time)), it.end_time ? h("div.small.faint", "– " + fmtHM(hm(it.end_time))) : null),
     h("div.grow", h("b", it.title, live(it) ? h("span.badge.ok", { style: { marginLeft: "6px" } }, "Now") : it === nextIt ? h("span.badge", { style: { marginLeft: "6px" } }, "Next") : null),
       it.detail ? h("div.small.muted", it.detail) : null)))));
   const notes = items.filter(it => !it.start_time);
-  notes.forEach(n => page.append(h("button.card", { onclick: () => itemSheet(kind, n), style: { width: "100%", textAlign: "left", marginTop: "10px", cursor: "pointer" } }, h("b", n.title), h("div.small.muted", { style: { marginTop: "4px" } }, n.detail || ""))));
-}, { tab: "more" });
+  notes.forEach(n => page.append(h("button.card", { onclick: () => itemSheet(tab, n), style: { width: "100%", textAlign: "left", marginTop: "10px", cursor: "pointer" } }, h("b", n.title), h("div.small.muted", { style: { marginTop: "4px" } }, n.detail || ""))));
+}, { tab: "week" });
 
-function itemSheet(kind, it, presetDays = []) {
+function itemSheet(tab, it, presetDays = []) {
+  const kind = tab.kind;
   const title = h("input.input", { value: it?.title || "", placeholder: kind === "meal" ? "e.g. Breakfast" : "e.g. PHY 105" });
   const detail = h("textarea.input", { placeholder: kind === "meal" ? "e.g. 2 Eggs · 2 Roti · 1 Banana" : "e.g. Room 5002 · Teacher", style: { minHeight: "60px" } }, it?.detail || "");
   const start = h("input.input", { type: "time", value: hm(it?.start_time) });
@@ -108,7 +150,7 @@ function itemSheet(kind, it, presetDays = []) {
   const dayBox = h("div.row.wrap", { style: { gap: "6px" } });
   const drawDays = () => dayBox.replaceChildren(...ORDER.map(d => h("button.btn.small" + (days.includes(d) ? ".primary" : ""), { type: "button", onclick: () => { days = days.includes(d) ? days.filter(x => x !== d) : [...days, d]; drawDays(); } }, DAYS[d])));
   drawDays();
-  sheet(it ? "Edit" : `Add to ${KINDS[kind].label}`, [
+  sheet(it ? "Edit" : `Add to ${tab.name}`, [
     h("label.f", h("span", kind === "meal" ? "Meal / note" : "Class"), title),
     h("div.grid2", h("label.f", h("span", "Start"), start), h("label.f", h("span", "End"), end)),
     h("label.f", h("span", kind === "meal" ? "Days (none = every day)" : "Days"), dayBox),
@@ -121,7 +163,7 @@ function itemSheet(kind, it, presetDays = []) {
         if (!title.value.trim()) throw new Error("Write a name.");
         if (kind !== "meal" && !days.length) throw new Error("Pick at least one day.");
         const row = { title: title.value.trim(), detail: detail.value.trim() || null, start_time: start.value || null, end_time: end.value || null, days };
-        if (it) await api.update("timetable_items", `id=eq.${it.id}`, row); else await api.insert("timetable_items", { ...row, kind, user_id: api.userId() });
+        if (it) await api.update("timetable_items", `id=eq.${it.id}`, row); else await api.insert("timetable_items", { ...row, kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId() });
         close(true); rerender();
       });
       const out = [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
@@ -136,7 +178,8 @@ function itemSheet(kind, it, presetDays = []) {
 }
 
 // photo of a timetable → AI reads it → you tick what to keep
-function photoImport(kind) {
+function photoImport(tab) {
+  const kind = tab.kind;
   const inp = h("input", { type: "file", accept: "image/*", style: { display: "none" } });
   document.body.append(inp);
   inp.onchange = async () => {
@@ -147,7 +190,7 @@ function photoImport(kind) {
       actions: close => {
         const save = h("button.btn.primary", { disabled: true, id: "ttsave" }, "Save selected");
         save.onclick = busy(save, async () => {
-          const rows = items.filter(x => x.on).map(x => ({ kind, user_id: api.userId(), title: x.title, detail: x.detail || null, start_time: /^\d{2}:\d{2}$/.test(x.start || "") ? x.start : null, end_time: /^\d{2}:\d{2}$/.test(x.end || "") ? x.end : null, days: (x.days || []).map(d => DAYS.indexOf(String(d).slice(0, 3))).filter(d => d >= 0) }));
+          const rows = items.filter(x => x.on).map(x => ({ kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId(), title: x.title, detail: x.detail || null, start_time: /^\d{2}:\d{2}$/.test(x.start || "") ? x.start : null, end_time: /^\d{2}:\d{2}$/.test(x.end || "") ? x.end : null, days: (x.days || []).map(d => DAYS.indexOf(String(d).slice(0, 3))).filter(d => d >= 0) }));
           if (!rows.length) throw new Error("Tick at least one.");
           await api.insert("timetable_items", rows); toast(`Saved ${rows.length} ✓`, "ok"); close(true); rerender();
         });
@@ -156,7 +199,7 @@ function photoImport(kind) {
     });
     try {
       const img = await shrink(f);
-      const r = await api.ai("timetable", { kind, image: { mime: img.mime, data: img.data } });
+      const r = await api.ai("timetable", { kind: kind === "custom" ? "coaching" : kind, image: { mime: img.mime, data: img.data } });
       items = (r.items || []).filter(x => x.title).map(x => ({ ...x, on: true }));
       if (!items.length) { out.replaceChildren(h("p.small.bad", "Couldn't read a timetable from this photo. Try a clearer photo.")); return; }
       if (r.question) out.append(h("p.small.warn", r.question));
@@ -172,6 +215,8 @@ function photoImport(kind) {
 
 // Today page: meal reminder from 30 minutes before until the meal ends
 export async function mealNow() {
+  await loadTabs();
+  if (!hasTab("meal")) return null;
   const items = await api.select("timetable_items", "select=*&kind=eq.meal&start_time=not.is.null&order=start_time");
   const n = dhakaNow(), now = n.getHours() * 60 + n.getMinutes(), dow = n.getDay();
   const m = t => { const [a, b] = hm(t).split(":").map(Number); return a * 60 + b; };
@@ -186,7 +231,8 @@ export async function mealNow() {
 // ---------- university classes in the daily routine (no DP, no penalty; remove any day)
 const CLASS_COLOR = "#60A5FA";
 export async function classesBetween(from, to) {
-  if (!visibleKinds().includes("university")) return [];
+  await loadTabs();
+  if (!hasTab("university")) return [];
   const [items, skips] = await Promise.all([
     api.select("timetable_items", "select=*&kind=eq.university&start_time=not.is.null"),
     api.select("timetable_skips", `select=item_id,day&day=gte.${from}&day=lte.${to}`),

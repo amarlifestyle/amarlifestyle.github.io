@@ -87,7 +87,7 @@ const snapshots = new Map();
 let renderTurn = 0;
 const routes = {};
 export function route(path, render, opts = {}) { routes[path] = { render, ...opts }; }
-const NAV = [["today", "#/today", "Today"], ["week", "#/week", "Week"], ["money", "#/money", "Money"], ["me", "#/me", "Me"], ["more", "#/more", "More"]];
+const NAV = [["today", "#/today", "Today"], ["week", "#/week", "Routine"], ["money", "#/money", "Money"], ["me", "#/me", "Me"], ["more", "#/more", "More"]];
 
 export function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
 
