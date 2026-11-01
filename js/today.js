@@ -4,6 +4,7 @@ import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fm
 import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation } from "./app.js";
 import { prayerNow, prayerCount, religionPicker, saveReligion } from "./prayer.js";
 import { askSheet } from "./aicoach.js";
+import { showTour } from "./tour.js";
 import { quoteFor } from "./quotes.js";
 import { mealNow, classesBetween, classCard } from "./timetable.js";
 
@@ -106,12 +107,15 @@ route("today", async page => {
       h("a.level-pill", { href: "#/me" }, icon("medal"), lv.name),
       h("span.small.muted", "🔥 ", stats.streak, "d"))));
   // up next — a reason to come back
-  const upNext = realTasks.find(x => x.status === "pending" && new Date(x.start_at) > new Date());
+  const isEmg = x => (x.title || "").startsWith("🚨");
+  const emg = realTasks.find(x => isEmg(x) && x.status === "pending" && new Date(x.end_at) > new Date());
+  const upNext = emg || realTasks.find(x => x.status === "pending" && new Date(x.start_at) > new Date());
   if (upNext) {
-    const m = Math.round((new Date(upNext.start_at) - new Date()) / 60000);
-    body.append(h("div.upnext", { style: { "--c": upNext.color || catColor(upNext.category) } },
-      h("i.dot"), h("div.what", h("span", "Up next"), h("b", upNext.title)),
-      h("time", fmtTime(upNext.start_at), h("em", `in ${m >= 60 ? Math.floor(m / 60) + "h " : ""}${m % 60}m`))));
+    const m = Math.max(0, Math.round((new Date(upNext.start_at) - new Date()) / 60000));
+    const now0 = new Date(), live = emg && new Date(emg.start_at) <= now0;
+    body.append(h("div.upnext" + (emg ? ".emg" : ""), { style: { "--c": emg ? "var(--red)" : upNext.color || catColor(upNext.category) } },
+      h("i.dot"), h("div.what", h("span", emg ? (live ? "Emergency — now" : "Emergency — next") : "Up next"), h("b", upNext.title)),
+      h("time", live ? `until ${fmtTime(upNext.end_at)}` : fmtTime(upNext.start_at), h("em", live ? `${durLabel(Math.max(1, Math.round((new Date(upNext.end_at) - now0) / 60000)))} left` : `in ${m >= 60 ? Math.floor(m / 60) + "h " : ""}${m % 60}m`))));
   }
   // bills due in the next 3 days (not paid yet)
   try {
@@ -152,11 +156,13 @@ route("today", async page => {
       body.append(tip);
     }
     const list = tasks.filter(x => x.status !== "running");
-    const pinned = list.filter(x => x.pinned), rest = [...list.filter(x => !x.pinned), ...classes].sort((a, b) => a.start_at.localeCompare(b.start_at));
+    const emgFirst = list.filter(x => (x.title || "").startsWith("🚨") && x.status === "pending");
+    const pinned = [...emgFirst, ...list.filter(x => x.pinned && !emgFirst.includes(x))], rest = [...list.filter(x => !x.pinned && !emgFirst.includes(x)), ...classes].sort((a, b) => a.start_at.localeCompare(b.start_at));
     [...pinned, ...rest].forEach(tk => body.append(tk.isClass ? classCard(tk) : taskCard(tk, queued.has(tk.id))));
   }
   body.append(h("p.center.small.faint.mt", "Unplanned work? Use ", h("button.linkbtn", { onclick: openTimer }, "the timer"), " to earn DP."));
   notifyLoop(tasks);
+  setTimeout(() => { if (location.hash.startsWith("#/today") && !document.querySelector(".backdrop")) showTour(); }, 700);
 }, { tab: "today" });
 
 // ---------- task card
@@ -180,7 +186,7 @@ function taskCard(tk, queued) {
       const bC = h("button.btn.small.primary", icon("check"), t("Completed"));
       const bN = h("button.btn.small", icon("x"), t("Not Completed"));
       bC.onclick = () => pctSheet(tk, late);
-      bN.onclick = busy(bN, async () => { if (await confirmBox("Not completed?", `Being honest costs half: −${Math.floor(tk.dp_value / 2)} DP. Leaving it unmarked costs −${tk.dp_value} DP at 12 AM.`, "Yes, not completed")) await mark(tk, "not_completed"); });
+      bN.onclick = busy(bN, async () => { if (await confirmBox("Not completed?", `Marking it now costs nothing (0 DP). Leaving it unmarked costs −${tk.dp_value} DP at 12 AM.`, "Yes, not completed")) await mark(tk, "not_completed"); });
       acts.append(bC, bN);
       if (late) acts.append(h("div.lockline", icon("info"), "Late now: marking Completed gives 0 DP, but counts as done."));
       else if (nowD > new Date(tk.end_at)) acts.append(h("div.lockline", icon("info"), `Full DP until ${fmtTime(le.toISOString())} (half coins).`));
@@ -395,7 +401,10 @@ function emergencySheet(tasks) {
   const title = h("input.input", { placeholder: "e.g. Hospital — Ammu", maxlength: "80" });
   const cat = h("select.input", catNames().map(n => h("option", { value: n, selected: n === "Work / Personal" }, `${n} · ${catDp(n)} DP/hour`)));
   const start = h("input.input", { type: "time", value: `${pad(d.getHours())}:${pad(d.getMinutes())}` });
-  const dur = h("select.input", [15, 30, 45, 60, 90, 120, 180, 240].map(m => h("option", { value: m, selected: m === 60 }, durLabel(m))));
+  const hrs = h("input.input", { type: "number", min: "0", max: "12", value: "1", inputmode: "numeric", "aria-label": "Hours" });
+  const mns = h("input.input", { type: "number", min: "0", max: "59", value: "0", inputmode: "numeric", "aria-label": "Minutes" });
+  const dur = { get value() { return Math.max(0, Number(hrs.value) || 0) * 60 + Math.max(0, Number(mns.value) || 0); } };
+  const quick = h("div.row.wrap", { style: { gap: "6px", marginTop: "6px" } }, [5, 10, 30, 60, 120, 180, 240, 300].map(m => h("button.chip", { type: "button", onclick: () => { hrs.value = Math.floor(m / 60); mns.value = m % 60; preview(); } }, durLabel(m))));
   const note = h("div.small", { style: { marginTop: "6px" } });
   const at = () => new Date(`${todayStr()}T${start.value}:00+06:00`);
   const preview = () => {
@@ -407,10 +416,11 @@ function emergencySheet(tasks) {
       ...over.map(x => h("div.warn", "⚠️ ", h("b", x.title), ` (${fmtTime(x.start_at)}) is inside this time — move or remove it later if needed`)),
       ...(!cut.length && !over.length ? [h("span.muted", "No other task is affected.")] : []));
   };
-  start.oninput = dur.onchange = preview; preview();
+  start.oninput = hrs.oninput = mns.oninput = preview; preview();
   sheet("🚨 Emergency task", [
     h("label.f", h("span", "What"), title),
-    h("div.grid2", h("label.f", h("span", "Starts"), start), h("label.f", h("span", "How long"), dur)),
+    h("label.f", h("span", "Starts"), start),
+    h("label.f", h("span", "How long"), h("div.grid2", h("div.row", { style: { gap: "6px", alignItems: "center" } }, hrs, h("span.small.muted", "h")), h("div.row", { style: { gap: "6px", alignItems: "center" } }, mns, h("span.small.muted", "min"))), quick),
     h("label.f", h("span", "Category"), cat),
     note,
   ], {
@@ -419,6 +429,7 @@ function emergencySheet(tasks) {
       go2.onclick = busy(go2, async () => {
         if (!title.value.trim()) throw new Error("Write what the emergency is.");
         const s = at(); if (s < new Date(Date.now() - 60000)) throw new Error("Pick now or a later time.");
+        if (dur.value < 1 || dur.value > 720) throw new Error("Length must be 1 minute to 12 hours.");
         const r = await api.rpc("emergency_task", { p_title: "🚨 " + title.value.trim(), p_category: cat.value, p_start: s.toISOString(), p_end: new Date(s.getTime() + Number(dur.value) * 60000).toISOString() });
         toast(r.cut?.length ? `Emergency added ✓ · ${r.cut.map(c => c.title).join(", ")} now ends at ${fmtTime(s.toISOString())}` : "Emergency added ✓", "ok");
         close(true); rerender();

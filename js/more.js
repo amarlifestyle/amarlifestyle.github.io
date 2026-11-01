@@ -19,6 +19,7 @@ route("more", page => {
     li("#/settings", "gear", t("Settings"), "PIN, theme, language, privacy"),
     li("#/download", "download", "Get the app", "Install on your phone"),
     li("#/about", "info", t("About Us")),
+    h("button.li", { onclick: () => import("./tour.js").then(m => m.showTour(true)) }, h("div.ic", "📖"), h("div.grow", h("b", "How to use"), h("div.small.muted", "A short guide to every part")), icon("chev", "chev")),
     li("#/privacy", "shield", "Privacy Policy")));
   if (store.profile?.is_admin) page.append(h("div.list", li("ops-7k2q/", "shield", "Admin panel", "Only you can see this")));
   const out = h("button.btn.block.danger", icon("out"), "Log out");
