@@ -205,7 +205,7 @@ export const pendingOps = () => LS.get(QK, []);
 export const pendingMarks = () => pendingOps().filter(o => o.kind === "mark");
 export const pendingTasks = () => pendingOps().filter(o => o.kind === "task");
 function pushOp(op) { const q = pendingOps(); q.push({ ...op, at: op.at || new Date().toISOString() }); LS.set(QK, q); }
-export function queueMark(taskId, result) { pushOp({ kind: "mark", taskId, result }); }
+export function queueMark(taskId, result, pct = 100) { pushOp({ kind: "mark", taskId, result, pct }); }
 
 // try now; if there is no internet, save it for later. Returns { queued: true } when saved offline.
 export async function offlineSafe(op) {
@@ -214,7 +214,7 @@ export async function offlineSafe(op) {
 }
 async function runOp(o, idMap, live = false) {
   const id = x => idMap[x] || x;
-  if (o.kind === "mark") return rpc("complete_task", { p_task: id(o.taskId), p_result: o.result, p_client_time: live ? null : o.at });
+  if (o.kind === "mark") return rpc("complete_task_pct", { p_task: id(o.taskId), p_result: o.result, p_client_time: live ? null : o.at, p_pct: o.pct || 100 });
   if (o.kind === "task") return rpc("add_task", { p_title: o.title, p_category: o.category, p_start: o.start, p_end: o.end, p_pinned: !!o.pinned, p_made_at: live ? null : o.at, p_student: o.studentId || null });
   if (o.kind === "timer") return rpc("log_offline_timer", { p_title: o.title, p_category: o.category, p_start: o.start, p_end: o.end });
   if (o.kind === "insert") return insert(o.table, o.rows);

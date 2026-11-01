@@ -62,7 +62,9 @@ route("today", async page => {
   const [sh, sm] = sleep.split(":").map(Number); const sleepMin = sh * 60 + sm;
   const realTasks = tasks.filter(x => !x.is_timer);
   const doneN = realTasks.filter(x => ["completed", "late_completed"].includes(x.status) || queued.has(x.id)).length;
-  const pct = realTasks.length ? doneN / realTasks.length : 0;
+  // a task done 50% counts as half
+  const doneW = realTasks.reduce((s, x) => s + (["completed", "late_completed"].includes(x.status) ? (x.done_pct || 100) / 100 : queued.has(x.id) ? 1 : 0), 0);
+  const pct = realTasks.length ? doneW / realTasks.length : 0;
   if (realTasks.length && (nowMin >= sleepMin - 30 || nowMin < 240)) {
     const pc = await prayerCount(nowMin < 240 ? addDays(today, -1) : today).catch(() => null);
     body.append(h("div.card", { style: { background: "linear-gradient(135deg, color-mix(in srgb, var(--cyan) 14%, var(--card)), var(--card))" } },
@@ -165,8 +167,8 @@ function taskCard(tk, queued) {
   const ul = unlockAt(tk), le = lateEnd(tk);
   const el = h("div.task" + (["completed", "late_completed"].includes(tk.status) || queued ? ".done" : ""), { style: { "--c": c } });
   const status = {
-    completed: h("span.badge.ok", "✓ +" + tk.dp_awarded + " DP" + (tk.photo_bonus ? " 📷" : "")),
-    late_completed: h("span.badge.warn", "✓ Done late · 0 DP"),
+    completed: h("span.badge.ok", "✓ " + (tk.done_pct && tk.done_pct < 100 ? tk.done_pct + "% · " : "") + "+" + tk.dp_awarded + " DP" + (tk.photo_bonus ? " 📷" : "")),
+    late_completed: h("span.badge.warn", "✓ Done late" + (tk.done_pct && tk.done_pct < 100 ? " " + tk.done_pct + "%" : "") + " · 0 DP"),
     not_completed: h("span.badge.bad", "✗ Not done · " + tk.dp_awarded + " DP"),
     missed: h("span.badge.bad", "Missed · " + tk.dp_awarded + " DP"),
   }[tk.status];
@@ -178,7 +180,7 @@ function taskCard(tk, queued) {
       const late = nowD > le;
       const bC = h("button.btn.small.primary", icon("check"), t("Completed"));
       const bN = h("button.btn.small", icon("x"), t("Not Completed"));
-      bC.onclick = busy(bC, () => mark(tk, "completed"));
+      bC.onclick = () => pctSheet(tk, late);
       bN.onclick = busy(bN, async () => { if (await confirmBox("Not completed?", `Being honest costs half: −${Math.floor(tk.dp_value / 2)} DP. Leaving it unmarked costs −${tk.dp_value} DP at 12 AM.`, "Yes, not completed")) await mark(tk, "not_completed"); });
       acts.append(bC, bN);
       if (late) acts.append(h("div.lockline", icon("info"), "Late now: marking Completed gives 0 DP, but counts as done."));
@@ -209,17 +211,27 @@ function taskCard(tk, queued) {
   return el;
 }
 
-async function mark(tk, result) {
-  if (tk.offlineNew) { api.queueMark(tk.id, result); toast("Saved offline. It will sync when you're online.", "ok"); rerender(); return; }
+// how much of the task was done → DP and coins in the same share
+function pctSheet(tk, late) {
+  const full = late ? 0 : tk.dp_value;
+  sheet("কতটুকু শেষ হয়েছে?", [h("p.hint", `“${tk.title}” — যতটুকু করেছেন সেটা বেছে নিন। DP আর কয়েন সেই অনুযায়ী পাবেন।`),
+    h("div.grid2", { style: { gap: "8px" } }, [25, 50, 75, 100].map(p => {
+      const b = h("button.btn" + (p === 100 ? ".primary" : ""), { style: { flexDirection: "column", padding: "12px 6px", height: "auto" } }, h("b", { style: { fontSize: "20px" } }, p + "%"), h("span.small", late ? "0 DP (late)" : `+${Math.round(full * p / 100)} DP`));
+      b.onclick = busy(b, async () => { document.querySelector(".backdrop")?.click(); await mark(tk, "completed", p); });
+      return b;
+    }))], { actions: close => [h("button.btn", { onclick: () => close(null) }, "Cancel")] });
+}
+async function mark(tk, result, pctDone = 100) {
+  if (tk.offlineNew) { api.queueMark(tk.id, result, pctDone); toast("Saved offline. It will sync when you're online.", "ok"); rerender(); return; }
   try {
-    const r = await api.rpc("complete_task", { p_task: tk.id, p_result: result });
-    if (r.status === "completed") toast(r.no_dp_reason === "added_after_start" ? "Done ✓ — no DP (task was added after it started)" : `Great! +${r.dp} DP · +${r.coins} coins 🎉`, "ok");
+    const r = await api.rpc("complete_task_pct", { p_task: tk.id, p_result: result, p_pct: pctDone });
+    if (r.status === "completed") toast(r.no_dp_reason === "added_after_start" ? "Done ✓ — no DP (task was added after it started)" : `${pctDone < 100 ? pctDone + "% done · " : "Great! "}+${r.dp} DP · +${r.coins} coins 🎉`, "ok");
     else if (r.status === "late_completed") toast("Marked done (late) — no DP this time.", "");
     else toast(`Noted. ${r.dp} DP`, "");
     if (navigator.vibrate) navigator.vibrate(30);
     rerender();
   } catch (e) {
-    if (e.offline) { api.queueMark(tk.id, result); toast("Saved offline. It will sync when you're online.", "ok"); rerender(); }
+    if (e.offline) { api.queueMark(tk.id, result, pctDone); toast("Saved offline. It will sync when you're online.", "ok"); rerender(); }
     else throw e;
   }
 }
