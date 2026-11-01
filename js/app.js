@@ -82,6 +82,7 @@ async function render() {
   window.scrollTo(0, 0);
   try { await r.render(page, ...args); if (api.isStale && !r.public) page.prepend(offlineNote()); }
   catch (e) { page.replaceChildren(h("div.empty", icon("info"), h("p", e.message || "Could not load."), h("button.btn", { onclick: render }, "Try again"))); }
+  dragFab();
   if (!r.public) daily();
 }
 function navBar(active) {
@@ -89,6 +90,35 @@ function navBar(active) {
     NAV.map(([k, href, label]) => h("a" + (k === active ? ".on" : ""), { href, "aria-current": k === active ? "page" : null }, icon(k), t(label)))));
 }
 export const rerender = () => render();
+
+// the round ＋ button can be dragged anywhere so it never covers what you want to tap
+function dragFab() {
+  const fab = document.querySelector(".fab");
+  if (!fab) return;
+  const place = pos => {
+    const w = innerWidth, hgt = innerHeight, sz = fab.offsetWidth || 52;
+    const x = Math.min(w - sz - 6, Math.max(6, pos.x * w)), y = Math.min(hgt - sz - 6, Math.max(6, pos.y * hgt));
+    Object.assign(fab.style, { left: x + "px", top: y + "px", right: "auto", bottom: "auto" });
+  };
+  const saved = api.LS.get("al_fab_pos");
+  if (saved) place(saved);
+  fab.style.touchAction = "none";
+  let start = null, moved = false;
+  fab.addEventListener("pointerdown", e => { start = { x: e.clientX, y: e.clientY, r: fab.getBoundingClientRect() }; moved = false; fab.setPointerCapture(e.pointerId); });
+  fab.addEventListener("pointermove", e => {
+    if (!start) return;
+    const dx = e.clientX - start.x, dy = e.clientY - start.y;
+    if (!moved && Math.hypot(dx, dy) < 8) return;
+    moved = true; fab.style.transition = "none"; fab.style.opacity = ".85";
+    place({ x: (start.r.left + dx) / innerWidth, y: (start.r.top + dy) / innerHeight });
+  });
+  fab.addEventListener("pointerup", () => {
+    if (moved) { const r = fab.getBoundingClientRect(); api.LS.set("al_fab_pos", { x: r.left / innerWidth, y: r.top / innerHeight }); fab.style.opacity = ""; }
+    start = null;
+  });
+  fab.addEventListener("click", e => { if (moved) { e.stopImmediatePropagation(); e.preventDefault(); moved = false; } }, true);
+  if (!api.LS.get("al_fab_tip")) { api.LS.set("al_fab_tip", 1); setTimeout(() => toast("Tip: hold and drag the ＋ button to move it anywhere."), 1200); }
+}
 function offlineNote() {
   const n = api.pendingOps().length;
   return h("div.card.small", { style: { borderColor: "color-mix(in srgb, var(--amber) 55%, transparent)" } },
