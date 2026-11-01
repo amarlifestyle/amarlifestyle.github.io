@@ -164,7 +164,7 @@ async function run(a, c) {
 }
 
 // small photo: max 1280px JPEG
-async function shrink(file) {
+export async function shrink(file) {
   const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error("Couldn't open the photo.")); i.src = URL.createObjectURL(file); });
   const k = Math.min(1, 1280 / Math.max(img.width, img.height));
   const cv = document.createElement("canvas"); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);

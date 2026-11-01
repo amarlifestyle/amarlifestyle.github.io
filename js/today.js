@@ -4,6 +4,7 @@ import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fm
 import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation } from "./app.js";
 import { coachCard } from "./aicoach.js";
 import { quoteFor } from "./quotes.js";
+import { mealNow } from "./timetable.js";
 
 const unlockAt = tk => new Date(new Date(tk.start_at).getTime() + (new Date(tk.end_at) - new Date(tk.start_at)) * Number(store.cfg.unlock_fraction ?? 0.75));
 const lateEnd = tk => new Date(new Date(tk.end_at).getTime() + Number(store.cfg.late_window_min ?? 30) * 60000);
@@ -107,6 +108,8 @@ route("today", async page => {
     if (soon.length) body.append(h("a.small", { href: "#/money/overview", style: { display: "block", margin: "-2px 4px 8px", color: "var(--amber)" } },
       "🧾 ", soon.map(b => `${b.title} ${b.due_day < dnum ? "(late)" : b.due_day === dnum ? "today" : "by " + b.due_day}`).join(" · "), " — tap to pay"));
   } catch { /* offline: skip */ }
+  // meal reminder (from your meal plan)
+  try { const meal = await mealNow(); if (meal) body.append(meal); } catch { /* offline */ }
   if (navigator.onLine) body.append(coachCard());
   // quote of the day (tap for another)
   let qShift = 0;

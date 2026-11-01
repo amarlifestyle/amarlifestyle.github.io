@@ -1,6 +1,7 @@
 // Amar Lifestyle — More: routine, calendar, goals, reports, settings, about, download
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";
+import { routineTabs } from "./timetable.js";
 import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go, ROLES, occupationPicker } from "./app.js";
 import { codeResetForm } from "./auth.js";
 
@@ -9,7 +10,7 @@ const li = (href, ic, title, sub) => h("a.li", { href }, h("div.ic", icon(ic)), 
 route("more", page => {
   page.append(topbar(t("More")));
   page.append(h("div.list",
-    li("#/routine", "routine", t("Routine"), "Tasks that repeat — set once for the whole year"),
+    li("#/routine", "routine", t("Routine"), "Repeating tasks · class timetable · coaching · meals"),
     li("#/calendar", "cal", "Calendar & countdowns", "Birthdays, meetings, exam countdowns"),
     li("#/goals", "goal", t("Goals"), "Year → month → week"),
     li("#/money/tuition", "student", t("Tuition"), "Students, fees and attendance"),
@@ -27,7 +28,7 @@ route("more", page => {
 
 // ---------- routine (repeats for 365 days)
 route("routine", async page => {
-  page.append(backbar(t("Routine")));
+  page.append(backbar(t("Routine")), routineTabs("routine"));
   const rows = (await api.select("routines", "select=*&order=start_time")).filter(r => r.template !== "_removed");
   const templates = [...new Set(["Normal", "Exam", ...rows.map(r => r.template)])];
   const activeT = rows.find(r => r.active)?.template || "Normal";
