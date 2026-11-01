@@ -142,7 +142,7 @@ async function rules(b) {
   b.append(h("div.card", h("h3", "Levels (monthly DP needed)"), lvInputs.map(([n, i]) => h("div.row", { style: { marginBottom: "8px" } }, h("span.grow", n), h("div", { style: { width: "120px" } }, i))), sl));
 
   const nums = [["custom_category_dp", "DP/hour for users' own categories"], ["photo_bonus_dp", "Photo proof bonus DP"], ["late_window_min", "Full DP window after a task ends (minutes)"],
-    ["unlock_fraction", "Buttons open after this part of the task (0.75 = last quarter)"], ["finance_edit_grace_days", "Money edit days into next month"], ["streak_threshold", "Streak needs this share of tasks done (0.8 = 80%)"]];
+    ["unlock_fraction", "Buttons open after this part of the task (0.75 = last quarter)"], ["finance_edit_grace_days", "Money edit days after the month ends"], ["streak_threshold", "Streak needs this share of tasks done (0.8 = 80%)"]];
   b.append(h("div.card", h("h3", "Other rules"), nums.map(([k, l]) => {
     const i = h("input.input", { type: "number", step: "any", value: cfg[k] });
     return h("label.f", h("span", l), h("div.row", h("div.grow", i), h("button.btn.small", { onclick: () => save(k, Number(i.value)) }, "Save")));

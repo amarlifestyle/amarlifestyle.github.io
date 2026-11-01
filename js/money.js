@@ -12,7 +12,7 @@ const monthStart = s => s.slice(0, 7) + "-01";
 const monthEnd = m => { const [y, mo] = m.split("-").map(Number); return `${y}-${pad(mo)}-${pad(new Date(y, mo, 0).getDate())}`; };
 const shiftMonth = (m, n) => { const [y, mo] = m.split("-").map(Number); const d = new Date(y, mo - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`; };
 export function lockAt(dateStr) {
-  const grace = Number(store.cfg.finance_edit_grace_days ?? 5);
+  const grace = Number(store.cfg.finance_edit_grace_days ?? 30);
   const nm = shiftMonth(monthStart(dateStr), 1);
   return new Date(new Date(`${nm}T00:00:00+06:00`).getTime() + grace * 864e5);
 }
@@ -362,11 +362,11 @@ function addStudent(s = null) {
   });
 }
 
-// a paid box in the sheet: change the amount, or turn it back into "Due" — only while the month is open (until the 5th of next month)
+// a paid box in the sheet: change the amount, or turn it back into "Due" — only while the month is open (until 30 days after the month ends)
 function paidCell(st, p, e) {
   const open = e && !isLocked(e.entry_date);
   sheet(`${st.name} · ${monthLabel(p.month)}`, [h("p", "Paid ", h("b", tk(e ? e.amount : p.amount)), ` on ${fmtDate(p.paid_on)}`),
-    h("p.hint", open ? "You can change this until the 5th of next month. All changes stay in the history." : "This month is locked now (after the 5th of next month). Use “Request special edit” in the entry to ask the Admin.")], {
+    h("p.hint", open ? "You can change this until 30 days after the month ends. All changes stay in the history." : "This month is locked now (30 days after the month ended). Use “Request special edit” in the entry to ask the Admin.")], {
     actions: close => {
       const out = [h("button.btn", { onclick: () => close(null) }, "Close")];
       if (e) out.push(h("button.btn", { onclick: () => { close(null); entryDetail(e); } }, open ? "Edit amount" : "Details"));
@@ -386,7 +386,7 @@ function paidCell(st, p, e) {
   });
 }
 
-// count a student's fees from an earlier month (only months still open: until the 5th of the next month)
+// count a student's fees from an earlier month (only months still open: until 30 days after the month ends)
 async function markDueEarlier(st, mo) {
   if (isLocked(mo)) { toast("This month is locked now.", "bad"); return; }
   if (!(await confirmBox(`Mark ${monthLabel(mo)} as Due?`, `${st.name}'s fee (${tk(st.monthly_fee)}) for ${monthLabel(mo)} will show as Due. Fees are then counted from ${monthLabel(mo).split(" ")[0]}.`, "Mark as Due"))) return;
@@ -606,5 +606,5 @@ route("payments", async (page, yr) => {
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `Tuitions-${year}.csv`; a.click();
   };
   page.append(dl);
-  page.append(h("p.hint", "“Received” row = fees for that month, whenever they were paid. Edit a paid box within the edit window (until the 5th of the next month); after that it's locked and the history stays."));
+  page.append(h("p.hint", "“Received” row = fees for that month, whenever they were paid. Edit a paid box within the edit window (until 30 days after the month ends); after that it's locked and the history stays."));
 }, { tab: "money" });
