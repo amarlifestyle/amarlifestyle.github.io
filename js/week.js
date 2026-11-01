@@ -51,7 +51,7 @@ route("week", async (page, offset = "0") => {
       h("div.h" + (d === today ? ".today" : ""), DAYS[dow], h("small", fmtDate(d))),
       list.map(tk => {
         const st = ["completed", "late_completed"].includes(tk.status) ? ".done" : ["missed", "not_completed"].includes(tk.status) ? ".missed" : "";
-        return h("div.cell" + st, { style: { "--c": colorOf(tk) }, role: "button", tabindex: "0", onclick: () => detail(tk, ctx) },
+        return h("div.cell" + st, { style: { "--c": colorOf(tk) }, role: "button", tabindex: "0", onclick: () => detail(tk, ctx, list) },
           h("span.tm", fmtTime(tk.start_at).replace(":00", "")), h("span.arr", " → "), h("span.tt", tk.title),
           h("small", durLabel(mins(tk.start_at, tk.end_at)), tk.routine_id ? " · ↻" : ""));
       }),
@@ -167,7 +167,7 @@ export function planSheet(ctx, pre = {}) {
 }
 
 // ---------- tap a box
-function detail(tk, ctx) {
+function detail(tk, ctx, dayList = []) {
   if (tk.isPlan) { const r = ctx.routines.find(x => x.id === tk.routine_id); if (r) editRoutine(r); return; }
   const st = { pending: "Not marked yet", completed: `Done · +${tk.dp_awarded} DP`, late_completed: "Done late · 0 DP", not_completed: `Not done · ${tk.dp_awarded} DP`, missed: `Missed · ${tk.dp_awarded} DP` }[tk.status] || tk.status;
   const routine = ctx.routines.find(r => r.id === tk.routine_id);
@@ -194,7 +194,9 @@ function detail(tk, ctx) {
         await api.update("routines", `id=eq.${routine.id}`, { active: false, template: "_removed" });
         toast("Removed from every week ✓", "ok"); close(); rerender();
       });
-      return [h("div.row.wrap", { style: { gap: "6px", width: "100%" } }, editB, rmWeek, rmAll)];
+      const mv = new Date(tk.start_at) > new Date() ? h("button.btn.small", "↕ Move") : null;
+      if (mv) mv.onclick = () => { close(); moveSheet(tk, ctx, dayList); };
+      return [h("div.row.wrap", { style: { gap: "6px", width: "100%" } }, mv, editB, rmWeek, rmAll)];
     },
   });
 }
@@ -256,4 +258,69 @@ async function saveImage(days, tasks, colorOf, today) {
   const a = document.createElement("a"); a.download = name; a.href = URL.createObjectURL(blob); a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   toast("Chart saved ✓", "ok");
+}
+
+// ---------- move a box up (earlier) or down (later) in the day, or swap it with its neighbour
+const hhmm = iso => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Dhaka" });
+async function applyMove(tk, newStart, scope, ctx) {
+  const s = new Date(newStart), e = new Date(s.getTime() + (new Date(tk.end_at) - new Date(tk.start_at)));
+  const routine = ctx.routines.find(r => r.id === tk.routine_id);
+  const moveTask = async () => {
+    if (routine) await api.insert("routine_skips", { routine_id: routine.id, day: tk.day, user_id: api.userId() }).catch(() => {}); // keep the routine from re-adding it
+    await api.update("tasks", `id=eq.${tk.id}&status=eq.pending`, { start_at: s.toISOString(), end_at: e.toISOString() });
+  };
+  if (!(routine && scope === "every")) return moveTask();
+  // every week: change the routine; upcoming days are rebuilt with the new time
+  await api.update("routines", `id=eq.${routine.id}`, { start_time: hhmm(s.toISOString()) });
+  await api.remove("tasks", `routine_id=eq.${routine.id}&status=eq.pending&day=gt.${ctx.today}`);
+  if (tk.day === ctx.today) await moveTask();
+  await api.rpc("ensure_tasks", { p_from: ctx.today, p_to: ctx.we > addDays(ctx.today, 7) ? ctx.we : addDays(ctx.today, 7) });
+}
+function moveSheet(tk, ctx, dayList) {
+  const routine = ctx.routines.find(r => r.id === tk.routine_id);
+  const dur = new Date(tk.end_at) - new Date(tk.start_at);
+  const list = dayList.filter(x => !x.isPlan && x.status === "pending" && !x.is_timer).sort((a, b) => a.start_at.localeCompare(b.start_at));
+  const i = list.findIndex(x => x.id === tk.id), prev = list[i - 1], next = list[i + 1];
+  let shift = 0, swap = null; // minutes, or "up"/"down"
+  let scope = "day";
+  const preview = h("div.card.small", { style: { margin: "8px 0" } });
+  const dayStart = new Date(dhakaIso(tk.day, "00:00")).getTime(), dayEnd = dayStart + 864e5;
+  const plan = () => {
+    if (swap === "up" && prev) return [[tk, new Date(prev.start_at)], [prev, new Date(new Date(tk.end_at).getTime() - (new Date(prev.end_at) - new Date(prev.start_at)))]];
+    if (swap === "down" && next) return [[next, new Date(tk.start_at)], [tk, new Date(new Date(next.end_at).getTime() - dur)]];
+    return [[tk, new Date(new Date(tk.start_at).getTime() + shift * 60000)]];
+  };
+  const draw = () => {
+    const p = plan();
+    preview.replaceChildren(...p.map(([x, s]) => h("div", h("b", x.title), ": ", fmtTime(x.start_at), " → ", h("b", fmtTime(s.toISOString())))));
+    if (!p.some(([x, s]) => s.getTime() !== new Date(x.start_at).getTime())) preview.replaceChildren(h("span.muted", "নিচের বাটন চেপে সময় বদলান।"));
+  };
+  const step = m => h("button.btn.small", { type: "button", onclick: () => { swap = null; shift += m; draw(); } }, m < 0 ? `⬆ ${durLabel(-m)} আগে` : `⬇ ${durLabel(m)} পরে`);
+  const scopeSeg = routine ? h("div.seg", [["day", "শুধু এই দিন"], ["every", "প্রতি সপ্তাহে"]].map(([k, l]) => h("button" + (k === scope ? ".on" : ""), { type: "button", "data-k": k, onclick: e => { scope = k; scopeSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === k)); } }, l))) : null;
+  draw();
+  sheet("↕ Move “" + tk.title + "”", [
+    h("p.hint", "উপরে মানে আগে, নিচে মানে পরে। পাশের টাস্কের সাথে জায়গাও বদলাতে পারেন।"),
+    h("div.row.wrap", { style: { gap: "6px" } }, step(-60), step(-30), step(-15), step(15), step(30), step(60)),
+    prev || next ? h("div.row.wrap", { style: { gap: "6px", marginTop: "8px" } },
+      prev ? h("button.btn.small", { type: "button", onclick: () => { swap = "up"; shift = 0; draw(); } }, `⇅ “${prev.title}”-এর আগে নিন`) : null,
+      next ? h("button.btn.small", { type: "button", onclick: () => { swap = "down"; shift = 0; draw(); } }, `⇅ “${next.title}”-এর পরে নিন`) : null) : null,
+    preview,
+    scopeSeg ? h("label.f", h("span", "কোথায় বদলাবে"), scopeSeg) : null,
+  ], {
+    actions: close => {
+      const save = h("button.btn.primary", t("Save"));
+      save.onclick = busy(save, async () => {
+        const p = plan().filter(([x, s]) => s.getTime() !== new Date(x.start_at).getTime());
+        if (!p.length) throw new Error("আগে সময় বদলান।");
+        for (const [x, s] of p) {
+          const e = s.getTime() + (new Date(x.end_at) - new Date(x.start_at));
+          if (s.getTime() < Date.now()) throw new Error(`“${x.title}” — এই সময় পার হয়ে গেছে।`);
+          if (s.getTime() < dayStart || e > dayEnd) throw new Error("একই দিনের মধ্যে রাখুন।");
+        }
+        for (const [x, s] of p) await applyMove(x, s, x.routine_id ? scope : "day", ctx);
+        toast(scope === "every" && p.some(([x]) => x.routine_id) ? "Moved — every week ✓" : "Moved ✓", "ok"); close(true); rerender();
+      });
+      return [h("button.btn", { onclick: () => close(null) }, t("Cancel")), save];
+    },
+  });
 }

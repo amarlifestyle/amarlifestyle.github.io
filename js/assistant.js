@@ -147,7 +147,7 @@ async function run(a, c) {
     }
     case "record_fee": { const s = c.students.find(x => x.id === a.student_id); return api.rpc("record_tuition_payment", { p_student: s.id, p_month: a.month + "-01", p_amount: +a.amount || +s.monthly_fee }); }
     case "add_money": { const amt = +a.amount; return api.insert("finance_entries", { user_id: api.userId(), kind: a.kind, category: a.category || (a.kind === "income" ? "Other income" : "Other"), amount: amt, original_amount: amt, note: a.note || null, entry_date: DATE.test(a.date || "") ? a.date : todayStr() }); }
-    case "add_event": return api.insert("events", { user_id: api.userId(), title: a.title, kind: ["birthday", "meeting", "countdown"].includes(a.kind) ? a.kind : "other", date: a.date, time: HHMM.test(a.time || "") ? a.time : null, yearly: !!a.yearly });
+    case "add_event": return api.insert("events", { user_id: api.userId(), title: a.title, kind: ["birthday", "meeting", "class"].includes(a.kind) ? a.kind : "other", date: a.date, time: HHMM.test(a.time || "") ? a.time : null, yearly: !!a.yearly });
     case "add_goal": {
       const span = ["year", "month", "week"].includes(a.span) ? a.span : "year", now = todayStr();
       const wk = (() => { const d = new Date(now); const j = new Date(d.getFullYear(), 0, 1); return `${d.getFullYear()}-W${String(Math.ceil(((d - j) / 864e5 + j.getDay() + 1) / 7)).padStart(2, "0")}`; })();

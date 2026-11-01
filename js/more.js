@@ -11,7 +11,7 @@ route("more", page => {
   page.append(topbar(t("More")));
   page.append(h("div.list",
     li("#/routine", "routine", "Repeating tasks", "Tasks that repeat every week — set once for the whole year"),
-    li("#/calendar", "cal", "Calendar & countdowns", "Birthdays, meetings, exam countdowns"),
+    li("#/calendar", "cal", "Calendar", "Extra classes, birthdays, meetings"),
     li("#/goals", "goal", t("Goals"), "Year → month → week"),
     li("#/money/tuition", "student", t("Tuition"), "Students, fees and attendance"),
     li("#/reports", "report", t("Reports"), "PDF with QR verification")));
@@ -127,12 +127,12 @@ route("calendar", async (page, ym) => {
       const d = `${y}-${pad(m)}-${pad(i + 1)}`; const ev = on(d);
       return h("button", { style: { minHeight: "48px", borderRadius: "10px", border: "1px solid " + (d === today ? "var(--brand)" : "var(--line)"), background: ev.length ? "color-mix(in srgb, var(--amber) 12%, var(--card))" : "var(--card)", cursor: "pointer", padding: "4px" },
         onclick: () => ev.length ? sheet(fmtDate(d, { weekday: "long", day: "numeric", month: "long" }), h("div", ev.map(e => evRow(e)))) : addEvent(d) },
-        h("div", { style: { fontWeight: d === today ? 700 : 500 } }, i + 1), ev.length ? h("div.small", ev.map(e => ({ birthday: "🎂", meeting: "🤝", countdown: "⏳", other: "📌" })[e.kind]).join("")) : null);
+        h("div", { style: { fontWeight: d === today ? 700 : 500 } }, i + 1), ev.length ? h("div.small", ev.map(e => ({ birthday: "🎂", meeting: "🤝", countdown: "⏳", other: "📌", class: "🏫" })[e.kind]).join("")) : null);
     }));
   page.append(h("div.card", h("h3", new Date(y, m - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })), grid, h("p.hint.mt.mb0", "Tap an empty day to add something.")));
   const up = events.filter(e => e.date >= today || e.yearly).sort((a, b) => nextDate(a, today).localeCompare(nextDate(b, today))).slice(0, 15);
   page.append(h("div.section-title", h("h2", "Coming up")));
-  page.append(up.length ? h("div.list", up.map(e => evRow(e, today))) : h("div.card.small.muted", "Nothing yet. Add birthdays, meetings or an exam countdown."));
+  page.append(up.length ? h("div.list", up.map(e => evRow(e, today))) : h("div.card.small.muted", "Nothing yet. Add an extra class, a birthday or a meeting."));
   page.append(h("button.fab", { onclick: () => addEvent(today), "aria-label": "Add event" }, icon("plus")));
 }, { tab: "more" });
 function nextDate(e, today) {
@@ -144,25 +144,44 @@ function nextDate(e, today) {
 function evRow(e, today = todayStr()) {
   const d = nextDate(e, today);
   const left = Math.round((new Date(d) - new Date(today)) / 864e5);
-  return h("div.li", h("div.ic", { birthday: "🎂", meeting: "🤝", countdown: "⏳", other: "📌" }[e.kind]),
+  return h("div.li", h("div.ic", { birthday: "🎂", meeting: "🤝", countdown: "⏳", other: "📌", class: "🏫" }[e.kind]),
     h("div.grow", h("b", e.title), h("div.small.muted", fmtDate(d, { day: "numeric", month: "short", year: "numeric" }), e.time ? " · " + fmtHM(e.time.slice(0, 5)) : "", e.yearly ? " · every year" : "")),
     h("span.badge" + (left <= 3 ? ".warn" : ""), left === 0 ? "Today" : left > 0 ? `${left}d` : "Past"),
-    h("button.icon-btn", { "aria-label": "Delete", onclick: async ev => { ev.stopPropagation(); if (await confirmBox("Delete?", e.title, "Delete", true)) { await api.remove("events", `id=eq.${e.id}`); document.querySelector(".backdrop")?.remove(); rerender(); } } }, icon("trash")));
+    h("button.icon-btn", { "aria-label": "Delete", onclick: async ev => { ev.stopPropagation(); if (await confirmBox("Delete?", e.title, "Delete", true)) { await api.remove("events", `id=eq.${e.id}`); if (e.task_id) await api.remove("tasks", `id=eq.${e.task_id}&status=eq.pending`).catch(() => {}); document.querySelector(".backdrop")?.remove(); rerender(); } } }, icon("trash")));
 }
-function addEvent(day) {
-  const title = h("input.input", { placeholder: "e.g. Ammu's birthday" });
-  let kind = "birthday";
-  const seg = h("div.seg", [["birthday", "🎂 Birthday"], ["meeting", "🤝 Meeting"], ["countdown", "⏳ Countdown"], ["other", "📌 Other"]].map(([k, l]) => h("button" + (k === kind ? ".on" : ""), { type: "button", style: { fontSize: "12.5px" }, onclick: e => { kind = k; yearly.checked = k === "birthday"; seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); } }, l)));
-  const date = h("input.input", { type: "date", value: day });
+async function addEvent(day) {
+  const students = await api.select("students", "select=id,name&active=eq.true&order=name").catch(() => []);
+  const title = h("input.input", { placeholder: "e.g. Extra class — Physics" });
+  let kind = "class";
+  const date = h("input.input", { type: "date", value: day < todayStr() ? todayStr() : day });
   const time = h("input.input", { type: "time" });
-  const yearly = h("input", { type: "checkbox", checked: true, id: "yr" });
+  const mins = h("select.input", [30, 45, 60, 90, 120, 150, 180].map(m => h("option", { value: m, selected: m === 60 }, durLabel(m))));
+  const cats = catNames();
+  const cat = h("select.input", cats.map(n => h("option", { value: n, selected: n === "Tuition" }, `${n} · ${catDp(n)} DP/hour`)));
+  const stu = h("select.input", h("option", { value: "" }, "— none —"), students.map(x => h("option", { value: x.id }, x.name)));
+  const yearly = h("input", { type: "checkbox", checked: false, id: "yr" });
+  const classBox = h("div", h("div.grid2", h("label.f", h("span", "Length"), mins), h("label.f", h("span", "Category"), cat)),
+    students.length ? h("label.f", h("span", "Student (optional — attendance is added when done)"), stu) : null,
+    h("p.hint", "এই ক্লাসটা ওই দিনের টাস্ক হিসেবে Today-তে আসবে — DP আর নোটিফিকেশন সহ।"));
+  const yrRow = h("label.check", { for: "yr" }, yearly, h("span", "Repeat every year"));
+  const show = () => { classBox.style.display = kind === "class" ? "" : "none"; yrRow.style.display = kind === "class" ? "none" : ""; title.placeholder = { class: "e.g. Extra class — Physics", birthday: "e.g. Ammu's birthday", meeting: "e.g. Club meeting", other: "e.g. Form fill-up" }[kind]; };
+  const seg = h("div.seg", [["class", "🏫 Extra class"], ["birthday", "🎂 Birthday"], ["meeting", "🤝 Meeting"], ["other", "📌 Other"]].map(([k, l]) => h("button" + (k === kind ? ".on" : ""), { type: "button", style: { fontSize: "12.5px" }, onclick: e => { kind = k; yearly.checked = k === "birthday"; seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.currentTarget)); show(); } }, l)));
+  show();
   return sheet("Add to calendar", [h("label.f", h("span", "Type"), seg), h("label.f", h("span", "Title"), title),
-    h("div.grid2", h("label.f", h("span", "Date"), date), h("label.f", h("span", "Time (optional)"), time)),
-    h("label.check", { for: "yr" }, yearly, h("span", "Repeat every year"))], {
+    h("div.grid2", h("label.f", h("span", "Date"), date), h("label.f", h("span", "Time"), time)),
+    classBox, yrRow], {
     actions: close => { const s = h("button.btn.primary", t("Save")); s.onclick = busy(s, async () => {
       if (!title.value.trim()) throw new Error("Write a title.");
-      await api.insert("events", { user_id: api.userId(), title: title.value.trim(), kind, date: date.value, time: time.value || null, yearly: yearly.checked });
-      toast("Saved ✓", "ok"); close(true); rerender(); });
+      let task_id = null;
+      if (kind === "class") {
+        if (!time.value) throw new Error("Pick the start time.");
+        if (date.value < todayStr()) throw new Error("Pick today or a later day.");
+        const st = new Date(`${date.value}T${time.value}:00+06:00`), en = new Date(st.getTime() + Number(mins.value) * 60000);
+        if (st < new Date()) throw new Error("This time has already passed.");
+        task_id = await api.rpc("add_task", { p_title: title.value.trim(), p_category: cat.value, p_start: st.toISOString(), p_end: en.toISOString(), p_pinned: false, p_student: stu.value || null });
+      }
+      await api.insert("events", { user_id: api.userId(), title: title.value.trim(), kind, date: date.value, time: time.value || null, yearly: kind !== "class" && yearly.checked, task_id: typeof task_id === "string" ? task_id : null });
+      toast(kind === "class" ? "Extra class added — it will show in Today on that day ✓" : "Saved ✓", "ok"); close(true); rerender(); });
       return [h("button.btn", { onclick: () => close(null) }, t("Cancel")), s]; },
   });
 }
