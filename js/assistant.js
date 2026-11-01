@@ -4,6 +4,7 @@ import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, todayStr, addDays, dhakaIso, fmtDate, fmtHM, durLabel, PALETTE, tk as money } from "./ui.js";
 import { store, catNames, catDp, rerender, loadBasics, role } from "./app.js";
 import { voiceRecorder } from "./voice.js";
+import { pickColor } from "./ui.js";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const BN_DAYS = { Sat: "শনি", Sun: "রবি", Mon: "সোম", Tue: "মঙ্গল", Wed: "বুধ", Thu: "বৃহস্পতি", Fri: "শুক্র" };
@@ -110,7 +111,7 @@ async function run(a, c) {
   };
   const len = (t, m) => Number(m) || Math.round((new Date(t.end_at) - new Date(t.start_at)) / 60000);
   switch (a.type) {
-    case "add_task": return addOne(a.title, a.category, a.date, a.start, Math.min(720, Math.max(5, +a.minutes || 60)), a.student_id, HEX.test(a.color || "") ? a.color : null);
+    case "add_task": { const col = HEX.test(a.color || "") ? a.color : pickColor(a.title, c.routines); c.routines.push({ title: a.title, color: col }); return addOne(a.title, a.category, a.date, a.start, Math.min(720, Math.max(5, +a.minutes || 60)), a.student_id, col); }
     case "remove_task": case "move_task": {
       const t = T(a.task_id);
       if (t.routine_id) { try { await api.insert("routine_skips", { routine_id: t.routine_id, day: t.day, user_id: api.userId() }); } catch { /* already */ } }
@@ -121,7 +122,8 @@ async function run(a, c) {
     case "mark_task": return api.rpc("complete_task", { p_task: a.task_id, p_result: a.result });
     case "add_routine": {
       const st = c.students.find(s => s.id === a.student_id);
-      await api.insert("routines", { user_id: api.userId(), title: a.title, category: okCat(a.category), start_time: a.start, duration_min: Math.min(720, Math.max(5, +a.minutes || 60)), days: dayNums(a.days), color: HEX.test(a.color || "") ? a.color : st?.color || PALETTE[Math.floor(Math.random() * PALETTE.length)], template: activeTemplate, student_id: st?.id || null, active: true });
+      const col = HEX.test(a.color || "") ? a.color : pickColor(a.title, c.routines); c.routines.push({ title: a.title, color: col });
+      await api.insert("routines", { user_id: api.userId(), title: a.title, category: okCat(a.category), start_time: a.start, duration_min: Math.min(720, Math.max(5, +a.minutes || 60)), days: dayNums(a.days), color: col, template: activeTemplate, student_id: st?.id || null, active: true });
       return;
     }
     case "edit_routine": {

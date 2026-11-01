@@ -226,3 +226,13 @@ export function colorPicker(current, onPick, { allowNone = false } = {}) {
   box.append(lab);
   return box;
 }
+
+// colours for routine items: the same name always gets the same colour, a new name gets one nobody else uses
+export const DISTINCT = ["#3B82F6", "#22C55E", "#FB923C", "#E879F9", "#22D3EE", "#FACC15", "#A78BFA", "#F87171", "#2DD4BF", "#F472B6", "#A3E635", "#818CF8", "#FDE047", "#5EEAD4", "#FCA5A5", "#E5E7EB"];
+export function pickColor(title, known = []) {
+  const n = x => String(x || "").toLowerCase().replace(/[.\s]/g, "");
+  const same = known.find(r => r.color && n(r.title) === n(title));
+  if (same) return same.color;
+  const used = new Set(known.filter(r => r.color).map(r => r.color.toUpperCase()));
+  return DISTINCT.find(c => !used.has(c.toUpperCase())) || DISTINCT[Math.floor(Math.random() * DISTINCT.length)];
+}

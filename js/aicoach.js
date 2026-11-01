@@ -3,6 +3,7 @@ import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, todayStr, addDays, DAYS, PALETTE, dhakaIso, durLabel, fmtHM, fmtTime, fmtDate } from "./ui.js";
 import { store, catNames, rerender } from "./app.js";
 import { voiceRecorder } from "./voice.js";
+import { pickColor } from "./ui.js";
 import { askSheet } from "./assistant.js";
 export { askSheet };
 
@@ -101,13 +102,15 @@ export function aiPlanSheet(ctx) {
         const active = (ctx.routines || []).find(r => r.active)?.template || "Normal";
         const cats = catNames();
         let n = 0;
+        const known = [...(ctx.routines || [])];
         for (const [i, it] of chosen.entries()) {
           const norm = x => String(x || "").toLowerCase().replace(/[.\s]/g, "");
           const st = students.find(s => norm(s.name) === norm(it.student) || norm(s.name) === norm(it.title));
           const cat = cats.includes(it.category) ? it.category : (st ? "Tuition" : "Work / Personal");
           const days = (it.days || []).map(d => DAYMAP[d.slice(0, 3)]).filter(d => d !== undefined);
           const minutes = Math.min(720, Math.max(5, Number(it.minutes) || 60));
-          const color = (/^#[0-9a-f]{6}$/i.test(it.color || "") ? it.color : null) || st?.color || PALETTE[(i * 5) % PALETTE.length];
+          const color = (/^#[0-9a-f]{6}$/i.test(it.color || "") ? it.color : null) || pickColor(it.title, known);
+          known.push({ title: it.title, color });
           if (it.repeat === "week") {
             for (const d of days) {
               const date = [...Array(7)].map((_, k) => addDays(ctx.ws, k)).find(x => new Date(x + "T00:00:00").getDay() === d);

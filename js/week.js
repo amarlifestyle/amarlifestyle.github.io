@@ -1,5 +1,6 @@
 // Amar Lifestyle — weekly planner: build your week like a neon routine chart
 import * as api from "./api.js";
+import { pickColor } from "./ui.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, todayStr, addDays, fmtTime, mins, durLabel, fmtDate, DAYS, dhakaIso, colorPicker, pad } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender } from "./app.js";
 import { addTask } from "./today.js";
@@ -141,7 +142,7 @@ export function planSheet(ctx, pre = {}) {
         const student = cat.value === "Tuition" ? stu.value || null : null;
         if (repeat === "perm") {
           const active = ctx.routines.find(r => r.active)?.template || "Normal";
-          await api.insert("routines", { user_id: api.userId(), title: name, category: cat.value, start_time: start.value, duration_min: m, days, color: color || null, template: active, student_id: student, active: true });
+          await api.insert("routines", { user_id: api.userId(), title: name, category: cat.value, start_time: start.value, duration_min: m, days, color: color || pickColor(name, ctx.routines), template: active, student_id: student, active: true });
           await api.rpc("ensure_tasks", { p_from: today, p_to: addDays(we < addDays(today, 7) ? addDays(today, 7) : we, 0) });
           toast(`Added to every ${days.map(d => DAYS[d]).join(", ")} ✓`, "ok");
         } else {
@@ -152,7 +153,8 @@ export function planSheet(ctx, pre = {}) {
             if (date < today || new Date(s) < new Date(Date.now() - 60000)) { skipped++; continue; }
             const e = new Date(new Date(s).getTime() + m * 60000).toISOString();
             const r = await api.offlineSafe({ kind: "task", title: name, category: cat.value, start: s, end: e, studentId: student });
-            if (color && r && !r.queued) await api.update("tasks", `id=eq.${r}`, { color });
+            const col = color || pickColor(name, ctx.routines);
+            if (r && !r.queued) await api.update("tasks", `id=eq.${r}`, { color: col });
             made++;
           }
           toast(made ? `Added for this week ✓${skipped ? ` (${skipped} past day skipped)` : ""}` : "Those times have already passed this week.", made ? "ok" : "bad");
