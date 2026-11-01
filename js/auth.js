@@ -114,7 +114,7 @@ route("privacy", page => {
 route("home", page => {
   if (api.getSession()) return go("#/today");
   const feat = (ic, title, text) => h("div.card", { style: { marginBottom: 0 } }, h("div.row", { style: { gap: "10px", alignItems: "flex-start" } },
-    h("div.ic", { style: { width: "34px", height: "34px", borderRadius: "10px", background: "var(--card2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand)", flexShrink: 0 } }, icon(ic)),
+    h("div.ic", { style: { width: "34px", height: "34px", minWidth: "34px", borderRadius: "10px", background: "var(--card2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand)", flexShrink: 0 } }, icon(ic)),
     h("div", h("b", title), h("div.small.muted", text))));
   const cta = () => h("div.row", { style: { gap: "10px" } },
     h("a.btn.primary.grow", { href: "#/register" }, t("Create account")), h("a.btn.grow", { href: "#/login" }, t("Log in")));

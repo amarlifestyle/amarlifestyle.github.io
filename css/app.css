@@ -402,3 +402,5 @@ details.fold > .fold-body { padding: 0 14px 14px; }
 @media print { #app { padding: 0 !important; } }
 svg.chev { width: 18px; height: 18px; flex-shrink: 0; }
 @media (min-width: 760px) { body.no-nav #app { padding-left: 28px; } }
+
+.ic svg, .cred svg, .btn svg, .icon-btn svg, .nav a svg, .fab svg, .lockline svg, .empty svg, .li .ic svg { display: block; }

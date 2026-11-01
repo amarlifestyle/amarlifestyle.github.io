@@ -82,6 +82,7 @@ export function icon(name, cls = "") {
   s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor");
   s.setAttribute("stroke-width", "1.8"); s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round");
   s.setAttribute("aria-hidden", "true"); if (cls) s.setAttribute("class", cls);
+  s.setAttribute("width", "20"); s.setAttribute("height", "20"); s.style.flexShrink = "0"; // some phones show nothing without a size
   s.innerHTML = P[name] || P.info;
   return s;
 }
