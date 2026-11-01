@@ -2,7 +2,7 @@
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation } from "./app.js";
-import { prayerItems, prayerRow, prayerCount, religionPicker, saveReligion } from "./prayer.js";
+import { prayerNow, prayerCount, religionPicker, saveReligion } from "./prayer.js";
 import { coachCard } from "./aicoach.js";
 import { quoteFor } from "./quotes.js";
 import { mealNow, classesBetween, classCard } from "./timetable.js";
@@ -140,7 +140,7 @@ route("today", async page => {
   // university classes from the timetable sit in the list by time (no DP)
   let classes = [];
   try { classes = await classesBetween(today, today); } catch { /* offline */ }
-  try { classes = [...classes, ...await prayerItems(today)]; } catch { /* offline */ }
+  try { const pn = await prayerNow(); if (pn) body.append(pn); } catch { /* offline */ }
   body.append(h("div.section-title", h("h2", "Today's tasks"), h("a.small", { href: "#/routine" }, "Set routine")));
   if (!realTasks.length && !running && !classes.length) {
     body.append(h("div.card.empty", icon("today"), h("p", "No tasks today."),
@@ -154,7 +154,7 @@ route("today", async page => {
     }
     const list = tasks.filter(x => x.status !== "running");
     const pinned = list.filter(x => x.pinned), rest = [...list.filter(x => !x.pinned), ...classes].sort((a, b) => a.start_at.localeCompare(b.start_at));
-    [...pinned, ...rest].forEach(tk => body.append(tk.isPrayer ? prayerRow(tk) : tk.isClass ? classCard(tk) : taskCard(tk, queued.has(tk.id))));
+    [...pinned, ...rest].forEach(tk => body.append(tk.isClass ? classCard(tk) : taskCard(tk, queued.has(tk.id))));
   }
   body.append(h("p.center.small.faint.mt", "Unplanned work? Use ", h("button.linkbtn", { onclick: openTimer }, "the timer"), " to earn DP."));
   notifyLoop(tasks);
