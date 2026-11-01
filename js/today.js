@@ -3,7 +3,7 @@ import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation } from "./app.js";
 import { prayerNow, prayerCount, religionPicker, saveReligion } from "./prayer.js";
-import { coachCard } from "./aicoach.js";
+import { askSheet } from "./aicoach.js";
 import { quoteFor } from "./quotes.js";
 import { mealNow, classesBetween, classCard } from "./timetable.js";
 
@@ -20,7 +20,9 @@ route("today", async page => {
   const first = (store.profile?.name || "").split(" ")[0];
   page.append(h("header.topbar",
     h("div", h("h1", `${greeting()}, ${first}`), h("div.sub", fmtDate(today, { weekday: "long", day: "numeric", month: "long" }))),
-    h("button.icon-btn", { onclick: openTimer, "aria-label": t("Start timer"), title: t("Start timer") }, icon("timer"))));
+    h("div.row", { style: { gap: "8px" } },
+      h("button.ai-orb", { onclick: () => askSheet(), "aria-label": "AI — suggestions and ask", title: "AI" }, h("span", "✨"), h("small", "AI")),
+      h("button.icon-btn", { onclick: openTimer, "aria-label": t("Start timer"), title: t("Start timer") }, icon("timer")))));
 
   const body = h("div");
   page.append(body, h("button.fab", { onclick: () => addTask(), "aria-label": t("Add task") }, icon("plus")));
@@ -119,7 +121,6 @@ route("today", async page => {
   } catch { /* offline: skip */ }
   // meal reminder (from your meal plan)
   try { const meal = await mealNow(); if (meal) body.append(meal); } catch { /* offline */ }
-  if (navigator.onLine) body.append(coachCard());
   // quote of the day (tap for another)
   let qShift = 0;
   const qBox = h("div.quote", { role: "button", tabindex: "0", title: "Tap for another" });
@@ -141,7 +142,7 @@ route("today", async page => {
   let classes = [];
   try { classes = await classesBetween(today, today); } catch { /* offline */ }
   try { const pn = await prayerNow(); if (pn) body.append(pn); } catch { /* offline */ }
-  body.append(h("div.section-title", h("h2", "Today's tasks"), h("a.small", { href: "#/routine" }, "Set routine")));
+  body.append(h("div.section-title", h("h2", "Today's tasks"), h("div.row", { style: { gap: "10px", alignItems: "center" } }, h("button.btn.small.emg", { onclick: () => emergencySheet(tasks) }, "🚨 Emergency"), h("a.small", { href: "#/routine" }, "Set routine"))));
   if (!realTasks.length && !running && !classes.length) {
     body.append(h("div.card.empty", icon("today"), h("p", "No tasks today."),
       h("p.small", "Tap ＋ to add one, or set a daily routine so tasks appear by themselves."),
@@ -389,3 +390,43 @@ route("welcome", page => {
       h("a.li", { href: "#/today" }, h("div.ic", icon("today")), h("div.grow", h("b", "3. Go to Today"), h("div.small.muted", "Mark tasks, earn DP, level up")), icon("chev", "chev"))),
     h("a.btn.primary.block", { href: "#/today" }, "Start")));
 });
+
+// ---------- emergency: something urgent comes up — add it now; the task that is running ends where it starts
+function emergencySheet(tasks) {
+  const d = dhakaNow(); d.setMinutes(d.getMinutes() + 1);
+  const title = h("input.input", { placeholder: "e.g. Hospital — Ammu", maxlength: "80" });
+  const cat = h("select.input", catNames().map(n => h("option", { value: n, selected: n === "Work / Personal" }, `${n} · ${catDp(n)} DP/hour`)));
+  const start = h("input.input", { type: "time", value: `${pad(d.getHours())}:${pad(d.getMinutes())}` });
+  const dur = h("select.input", [15, 30, 45, 60, 90, 120, 180, 240].map(m => h("option", { value: m, selected: m === 60 }, durLabel(m))));
+  const note = h("div.small", { style: { marginTop: "6px" } });
+  const at = () => new Date(`${todayStr()}T${start.value}:00+06:00`);
+  const preview = () => {
+    const s = at(), e = new Date(s.getTime() + Number(dur.value) * 60000);
+    const cut = tasks.filter(x => x.status === "pending" && !x.is_timer && new Date(x.start_at) < s && new Date(x.end_at) > s);
+    const over = tasks.filter(x => x.status === "pending" && !x.is_timer && new Date(x.start_at) >= s && new Date(x.start_at) < e);
+    note.replaceChildren(
+      ...cut.map(x => h("div", "✂️ ", h("b", x.title), ` ends at ${fmtTime(s.toISOString())} instead of ${fmtTime(x.end_at)}`)),
+      ...over.map(x => h("div.warn", "⚠️ ", h("b", x.title), ` (${fmtTime(x.start_at)}) is inside this time — move or remove it later if needed`)),
+      ...(!cut.length && !over.length ? [h("span.muted", "No other task is affected.")] : []));
+  };
+  start.oninput = dur.onchange = preview; preview();
+  sheet("🚨 Emergency task", [
+    h("p.hint", "Something urgent came up? Add it here. The task that is going on at that time stops when the emergency starts (its DP is counted for the shorter time)."),
+    h("label.f", h("span", "What"), title),
+    h("div.grid2", h("label.f", h("span", "Starts"), start), h("label.f", h("span", "How long"), dur)),
+    h("label.f", h("span", "Category"), cat),
+    note,
+  ], {
+    actions: close => {
+      const go2 = h("button.btn.primary", "Add emergency");
+      go2.onclick = busy(go2, async () => {
+        if (!title.value.trim()) throw new Error("Write what the emergency is.");
+        const s = at(); if (s < new Date(Date.now() - 60000)) throw new Error("Pick now or a later time.");
+        const r = await api.rpc("emergency_task", { p_title: "🚨 " + title.value.trim(), p_category: cat.value, p_start: s.toISOString(), p_end: new Date(s.getTime() + Number(dur.value) * 60000).toISOString() });
+        toast(r.cut?.length ? `Emergency added ✓ · ${r.cut.map(c => c.title).join(", ")} now ends at ${fmtTime(s.toISOString())}` : "Emergency added ✓", "ok");
+        close(true); rerender();
+      });
+      return [h("button.btn", { onclick: () => close(null) }, t("Cancel")), go2];
+    },
+  });
+}

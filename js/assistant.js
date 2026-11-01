@@ -246,8 +246,17 @@ export function askSheet() {
     showPlan(r, c);
   };
   const voice = voiceRecorder(audio => ask({ audio }), { label: "বলুন — প্রশ্ন বা কাজ" });
-  return sheet("🤖 Ask AI", [
-    h("p.hint", { style: { marginTop: 0 } }, "প্রশ্ন করুন, বা যেকোনো কাজ বলুন — টাস্ক যোগ/বাদ, সময় বদল, মার্ক, রুটিন, ক্যাটাগরি, স্টুডেন্ট, ফি, আয়-খরচ, মাসের বিল, ক্যালেন্ডার, লক্ষ্য, অভ্যাস। ছবিও দিতে পারেন (রুটিনের ছবি, রসিদ…)। করার আগে দেখিয়ে নেবে।"),
+  // quick questions: tap to ask
+  const QUICK = ["আজকের দিনটা কীভাবে সাজাবো?", "এই সপ্তাহে কোথায় পিছিয়ে আছি?", "এই মাসের খরচ কেমন?", "কার টিউশন ফি বাকি?"];
+  const chips = h("div.row.wrap", { style: { gap: "6px", margin: "8px 0 4px" } }, QUICK.map(x => {
+    const b = h("button.chip", { type: "button" }, x);
+    b.onclick = busy(b, async () => { q.value = x; await ask({ text: x }); });
+    return b;
+  }));
+  return sheet("✨ AI", [
+    coachBox(),
+    chips,
+    h("p.hint", { style: { marginTop: "6px" } }, "প্রশ্ন করুন, বা যেকোনো কাজ বলুন — টাস্ক যোগ/বাদ, সময় বদল, মার্ক, রুটিন, স্টুডেন্ট, ফি, আয়-খরচ, বিল, ক্যালেন্ডার। ছবিও দিতে পারেন। করার আগে দেখিয়ে নেবে।"),
     voice, h("div.small.faint", { style: { textAlign: "center", margin: "10px 0 6px" } }, "— অথবা লিখুন —"), q, h("div.row", { style: { gap: "8px", marginTop: "6px" } }, photoBtn, fileIn), thumb, out], {
     actions: close => {
       const go = h("button.btn.primary", "Send");
@@ -258,4 +267,27 @@ export function askSheet() {
       return [h("button.btn", { onclick: () => close() }, "Close"), go];
     },
   });
+}
+
+// AI suggestions (coach): last advice shows at once, then refreshes
+function coachBox() {
+  const box = h("div.ai-tips");
+  const draw = r => {
+    const alerts = r.alerts || [], tips = r.tips || [];
+    const re = h("button.linkbtn.small", "↻ New advice");
+    re.onclick = busy(re, () => load(true));
+    box.replaceChildren(...[
+      r.summary ? h("p.small", { style: { margin: "0 0 6px" } }, r.summary) : null,
+      ...alerts.map(a => h("div.ai-alert" + (a.level === "high" ? ".high" : ""), h("b.small", "⚠️ ", a.title), h("div.small", a.text))),
+      ...tips.slice(0, 3).map(t => h("div.ai-tip", h("b.small", "💡 ", t.title), h("div.small.muted", t.text))),
+      h("div", { style: { textAlign: "right" } }, re)].filter(Boolean));
+  };
+  const load = async refresh => {
+    try { const r = await api.ai("coach", { refresh }); api.LS.set("al_coach", r); draw(r); }
+    catch (e) { if (!api.LS.get("al_coach")) box.replaceChildren(h("p.small.muted", e.offline ? "AI needs internet." : e.message)); }
+  };
+  const c = api.LS.get("al_coach");
+  if (c) draw(c); else box.replaceChildren(h("p.small.muted", "✨ Suggestions loading…"));
+  load(false);
+  return box;
 }

@@ -24,7 +24,7 @@ export async function saveReligion(k) {
 export const PRAYERS = [
   ["fajr", "Fajr", "ফজর"], ["dhuhr", "Dhuhr", "যোহর"], ["asr", "Asr", "আসর"], ["maghrib", "Maghrib", "মাগরিব"], ["isha", "Isha", "এশা"],
 ];
-const BN = Object.fromEntries(PRAYERS.map(p => [p[0], p[2]]));
+const BN = Object.fromEntries(PRAYERS.map(p => [p[0], p[1]])); // shown in English
 const DHAKA = { lat: 23.8103, lng: 90.4125, name: "Dhaka" };
 export const place = () => store.profile?.prayer_loc?.lat ? store.profile.prayer_loc : DHAKA;
 
@@ -95,16 +95,16 @@ const canMark = day => day === todayStr() || (day === addDays(todayStr(), -1) &&
 const dhakaHour = () => (new Date().getUTCHours() + 6) % 24;
 // two answers: prayed / not prayed
 function answerBtns(day, w, status, after) {
-  if (status === "unmarked") return h("span.small", { style: { color: "var(--red)" } }, `মার্ক করা হয়নি · −${pen(w.key)} DP`);
-  if (!canMark(day)) return h("span.small.faint", status === "prayed" ? "✓ পড়েছি" : status === "not_prayed" ? "পড়িনি" : "—");
+  if (status === "unmarked") return h("span.small", { style: { color: "var(--red)" } }, `Not marked · −${pen(w.key)} DP`);
+  if (!canMark(day)) return h("span.small.faint", status === "prayed" ? "✓ Prayed" : status === "not_prayed" ? "Not prayed" : "—");
   const send = st => async e => {
     e?.stopPropagation?.();
     const r = await api.rpc("mark_prayer", { p_day: day, p_prayer: w.key, p_status: st });
-    toast(st === "prayed" ? `${w.bn} ✓ আলহামদুলিল্লাহ · +${r.dp} DP` : "ঠিক আছে — পরের ওয়াক্তে ইনশাআল্লাহ। (DP কাটা হয়নি)", st === "prayed" ? "ok" : "");
+    toast(st === "prayed" ? `${w.bn} ✓ Alhamdulillah · +${r.dp} DP` : "Noted — next time, in sha Allah. (No DP cut)", st === "prayed" ? "ok" : "");
     after();
   };
-  const yes = h("button.btn.small" + (status === "prayed" ? ".primary" : ""), { type: "button" }, status === "prayed" ? "✓ পড়েছি" : `পড়েছি +${pdp(w.key)}`);
-  const no = h("button.btn.small" + (status === "not_prayed" ? ".danger" : ""), { type: "button" }, "পড়িনি");
+  const yes = h("button.btn.small" + (status === "prayed" ? ".primary" : ""), { type: "button" }, status === "prayed" ? "✓ Prayed" : `Prayed +${pdp(w.key)}`);
+  const no = h("button.btn.small" + (status === "not_prayed" ? ".danger" : ""), { type: "button" }, "Not prayed");
   yes.onclick = busy(yes, send("prayed")); no.onclick = busy(no, send("not_prayed"));
   return h("div.row", { style: { gap: "6px", flexShrink: 0 } }, yes, no);
 }
@@ -120,8 +120,8 @@ export async function prayerNow() {
   return h("div.card", { style: { padding: "8px 12px", marginBottom: "10px", borderColor: `color-mix(in srgb, ${C} 55%, transparent)`, background: `color-mix(in srgb, ${C} 8%, var(--card))` } },
     h("div.row.between", { style: { gap: "8px", alignItems: "center" } },
       h("a", { href: "#/prayer", style: { color: "inherit", minWidth: 0 } },
-        h("div", h("b", "🕌 এখন ", w.bn, "ের ওয়াক্ত")),
-        h("div.small.muted", `শেষ ${tm(w.end)} · ${left(w.end - now)} বাকি`)),
+        h("div", h("b", "🕌 ", w.bn, " time now")),
+        h("div.small.muted", `Ends ${tm(w.end)} · ${left(w.end - now)} left`)),
       answerBtns(day, w, st, rerender)));
 }
 // one line for the night report
@@ -133,9 +133,9 @@ export async function prayerCount(day) {
 // ---------- Routine → 🕌 Prayer tab
 route("prayer", async page => {
   const { routineTabsAsync } = await import("./timetable.js");
-  page.append(h("header.topbar", h("div", h("h1", "Routine"), h("div.sub", "নামাজের সময় · " + place().name))), await routineTabsAsync("prayer"));
+  page.append(h("header.topbar", h("div", h("h1", "Routine"), h("div.sub", "Prayer times · " + place().name))), await routineTabsAsync("prayer"));
   if (!isMuslim()) {
-    page.append(h("div.card", h("p", "এই অংশ মুসলিমদের জন্য। Settings → Profile থেকে ধর্ম বেছে নিন।")));
+    page.append(h("div.card", h("p", "This part is for Muslim profiles. Choose your religion in Settings → Profile.")));
     return;
   }
   const today = todayStr(), yday = addDays(today, -1);
@@ -149,52 +149,52 @@ route("prayer", async page => {
   const todayN = W.filter(w => set.has(today + ":" + w.key)).length;
 
   page.append(h("div.hero", { style: { flexDirection: "column", alignItems: "stretch", gap: "4px" } },
-    cur ? h("div", h("span.small.muted", "এখন ওয়াক্ত চলছে"), h("div.big", "🕌 ", cur.bn), h("div.small.muted", `শেষ ${tm(cur.end)} · ${left(cur.end - now)} বাকি`)) : h("div.big", "🕌 এখন কোনো ফরজ নামাজের ওয়াক্ত নেই"),
-    h("div.small", "পরের নামাজ: ", h("b", next.bn), ` ${tm(next.start)} (${left(next.start - now)} পর)`),
-    h("div.small", "আজ পড়েছি: ", h("b", `${todayN}/5`), " ওয়াক্ত")));
+    cur ? h("div", h("span.small.muted", "Prayer time now"), h("div.big", "🕌 ", cur.bn), h("div.small.muted", `Ends ${tm(cur.end)} · ${left(cur.end - now)} left`)) : h("div.big", "🕌 No fard prayer time right now"),
+    h("div.small", "Next: ", h("b", next.bn), ` ${tm(next.start)} (in ${left(next.start - now)})`),
+    h("div.small", "Prayed today: ", h("b", `${todayN}/5`))));
 
   const listFor = (day, ws) => h("div.list", ws.map(w => {
     const status = stOf.get(day + ":" + w.key), started = Date.now() >= w.start, live = started && Date.now() < w.end;
     return h("div.li", { style: live ? { borderColor: "#10B981" } : {} },
       h("div", { style: { minWidth: "72px", fontWeight: 700 } }, w.bn, h("div.small.faint", w.en)),
-      h("div.grow.small", tm(w.start), " – ", tm(w.end), live ? h("span.badge.ok", { style: { marginLeft: "6px" } }, "এখন") : null),
+      h("div.grow.small", tm(w.start), " – ", tm(w.end), live ? h("span.badge.ok", { style: { marginLeft: "6px" } }, "Now") : null),
       started || status ? answerBtns(day, w, status, rerender) : h("span.small.faint", "—"));
   }));
-  page.append(h("h3", { style: { margin: "14px 2px 8px" } }, "আজ"), listFor(today, W));
+  page.append(h("h3", { style: { margin: "14px 2px 8px" } }, "Today"), listFor(today, W));
   if (canMark(yday)) {
     const yN = PRAYERS.filter(p => set.has(yday + ":" + p[0])).length;
-    const yBtn = h("button.linkbtn.small", { style: { marginTop: "8px" } }, `গতকাল: ${yN}/5 — সকাল ৬টার আগে পর্যন্ত মার্ক করা যাবে`);
-    yBtn.onclick = () => sheet("গতকালের নামাজ", [listFor(yday, waqts(yday))], { actions: close => [h("button.btn", { onclick: () => { close(null); rerender(); } }, "Done")] });
+    const yBtn = h("button.linkbtn.small", { style: { marginTop: "8px" } }, `Yesterday: ${yN}/5 — can be marked until 6 AM`);
+    yBtn.onclick = () => sheet("Yesterday's prayers", [listFor(yday, waqts(yday))], { actions: close => [h("button.btn", { onclick: () => { close(null); rerender(); } }, "Done")] });
     page.append(yBtn);
   }
-  page.append(h("div.card.small.mt", h("b", "পয়েন্টের নিয়ম"), h("p.small.muted.mb0", { style: { marginTop: "4px" } },
-    `পড়েছি = ফজর +${pdp("fajr")} DP, বাকি ওয়াক্ত +${pdp()} DP (প্রস্তুতি সহ নামাজের সময়টা কঠিন কাজের সমান দামে ধরা) · পড়িনি = ০ (কিছু কাটা হয় না) · কিছুই মার্ক না করলে পরদিন সকাল ৬টায় যত পাওয়ার কথা ছিল ততটাই কাটা যাবে (ফজর −${pen("fajr")}, বাকি −${pen()})। ওয়াক্ত শুরু হওয়ার পরই মার্ক করা যায়।`)));
+  page.append(h("div.card.small.mt", h("b", "Points"), h("p.small.muted.mb0", { style: { marginTop: "4px" } },
+    `Prayed: Fajr +${pdp("fajr")} DP, other prayers +${pdp()} DP (prayer time with preparation is valued like a demanding task) · Not prayed: 0 (nothing is cut) · Not marked at all: at 6 AM next morning the same DP is cut (Fajr −${pen("fajr")}, others −${pen()}). You can mark a prayer only after its time starts.`)));
 
   // graphs
   const days = Array.from({ length: 30 }, (_, i) => addDays(today, i - 29));
   const cnt = d => PRAYERS.filter(p => set.has(d + ":" + p[0])).length;
-  page.append(h("div.card.mt", h("h3", "প্রতিদিন কত ওয়াক্ত — শেষ ৩০ দিন"), barChart(days.map(d => ({ l: d.slice(8), v: cnt(d), c: cnt(d) === 5 ? "#10B981" : undefined })), { color: "#6EE7B7" })));
+  page.append(h("div.card.mt", h("h3", "Prayers per day — last 30 days"), barChart(days.map(d => ({ l: d.slice(8), v: cnt(d), c: cnt(d) === 5 ? "#10B981" : undefined })), { color: "#6EE7B7" })));
   let full = 0; for (let i = days.length - 1; i >= 0; i--) { if (cnt(days[i]) === 5) full++; else if (days[i] !== today) break; }
   const mo = today.slice(0, 7), moDays = days.filter(d => d.startsWith(mo)).length || 1;
-  page.append(h("div.card", h("h3", "এই মাসে কোন নামাজ কতবার"),
+  page.append(h("div.card", h("h3", "This month — each prayer"),
     h("div.list", PRAYERS.map(([k, , bn]) => { const n = logs.filter(r => r.status === "prayed" && r.prayer === k && r.day.startsWith(mo)).length; return h("div.li", h("b", { style: { minWidth: "70px" } }, bn), h("div.grow", h("div.bar", h("i", { style: { width: Math.min(100, n / moDays * 100) + "%", background: "#10B981" } }))), h("span.small", `${n}/${moDays}`)); })),
-    h("p.small.muted.mb0", `টানা ৫ ওয়াক্ত: ${full} দিন 🔥`)));
+    h("p.small.muted.mb0", `All 5 in a row: ${full} day${full === 1 ? "" : "s"} 🔥`)));
   const months = Array.from({ length: 6 }, (_, i) => { const x = new Date(today.slice(0, 7) + "-01T00:00:00Z"); x.setUTCMonth(x.getUTCMonth() - 5 + i); return x.toISOString().slice(0, 7); });
   const possible = m => { const dIn = m === mo ? Number(today.slice(8)) : new Date(Date.UTC(+m.slice(0, 4), +m.slice(5, 7), 0)).getUTCDate(); return dIn * 5; };
-  page.append(h("div.card", h("h3", "মাসিক — কত % ওয়াক্ত পড়েছি"),
+  page.append(h("div.card", h("h3", "Monthly — % of prayers prayed"),
     barChart(months.map(m => ({ l: new Date(m + "-01").toLocaleDateString("en-GB", { month: "short" }), v: Math.round(logs.filter(r => r.status === "prayed" && r.day.startsWith(m)).length / possible(m) * 100) })), { color: "#10B981", fmt: v => v + "%" })));
 
   // location
-  const locBtn = h("button.btn.small", "📍 আমার লোকেশন দিয়ে সময় ঠিক করুন");
+  const locBtn = h("button.btn.small", "📍 Use my location");
   locBtn.onclick = busy(locBtn, async () => {
-    const pos = await new Promise((res, rej) => navigator.geolocation ? navigator.geolocation.getCurrentPosition(res, () => rej(new Error("লোকেশন পাওয়া যায়নি। Settings-এ লোকেশন অনুমতি দিন।")), { timeout: 15000 }) : rej(new Error("এই ফোনে লোকেশন নেই।")));
-    const loc = { ...(store.profile.prayer_loc || {}), lat: +pos.coords.latitude.toFixed(4), lng: +pos.coords.longitude.toFixed(4), name: "আমার লোকেশন" };
-    await api.update("profiles", `id=eq.${store.profile.id}`, { prayer_loc: loc }); await loadBasics(); toast("সময় আপনার লোকেশন অনুযায়ী ঠিক হয়েছে ✓", "ok"); rerender();
+    const pos = await new Promise((res, rej) => navigator.geolocation ? navigator.geolocation.getCurrentPosition(res, () => rej(new Error("Couldn't get your location. Allow location in Settings.")), { timeout: 15000 }) : rej(new Error("This phone has no location.")));
+    const loc = { ...(store.profile.prayer_loc || {}), lat: +pos.coords.latitude.toFixed(4), lng: +pos.coords.longitude.toFixed(4), name: "My location" };
+    await api.update("profiles", `id=eq.${store.profile.id}`, { prayer_loc: loc }); await loadBasics(); toast("Times now use your location ✓", "ok"); rerender();
   });
-  const adjBtn = h("button.btn.small", "🕌 মসজিদের সময়ের সাথে মেলান");
+  const adjBtn = h("button.btn.small", "🕌 Match my mosque");
   adjBtn.onclick = () => adjustSheet();
   page.append(h("div.card.small", h("p.small.muted", { style: { margin: "0 0 8px" } },
-    `সময় হিসাব: ${place().name} (${place().lat}, ${place().lng}) · ইসলামিক ফাউন্ডেশন বাংলাদেশের পদ্ধতি (ফজর ও এশা ১৮°, আসর হানাফি)। সাবধানতার জন্য প্রতিটা ওয়াক্ত হিসাবের সময়ের ২–৩ মিনিট পরে শুরু ও ১–৩ মিনিট আগে শেষ দেখানো হয়, যাতে ওয়াক্তের আগে নামাজ না হয়ে যায়। সন্দেহ হলে আপনার মসজিদের সময় মেনে চলুন।`),
+    `Times for ${place().name} (${place().lat}, ${place().lng}) · Islamic Foundation Bangladesh method (Fajr and Isha 18°, Asr Hanafi). For safety each prayer time starts 2–3 minutes after the calculated time and ends 1–3 minutes before the next, so a prayer is never shown before its time. If in doubt, follow your mosque.`),
     h("div.row.wrap", { style: { gap: "8px" } }, locBtn, adjBtn)));
 }, { tab: "week" });
 
@@ -202,12 +202,12 @@ route("prayer", async page => {
 function adjustSheet() {
   const a = adj();
   const ins = PRAYERS.map(([k, , bn]) => [k, bn, h("input.input", { type: "number", min: "-15", max: "30", step: "1", value: a[k] || 0, style: { width: "90px" } })]);
-  sheet("মসজিদের সময়ের সাথে মেলান", [h("p.hint", "প্রতিটা ওয়াক্ত কত মিনিট পরে শুরু ধরবেন (+) বা আগে (−)। শুধু মসজিদ/ক্যালেন্ডারের সাথে মিলিয়ে বদলান।"),
-    h("div.list", ins.map(([k, bn, inp]) => h("div.li", h("b.grow", bn), inp, h("span.small.muted", " মিনিট"))))], {
+  sheet("Match my mosque", [h("p.hint", "Move each start time later (+) or earlier (−) by a few minutes. Change only to match your mosque or calendar."),
+    h("div.list", ins.map(([k, bn, inp]) => h("div.li", h("b.grow", bn), inp, h("span.small.muted", " min"))))], {
     actions: close => {
       const sv = h("button.btn.primary", "Save");
       sv.onclick = busy(sv, async () => {
-        const n = {}; for (const [k, , inp] of ins) { const v = Math.round(Number(inp.value) || 0); if (v < -15 || v > 30) throw new Error("−15 থেকে +30 মিনিটের মধ্যে দিন।"); if (v) n[k] = v; }
+        const n = {}; for (const [k, , inp] of ins) { const v = Math.round(Number(inp.value) || 0); if (v < -15 || v > 30) throw new Error("Use −15 to +30 minutes."); if (v) n[k] = v; }
         await api.update("profiles", `id=eq.${store.profile.id}`, { prayer_loc: { ...(store.profile.prayer_loc || DHAKA), adj: n } });
         await loadBasics(); toast("Saved ✓", "ok"); close(true); rerender();
       });

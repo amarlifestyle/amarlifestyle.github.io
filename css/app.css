@@ -52,7 +52,9 @@ html, body { margin: 0; padding: 0; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: "Inter", "Noto Sans Bengali", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* the phone's own standard font (San Francisco on iPhone, Roboto on Android) + Noto Sans Bengali for Bangla */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Bengali", "Kohinoor Bangla", sans-serif;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
   font-size: 16px;
   line-height: 1.45;
   min-height: 100vh;
@@ -70,7 +72,7 @@ img { max-width: 100%; display: block; }
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 14px 0 12px; background: linear-gradient(var(--bg) 70%, transparent);
 }
-.topbar h1 { font-size: 24px; margin: 0; letter-spacing: -0.5px; font-weight: 700; }
+.topbar h1 { font-size: 24px; margin: 0; letter-spacing: -0.3px; font-weight: 700; }
 .topbar .sub { color: var(--muted); font-size: 13px; }
 .brandmark { display: flex; align-items: center; gap: 8px; font-size: 20px; letter-spacing: -0.5px; }
 .brandmark b { color: var(--brand); }
@@ -472,3 +474,35 @@ body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 
 .backdrop { padding-top: var(--sat); }
 .nav { padding-left: var(--sal); padding-right: var(--sar); }
 @media print { body { padding: 0; } body::before { display: none; } }
+
+/* ---- round AI button, AI window, emergency, motion ---- */
+.ai-orb { width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer; position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;
+  background: transparent; color: var(--text); box-shadow: 0 4px 16px color-mix(in srgb, #A78BFA 40%, transparent); transition: transform .15s; }
+.ai-orb::after { content: ""; position: absolute; inset: 0; border-radius: 50%; z-index: -2; background: conic-gradient(from 0deg, #22D3EE, #A78BFA, #F472B6, #34D399, #22D3EE); animation: orbspin 5s linear infinite; }
+.ai-orb::before { content: ""; position: absolute; inset: 2.5px; border-radius: 50%; z-index: -1; background: var(--card); }
+.ai-orb span { font-size: 15px; } .ai-orb small { font-size: 9.5px; font-weight: 700; letter-spacing: .3px; }
+.ai-orb:active { transform: scale(.92); }
+@keyframes orbspin { to { transform: rotate(360deg); } }
+.chip { border: 1px solid var(--line2); background: var(--card2); color: var(--text); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; transition: transform .12s, background .2s; }
+.chip:active { transform: scale(.96); background: color-mix(in srgb, var(--brand) 18%, var(--card2)); }
+.ai-tips { padding: 10px 12px; border-radius: 14px; background: linear-gradient(135deg, color-mix(in srgb, #A78BFA 12%, var(--card)), color-mix(in srgb, #22D3EE 8%, var(--card))); border: 1px solid color-mix(in srgb, #A78BFA 30%, transparent); }
+.ai-alert { padding: 7px 9px; border-radius: 10px; margin: 6px 0; background: color-mix(in srgb, var(--amber) 13%, transparent); border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent); }
+.ai-alert.high { background: color-mix(in srgb, var(--red) 13%, transparent); border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+.ai-alert b { color: var(--amber); } .ai-alert.high b { color: var(--red); }
+.ai-tip { padding: 6px 0; border-top: 1px solid var(--line); }
+.btn.emg { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, transparent); background: color-mix(in srgb, var(--red) 9%, var(--card)); min-height: 32px; padding: 0 10px; font-size: 13px; }
+/* gentle entrance: cards and tasks rise in one after another */
+.page.fresh .card, .page.fresh .task, .page.fresh .hero, .page.fresh .li, .page.fresh .stat { animation: rise .32s cubic-bezier(.2,.8,.2,1) both; }
+.page.fresh > div > :nth-child(2) { animation-delay: .03s; } .page.fresh > div > :nth-child(3) { animation-delay: .06s; }
+.page.fresh > div > :nth-child(4) { animation-delay: .09s; } .page.fresh > div > :nth-child(5) { animation-delay: .12s; }
+.page.fresh > div > :nth-child(n+6) { animation-delay: .15s; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.task, .card, .li, .btn, .chip { transition: transform .12s ease, background-color .2s ease, border-color .2s ease, opacity .2s ease; }
+.task:active, .li:active { transform: scale(.985); }
+.task.done { animation: donePop .35s ease; }
+@keyframes donePop { 40% { transform: scale(1.02); } }
+.fab { transition: transform .2s cubic-bezier(.2,.8,.2,1), opacity .2s; }
+.fab:active { transform: scale(.9); }
+.badge.ok { animation: rise .3s ease both; }
+.nav a, .nav button { transition: color .2s, transform .15s; }
+.nav a:active, .nav button:active { transform: scale(.9); }
