@@ -1,6 +1,7 @@
 // Amar Lifestyle — More: routine, calendar, goals, reports, settings, about, download
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";
+import { RELIGIONS, religionPicker } from "./prayer.js";
 import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go, ROLES, occupationPicker } from "./app.js";
 import { codeResetForm } from "./auth.js";
 
@@ -206,11 +207,14 @@ route("settings", async page => {
   const name = h("input.input", { value: p.name });
   const sleep = h("input.input", { type: "time", value: p.sleep_time.slice(0, 5) });
   const sv = h("button.btn.primary.block", t("Save"));
-  sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value, occupation: occ }); await loadBasics(); toast("Saved ✓", "ok"); });
+  sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value, occupation: occ, religion: rel }); await loadBasics(); toast("Saved ✓", "ok"); });
   let occ = p.occupation || null;
   const occBox = occupationPicker(occ, k => occ = k);
-  page.append(fold("me", "Profile", p.name + (ROLES[p.occupation] ? " · " + ROLES[p.occupation].label : ""), [h("label.f", h("span", "Name"), name),
+  let rel = p.religion || null;
+  const relBox = religionPicker(rel, k => rel = k);
+  page.append(fold("me", "Profile", p.name + (ROLES[p.occupation] ? " · " + ROLES[p.occupation].label : "") + (RELIGIONS[p.religion] ? " · " + RELIGIONS[p.religion].split(" · ")[0] : ""), [h("label.f", h("span", "Name"), name),
     h("label.f", h("span", "What do you do? (the app shows matching task categories)"), occBox),
+    h("label.f", h("span", "Religion (Muslim → prayer times under Routine)"), relBox),
     h("label.f", h("span", "Bedtime (night report comes 30 min before)"), sleep),
     h("p.small.muted", `Phone: ${p.phone} · Email: ${p.email}`), sv]));
 

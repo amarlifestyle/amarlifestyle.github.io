@@ -4,6 +4,7 @@ import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtHM, dhakaNow } from "./ui.js";
 import { route, store, rerender, backbar } from "./app.js";
 import { shrink } from "./assistant.js";
+import { isMuslim } from "./prayer.js";
 
 export const KINDS = {
   university: { label: "University", icon: "🎓", hint: "Your university class timetable. Tap a day to see its classes. They also show in Today (no DP) — tap ✕ there on a day you don't go." },
@@ -51,7 +52,7 @@ const DEMO = {
 // tab bar shown on top of Routine (Weekly) and every timetable tab
 export async function routineTabsAsync(active) { await loadTabs(); return routineTabs(active); }
 export function routineTabs(active) {
-  const tabs = [["week", "📅 Weekly", "#/week"], ...TABS.map(t => [tabKey(t), `${t.icon} ${t.name}`, `#/schedule/${tabKey(t)}`])];
+  const tabs = [["week", "📅 Weekly", "#/week"], ...(isMuslim() ? [["prayer", "🕌 Prayer", "#/prayer"]] : []), ...TABS.map(t => [tabKey(t), `${t.icon} ${t.name}`, `#/schedule/${tabKey(t)}`])];
   return h("div.seg", { style: { marginBottom: "12px", overflowX: "auto" } },
     tabs.map(([k, l, href]) => h("button" + (k === active ? ".on" : ""), { onclick: () => { location.hash = href; }, style: { whiteSpace: "nowrap" } }, l)),
     h("button", { onclick: addTabSheet, style: { whiteSpace: "nowrap" }, "aria-label": "Add a tab" }, "＋"));

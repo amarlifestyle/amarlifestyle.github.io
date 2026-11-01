@@ -1,8 +1,8 @@
 // Amar Lifestyle — offline support: app files are cached, data always comes fresh from the server.
-const CACHE = "amarlifestyle-v38";
+const CACHE = "amarlifestyle-v39";
 const FILES = [
   "./", "index.html", "manifest.json", "css/app.css",
-  "js/main.js", "js/app.js", "js/api.js", "js/ui.js", "js/auth.js", "js/today.js", "js/week.js", "js/money.js", "js/me.js", "js/more.js", "js/voice.js", "js/aicoach.js", "js/quotes.js", "js/assistant.js", "js/timetable.js",
+  "js/main.js", "js/app.js", "js/api.js", "js/ui.js", "js/auth.js", "js/today.js", "js/week.js", "js/money.js", "js/me.js", "js/more.js", "js/voice.js", "js/aicoach.js", "js/quotes.js", "js/assistant.js", "js/timetable.js", "js/prayer.js",
   "assets/icon-64.png", "assets/icon-180.png", "assets/icon-192.png", "assets/icon-512.png", "assets/logo-dark.png", "assets/logo-light.png", "assets/founder.jpg",
 ];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: "reload" })))).then(() => self.skipWaiting())); });

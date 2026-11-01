@@ -2,6 +2,7 @@
 import * as api from "./api.js";
 import { h, icon, toast, busy, t } from "./ui.js";
 import { route, go, loadBasics, store, occupationPicker, saveOccupation } from "./app.js";
+import { religionPicker, saveReligion } from "./prayer.js";
 import { aboutContent } from "./more.js";
 
 const field = (label, attrs) => { const i = h("input.input", attrs); return [h("label.f", h("span", label), i), i]; };
@@ -47,7 +48,9 @@ route("register", page => {
   const btn = h("button.btn.primary.block", { type: "submit" }, t("Create account"));
   let occ = null;
   const occf = h("label.f", h("span", "What do you do?"), occupationPicker(null, k => occ = k));
-  const form = h("form.card", nf, pf, ef, wf, occf,
+  let rel = null;
+  const relf = h("label.f", h("span", "Religion (Muslim → prayer times & tracking)"), religionPicker(null, k => rel = k));
+  const form = h("form.card", nf, pf, ef, wf, occf, relf,
     h("p.hint", "Your data will be safely stored in backup files."),
     h("label.check", { for: "agree" }, agree, h("span", "I agree to the ", h("a", { href: "#/privacy", target: "_blank" }, "Privacy Policy and Terms of Use"), ".")),
     btn,
@@ -58,6 +61,7 @@ route("register", page => {
     await api.account("register", { name: name.value, phone: phone.value, email: email.value, password: pass.value, agree: "yes" });
     store.profile = null; await loadBasics();
     if (occ) { try { await saveOccupation(occ); } catch { /* can set later in Settings */ } }
+    if (rel) { try { await saveReligion(rel); } catch { /* can set later in Settings */ } }
     toast("Welcome to Amar Lifestyle! 🎉", "ok");
     go("#/welcome");
   });

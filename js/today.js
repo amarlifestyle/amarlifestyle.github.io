@@ -2,6 +2,7 @@
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation } from "./app.js";
+import { prayerItems, prayerRow, prayerCount, religionPicker, saveReligion } from "./prayer.js";
 import { coachCard } from "./aicoach.js";
 import { quoteFor } from "./quotes.js";
 import { mealNow, classesBetween, classCard } from "./timetable.js";
@@ -63,11 +64,13 @@ route("today", async page => {
   const doneN = realTasks.filter(x => ["completed", "late_completed"].includes(x.status) || queued.has(x.id)).length;
   const pct = realTasks.length ? doneN / realTasks.length : 0;
   if (realTasks.length && (nowMin >= sleepMin - 30 || nowMin < 240)) {
+    const pc = await prayerCount(nowMin < 240 ? addDays(today, -1) : today).catch(() => null);
     body.append(h("div.card", { style: { background: "linear-gradient(135deg, color-mix(in srgb, var(--cyan) 14%, var(--card)), var(--card))" } },
       h("h3", "🌙 Today's report"),
       h("div.big", `${Math.round(pct * 100)}% tasks done`),
       h("p.muted.mb0", `${doneN} of ${realTasks.length} tasks · ${stats.today.dp >= 0 ? "+" : ""}${stats.today.dp} DP · ${stats.today.coins} coins today. `,
-        pct >= 0.8 ? "Great discipline — streak kept! 🔥" : "Tomorrow is a new chance. Mark the rest before 12 AM.")));
+        pct >= 0.8 ? "Great discipline — streak kept! 🔥" : "Tomorrow is a new chance. Mark the rest before 12 AM."),
+      pc !== null ? h("p.mb0", { style: { marginTop: "6px" } }, "🕌 আজ নামাজ: ", h("b", `${pc}/5`), " ওয়াক্ত", pc === 5 ? " — মাশাআল্লাহ! 🤲" : "") : null));
   }
 
   // running timer
@@ -83,6 +86,10 @@ route("today", async page => {
       h("b", "আপনি কী করেন?"), h("p.small.muted", { style: { margin: "4px 0 8px" } }, "এটা বেছে নিলে আপনার কাজের ধরন অনুযায়ী ক্যাটাগরি দেখাবে (পরে Settings → Profile থেকে বদলানো যাবে)।"),
       occupationPicker(null, async k => { try { await saveOccupation(k); toast("Saved ✓", "ok"); rerender(); } catch (e) { toast(e.message, "bad"); } }));
     body.append(card);
+  } else if (!store.profile?.religion) {
+    body.append(h("div.card", { style: { borderColor: "color-mix(in srgb, var(--brand) 45%, transparent)" } },
+      h("b", "আপনার ধর্ম?"), h("p.small.muted", { style: { margin: "4px 0 8px" } }, "মুসলিম হলে নামাজের সময় ও ওয়াক্ত দেখাবে, আর কয় ওয়াক্ত পড়লেন তার হিসাব রাখবে (Settings → Profile থেকে বদলানো যাবে)।"),
+      religionPicker(null, async k => { try { await saveReligion(k); toast("Saved ✓", "ok"); rerender(); } catch (e) { toast(e.message, "bad"); } })));
   }
 
   // compact summary strip (tasks get the space)
@@ -131,6 +138,7 @@ route("today", async page => {
   // university classes from the timetable sit in the list by time (no DP)
   let classes = [];
   try { classes = await classesBetween(today, today); } catch { /* offline */ }
+  try { classes = [...classes, ...await prayerItems(today)]; } catch { /* offline */ }
   body.append(h("div.section-title", h("h2", "Today's tasks"), h("a.small", { href: "#/routine" }, "Set routine")));
   if (!realTasks.length && !running && !classes.length) {
     body.append(h("div.card.empty", icon("today"), h("p", "No tasks today."),
@@ -144,7 +152,7 @@ route("today", async page => {
     }
     const list = tasks.filter(x => x.status !== "running");
     const pinned = list.filter(x => x.pinned), rest = [...list.filter(x => !x.pinned), ...classes].sort((a, b) => a.start_at.localeCompare(b.start_at));
-    [...pinned, ...rest].forEach(tk => body.append(tk.isClass ? classCard(tk) : taskCard(tk, queued.has(tk.id))));
+    [...pinned, ...rest].forEach(tk => body.append(tk.isPrayer ? prayerRow(tk) : tk.isClass ? classCard(tk) : taskCard(tk, queued.has(tk.id))));
   }
   body.append(h("p.center.small.faint.mt", "Unplanned work? Use ", h("button.linkbtn", { onclick: openTimer }, "the timer"), " to earn DP."));
   notifyLoop(tasks);
