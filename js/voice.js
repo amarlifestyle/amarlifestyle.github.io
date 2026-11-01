@@ -94,47 +94,70 @@ function toWav(buf) { // AudioBuffer → 16 kHz mono 16-bit WAV (small, every AI
 }
 const b64 = ab => { let s = ""; const u = new Uint8Array(ab); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
 
-// big round button: tap to start, tap again to finish → onAudio({ mime, data }) (async, may throw)
+// big button: tap to start, tap again to finish → onAudio({ mime, data }) (async, may throw)
+// The button's inside never gets rebuilt while recording (on iPhone/iPad a tap on a replaced element is lost).
 export function voiceRecorder(onAudio, { label = "Tap and speak" } = {}) {
-  let rec = null, stream = null, chunks = [], timer = null, sec = 0, working = false;
-  const dot = h("span", { style: { width: "10px", height: "10px", borderRadius: "50%", background: "currentColor", display: "inline-block" } });
-  const txt = h("span", label);
-  const b = h("button.btn", { type: "button", style: { width: "100%", minHeight: "52px", fontSize: "16px", gap: "10px" } }, icon("mic"), txt);
+  let rec = null, stream = null, chunks = [], timer = null, sec = 0, state = "idle", cancelled = false;
+  const ico = icon("mic");
+  const dot = h("span", { style: { width: "10px", height: "10px", borderRadius: "50%", background: "currentColor", display: "none", pointerEvents: "none" } });
+  const txt = h("span", { style: { pointerEvents: "none" } }, label);
+  ico.style.pointerEvents = "none";
+  const b = h("button.btn", { type: "button", style: { width: "100%", minHeight: "52px", fontSize: "16px", gap: "10px", touchAction: "manipulation" } }, ico, dot, txt);
+  const cancel = h("button.btn.small.ghost", { type: "button", style: { display: "none", margin: "6px auto 0" } }, "✕ Cancel");
   const hint = h("div.small.muted", { style: { textAlign: "center", marginTop: "4px" } }, "বাংলা, English বা মিশিয়ে বলুন — AI নিজে শুনে বুঝবে");
-  const reset = () => {
-    clearInterval(timer); stream?.getTracks().forEach(t => t.stop()); stream = null; rec = null;
-    b.classList.remove("rec"); b.replaceChildren(icon("mic"), txt); txt.textContent = label; b.disabled = false; working = false;
+  const stopMic = () => { clearInterval(timer); timer = null; stream?.getTracks().forEach(t => t.stop()); stream = null; };
+  const set = (st, text) => {
+    state = st; txt.textContent = text;
+    b.classList.toggle("rec", st === "rec");
+    ico.style.display = st === "rec" ? "none" : "";
+    dot.style.display = st === "rec" ? "inline-block" : "none";
+    cancel.style.display = st === "rec" ? "block" : "none";
+    b.disabled = st === "busy";
   };
+  const reset = () => { stopMic(); rec = null; set("idle", label); };
   const finish = async () => {
-    working = true; b.disabled = true; b.replaceChildren(h("span", "🤖 AI শুনছে…"));
+    stopMic();
+    if (cancelled) { reset(); return; }
+    set("busy", "🤖 AI শুনছে…");
     try {
       const blob = new Blob(chunks, { type: rec?.mimeType || chunks[0]?.type || "audio/mp4" });
-      if (blob.size < 1500) throw new Error("কিছু শোনা যায়নি। আবার চাপুন, তারপর কথা বলুন।");
+      if (blob.size < 1500) throw new Error("কিছু শোনা যায়নি। আবার চাপুন, কথা বলুন, তারপর আবার চাপুন।");
       const Ctx = window.AudioContext || window.webkitAudioContext;
       const ctx = new Ctx();
       const ab = await blob.arrayBuffer();
-      const buf = await new Promise((ok, bad) => { const p = ctx.decodeAudioData(ab, ok, bad); if (p?.then) p.then(ok, bad); });
+      const buf = await Promise.race([
+        new Promise((ok, bad) => { const p = ctx.decodeAudioData(ab, ok, bad); if (p?.then) p.then(ok, bad); }),
+        new Promise((_, bad) => setTimeout(() => bad(new Error("Couldn't read the recording. Try again.")), 15000)),
+      ]);
       ctx.close?.();
       await onAudio({ mime: "audio/wav", data: b64(toWav(buf)) });
     } catch (e) { toast(e.message || "Voice failed. Try again.", "bad"); }
     reset();
   };
+  const stopRec = () => { if (rec && rec.state !== "inactive") { set("busy", "🤖 AI শুনছে…"); try { rec.stop(); } catch { finish(); } } else reset(); };
   b.onclick = async () => {
-    if (working) return;
-    if (rec) { rec.stop(); return; }
+    if (state === "busy") return;
+    if (state === "rec") { stopRec(); return; }
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { toast("This browser can't record. Update Safari/Chrome, or type instead.", "bad"); return; }
     if (!navigator.onLine) { toast("Voice needs internet.", "bad"); return; }
+    set("busy", "Starting mic…");
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
-    catch { toast("Allow microphone: tap ‘aA’/🔒 in the address bar → Microphone → Allow.", "bad"); return; }
-    chunks = []; sec = 0;
-    rec = new MediaRecorder(stream);
-    rec.ondataavailable = e => e.data?.size && chunks.push(e.data);
-    rec.onstop = finish;
-    rec.start();
-    b.classList.add("rec");
-    const show = () => b.replaceChildren(dot, h("span", `Listening… ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} — tap to finish`));
-    show();
-    timer = setInterval(() => { sec++; show(); if (sec >= MAX_SEC) rec?.state === "recording" && rec.stop(); }, 1000);
+    catch { reset(); toast("Allow microphone: tap ‘aA’/🔒 in the address bar → Microphone → Allow.", "bad"); return; }
+    chunks = []; sec = 0; cancelled = false;
+    try {
+      rec = new MediaRecorder(stream);
+      rec.ondataavailable = e => { if (e.data?.size) chunks.push(e.data); };
+      rec.onstop = finish;
+      rec.start();
+    } catch { reset(); toast("Couldn't start recording. Try again.", "bad"); return; }
+    set("rec", "Listening… 0:00 — tap to finish");
+    timer = setInterval(() => {
+      if (!b.isConnected) { cancelled = true; stopRec(); return; } // sheet closed → stop the mic
+      sec++;
+      txt.textContent = `Listening… ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} — tap to finish`;
+      if (sec >= MAX_SEC) stopRec();
+    }, 1000);
   };
-  return h("div", b, hint);
+  cancel.onclick = () => { cancelled = true; stopRec(); };
+  return h("div", b, cancel, hint);
 }
