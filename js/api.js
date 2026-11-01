@@ -127,6 +127,9 @@ export async function ai(action, payload = {}) {
   } catch { const e = new ApiError("AI needs internet."); e.offline = true; throw e; }
   const d = await r.json().catch(() => ({}));
   if (!r.ok || d.error) throw new ApiError(d.error || "AI is busy. Try again.");
+  // AI sometimes wraps its answer in a list: [{...}] or just a list of items
+  if (Array.isArray(d)) return d.length === 1 && d[0] && !Array.isArray(d[0]) && (d[0].items || d[0].summary || d[0].answer || d[0].dp) ? d[0] : { items: d };
+  if (Array.isArray(d.items) && d.items.length === 1 && Array.isArray(d.items[0])) d.items = d.items[0];
   return d;
 }
 export function logout() { saveSession(null); }
