@@ -73,6 +73,7 @@ const P = {
   back: '<path d="M15 5l-7 7 7 7"/>',
   chev: '<path d="M9 5l7 7-7 7"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   logo: '',
 };
 export function icon(name, cls = "") {
@@ -208,4 +209,19 @@ export function ring(pct, label, sub) {
   const r = 40, c = 2 * Math.PI * r, off = c * (1 - Math.min(1, Math.max(0, pct)));
   return h("div.ring", { html: `<svg viewBox="0 0 96 96"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22D3EE"/><stop offset="1" stop-color="#4ADE80"/></linearGradient></defs><circle cx="48" cy="48" r="${r}" fill="none" stroke="var(--bg2)" stroke-width="9"/><circle cx="48" cy="48" r="${r}" fill="none" stroke="url(#rg)" stroke-width="9" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" style="transition:stroke-dashoffset .8s ease"/></svg><div class="lbl"><b>${label}</b><span>${sub}</span></div>` });
 }
-export const PALETTE = ["#22D3EE", "#4ADE80", "#FBBF24", "#E879F9", "#60A5FA", "#F87171", "#A78BFA", "#2DD4BF", "#FB923C", "#94A3B8"];
+export const PALETTE = ["#22D3EE", "#4ADE80", "#FBBF24", "#E879F9", "#60A5FA", "#F87171", "#A78BFA", "#2DD4BF",
+  "#FB923C", "#F472B6", "#A3E635", "#38BDF8", "#FACC15", "#C084FC", "#34D399", "#FDA4AF",
+  "#818CF8", "#FCA5A5", "#5EEAD4", "#FDE047", "#F0ABFC", "#93C5FD", "#86EFAC", "#94A3B8"];
+// colour chooser: 24 neon swatches + any custom colour
+export function colorPicker(current, onPick, { allowNone = false } = {}) {
+  let cur = current || "";
+  const box = h("div.colors");
+  const mark = el => box.querySelectorAll("button,label").forEach(b => b.classList.toggle("on", b === el));
+  if (allowNone) box.append(h("button" + (!cur ? ".on" : ""), { type: "button", title: "Automatic", "aria-label": "Automatic colour", style: { background: "conic-gradient(#22D3EE,#4ADE80,#FBBF24,#E879F9,#22D3EE)" }, onclick: e => { cur = ""; mark(e.currentTarget); onPick(""); } }));
+  PALETTE.forEach(c => box.append(h("button" + (c.toLowerCase() === cur.toLowerCase() ? ".on" : ""), { type: "button", "aria-label": c, style: { background: c }, onclick: e => { cur = c; mark(e.currentTarget); onPick(c); } })));
+  const custom = h("input", { type: "color", value: cur && !PALETTE.includes(cur) ? cur : "#ffffff", "aria-label": "Custom colour", style: { position: "absolute", opacity: 0, width: "100%", height: "100%", inset: 0, cursor: "pointer" } });
+  const lab = h("label" + (cur && !PALETTE.map(x => x.toLowerCase()).includes(cur.toLowerCase()) ? ".on" : ""), { title: "Any colour", style: { position: "relative", width: "34px", height: "34px", borderRadius: "50%", border: "2px dashed var(--line2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", color: "var(--muted)", cursor: "pointer" } }, "+", custom);
+  custom.oninput = () => { cur = custom.value; lab.style.background = cur; mark(lab); onPick(cur); };
+  box.append(lab);
+  return box;
+}

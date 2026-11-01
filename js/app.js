@@ -67,13 +67,14 @@ async function render() {
   const [path, ...args] = (location.hash.replace(/^#\/?/, "") || "today").split("/");
   const r = routes[path] || routes.today;
   const app = document.getElementById("app");
-  if (!r.public && !api.getSession()) { if (path !== "login") return go("#/login"); }
+  if (!r.public && !api.getSession()) return go("#/home");
   if (!r.public && !store.profile) {
     const cached = api.LS.get("al_basics");
     if (cached) Object.assign(store, cached);
     try { await loadBasics(); } catch (e) { if (!cached) { app.replaceChildren(h("div.empty", e.message)); return; } }
   }
   document.querySelector(".nav")?.remove();
+  document.body.classList.toggle("no-nav", !!r.public);
   if (!r.public) document.body.appendChild(navBar(r.tab || path));
   const page = h("div.page");
   app.replaceChildren(page);

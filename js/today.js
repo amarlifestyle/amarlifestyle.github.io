@@ -175,7 +175,10 @@ async function mark(tk, result) {
 }
 
 // ---------- add / edit task
-export function addTask(tk = null, preset = {}) {
+export async function addTask(tk = null, preset = {}) {
+  const students = await api.select("students", "select=id,name&active=eq.true&order=name").catch(() => []);
+  const stu = h("select.input", h("option", { value: "" }, "— none —"), students.map(x => h("option", { value: x.id, selected: tk?.student_id === x.id }, x.name)));
+  const stuRow = h("label.f", h("span", "Student (attendance is added when marked Completed)"), stu);
   const today = todayStr();
   const startDef = (() => { const d = dhakaNow(); d.setMinutes(d.getMinutes() + 30 - (d.getMinutes() % 15)); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; })();
   const title = h("input.input", { value: tk?.title || preset.title || "", placeholder: "e.g. Physics chapter 3", maxlength: "80" });
@@ -187,9 +190,12 @@ export function addTask(tk = null, preset = {}) {
   const durInp = h("input.input", { type: "number", min: "5", max: "720", value: dur, inputmode: "numeric", "aria-label": "Minutes" });
   const quick = h("div.seg", [30, 60, 90, 120].map(m => h("button" + (m === dur ? ".on" : ""), { type: "button", onclick: e => { durInp.value = m; quick.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); } }, durLabel(m))));
   const pin = h("input", { type: "checkbox", checked: !!tk?.pinned, id: "pinchk" });
+  const showStu = () => { stuRow.style.display = cat.value === "Tuition" && students.length ? "" : "none"; };
+  cat.addEventListener("change", showStu); showStu();
+  stu.onchange = () => { const x = students.find(y => y.id === stu.value); if (x && !title.value.trim()) title.value = x.name; };
   return sheet(tk ? "Edit task" : t("Add task"), [
     h("label.f", h("span", "What will you do?"), title),
-    h("label.f", h("span", "Category"), cat),
+    h("div.grid2", h("label.f", h("span", "Category"), cat), stuRow),
     h("div.grid2", h("label.f", h("span", "Day"), day), h("label.f", h("span", "Start time"), start)),
     h("label.f", h("span", "How long? (minutes)"), quick, h("div", { style: { marginTop: "8px" } }, durInp)),
     h("label.check", { for: "pinchk" }, pin, h("span", "📌 Pin as important (shows at the top)")),
@@ -201,10 +207,11 @@ export function addTask(tk = null, preset = {}) {
         if (!title.value.trim()) throw new Error("Please write what you will do.");
         const m = Number(durInp.value); if (!(m >= 5 && m <= 720)) throw new Error("Time must be 5 to 720 minutes.");
         const s = dhakaIso(day.value, start.value); const e = new Date(new Date(s).getTime() + m * 60000).toISOString();
-        const row = { title: title.value.trim(), category: cat.value, start_at: s, end_at: e, day: day.value, pinned: pin.checked };
+        const student = cat.value === "Tuition" ? stu.value || null : null;
+        const row = { title: title.value.trim(), category: cat.value, start_at: s, end_at: e, day: day.value, pinned: pin.checked, student_id: student };
         if (tk) await api.update("tasks", `id=eq.${tk.id}`, row);
         else {
-          const r = await api.offlineSafe({ kind: "task", title: row.title, category: row.category, start: s, end: e, pinned: row.pinned });
+          const r = await api.offlineSafe({ kind: "task", title: row.title, category: row.category, start: s, end: e, pinned: row.pinned, studentId: student });
           if (r?.queued) { toast("Saved offline — it will sync when you're online ✓", "ok"); close(true); rerender(); return; }
         }
         if (new Date(s) < new Date()) toast("Saved. It already started, so it earns no DP — use the timer next time.", "");

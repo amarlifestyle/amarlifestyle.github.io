@@ -1,6 +1,6 @@
 // Amar Lifestyle — More: routine, calendar, goals, reports, settings, about, download
 import * as api from "./api.js";
-import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad } from "./ui.js";
+import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go } from "./app.js";
 
 const li = (href, ic, title, sub) => h("a.li", { href }, h("div.ic", icon(ic)), h("div.grow", h("b", title), sub ? h("div.small.muted", sub) : null), icon("chev", "chev"));
@@ -27,7 +27,7 @@ route("more", page => {
 // ---------- routine (repeats for 365 days)
 route("routine", async page => {
   page.append(backbar(t("Routine")));
-  const rows = await api.select("routines", "select=*&order=start_time");
+  const rows = (await api.select("routines", "select=*&order=start_time")).filter(r => r.template !== "_removed");
   const templates = [...new Set(["Normal", "Exam", ...rows.map(r => r.template)])];
   const activeT = rows.find(r => r.active)?.template || "Normal";
   page.append(h("p.hint", "Set a task once and it appears on the chosen days for a whole year. Switch between routines any time."));
@@ -53,19 +53,28 @@ route("routine", async page => {
   page.append(h("button.fab", { onclick: () => editRoutine(null, templates, activeT), "aria-label": "Add routine task" }, icon("plus")));
 }, { tab: "more" });
 
-function editRoutine(r, templates, activeT) {
+export async function editRoutine(r, templates, activeT) {
+  if (!templates) {
+    const rows = (await api.select("routines", "select=template,active")).filter(x => x.template !== "_removed");
+    templates = [...new Set(["Normal", "Exam", ...rows.map(x => x.template)])];
+    activeT = rows.find(x => x.active)?.template || "Normal";
+  }
+  const students = await api.select("students", "select=id,name,color&active=eq.true&order=name").catch(() => []);
   const title = h("input.input", { value: r?.title || "", placeholder: "e.g. Tuition — Leon", maxlength: "80" });
   const cat = h("select.input", catNames().map(n => h("option", { value: n, selected: r?.category === n }, `${n} · ${catDp(n)} DP/hour`)));
+  const stu = h("select.input", h("option", { value: "" }, "— none —"), students.map(s => h("option", { value: s.id, selected: r?.student_id === s.id }, s.name)));
+  const stuRow = h("label.f", h("span", "Student (attendance is added when marked Completed)"), stu);
+  const showStu = () => { stuRow.style.display = cat.value === "Tuition" && students.length ? "" : "none"; };
+  cat.onchange = showStu; showStu();
   const start = h("input.input", { type: "time", value: r?.start_time?.slice(0, 5) || "20:00" });
   const dur = h("input.input", { type: "number", min: "5", max: "720", value: r?.duration_min || 60, inputmode: "numeric" });
   let days = r?.days ? [...r.days] : [0, 1, 2, 3, 4, 5, 6];
   const dayBox = h("div.days", [6, 0, 1, 2, 3, 4, 5].map(d => h("button" + (days.includes(d) ? ".on" : ""), { type: "button", onclick: e => { days = days.includes(d) ? days.filter(x => x !== d) : [...days, d]; e.target.classList.toggle("on"); } }, DAYS[d].slice(0, 2))));
   let color = r?.color || "";
-  const colors = h("div.colors", [h("button" + (!color ? ".on" : ""), { type: "button", title: "Category colour", style: { background: "conic-gradient(#22D3EE,#4ADE80,#FBBF24,#E879F9,#22D3EE)" }, onclick: e => pick("", e) }), PALETTE.slice(0, 8).map(c => h("button" + (c === color ? ".on" : ""), { type: "button", style: { background: c }, "aria-label": c, onclick: e => pick(c, e) }))]);
-  function pick(c, e) { color = c; colors.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.currentTarget)); }
+  const colors = colorPicker(color, c => color = c, { allowNone: true });
   const tmpl = h("select.input", templates.map(tp => h("option", { selected: (r?.template || activeT) === tp }, tp)));
   return sheet(r ? "Edit routine task" : "Add routine task", [
-    h("label.f", h("span", "Task"), title), h("label.f", h("span", "Category"), cat),
+    h("label.f", h("span", "Task"), title), h("div.grid2", h("label.f", h("span", "Category"), cat), stuRow),
     h("div.grid2", h("label.f", h("span", "Start"), start), h("label.f", h("span", "Minutes"), dur)),
     h("label.f", h("span", "Days"), dayBox), h("label.f", h("span", "Colour in week chart"), colors), h("label.f", h("span", "Routine"), tmpl),
     r ? h("p.hint", "Changes apply to upcoming days. Already-created tasks for today stay as they are.") : null,
@@ -76,7 +85,7 @@ function editRoutine(r, templates, activeT) {
         if (!title.value.trim()) throw new Error("Write the task name.");
         if (!days.length) throw new Error("Pick at least one day.");
         const m = Number(dur.value); if (!(m >= 5 && m <= 720)) throw new Error("Minutes must be 5 to 720.");
-        const row = { title: title.value.trim(), category: cat.value, start_time: start.value, duration_min: m, days, color: color || null, template: tmpl.value };
+        const row = { title: title.value.trim(), category: cat.value, start_time: start.value, duration_min: m, days, color: color || null, template: tmpl.value, student_id: cat.value === "Tuition" ? stu.value || null : null };
         if (r) {
           await api.update("routines", `id=eq.${r.id}`, row);
           await api.remove("tasks", `routine_id=eq.${r.id}&status=eq.pending&day=gt.${todayStr()}`);
@@ -186,7 +195,10 @@ function addGoal(parent) {
   });
 }
 
-// ---------- settings
+// ---------- settings (each section folds open on tap)
+function fold(ic, title, sub, body) {
+  return h("details.fold", h("summary", h("span.ic", icon(ic)), h("span.grow", h("div", title), sub ? h("div.small.muted", { style: { fontWeight: 400 } }, sub) : null), icon("chev", "chev")), h("div.fold-body", body));
+}
 route("settings", async page => {
   page.append(backbar(t("Settings")));
   const p = store.profile;
@@ -194,13 +206,13 @@ route("settings", async page => {
   const sleep = h("input.input", { type: "time", value: p.sleep_time.slice(0, 5) });
   const sv = h("button.btn.primary.block", t("Save"));
   sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value }); await loadBasics(); toast("Saved ✓", "ok"); });
-  page.append(h("div.card", h("h3", "Profile"), h("label.f", h("span", "Name"), name), h("label.f", h("span", "Bedtime (night report comes 30 min before)"), sleep),
-    h("p.small.muted", `Phone: ${p.phone} · Email: ${p.email}`), sv));
+  page.append(fold("me", "Profile", p.name, [h("label.f", h("span", "Name"), name), h("label.f", h("span", "Bedtime (night report comes 30 min before)"), sleep),
+    h("p.small.muted", `Phone: ${p.phone} · Email: ${p.email}`), sv]));
 
   const seg = (opts, cur, on) => { const s = h("div.seg", opts.map(([v, l]) => h("button" + (v === cur ? ".on" : ""), { type: "button", onclick: async e => { s.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); await on(v); } }, l))); return s; };
-  page.append(h("div.card", h("h3", "Look"),
+  page.append(fold("sun", "Look", "Theme and language", [
     h("label.f", h("span", "Theme"), seg([["dark", "🌙 Dark"], ["light", "☀️ Light"]], p.theme, async v => { applyTheme(v); await api.update("profiles", `id=eq.${p.id}`, { theme: v }); p.theme = v; })),
-    h("label.f.mb0", h("span", "Language"), seg([["en", "English"], ["bn", "বাংলা"]], p.lang, async v => { await api.update("profiles", `id=eq.${p.id}`, { lang: v }); api.LS.set("al_lang", v); p.lang = v; rerender(); }))));
+    h("label.f.mb0", h("span", "Language"), seg([["en", "English"], ["bn", "বাংলা"]], p.lang, async v => { await api.update("profiles", `id=eq.${p.id}`, { lang: v }); api.LS.set("al_lang", v); p.lang = v; rerender(); }))]));
 
   const hasPin = await api.rpc("has_pin");
   const pinBtn = h("button.btn.block", icon("shield"), hasPin ? "Change PIN" : "Set PIN");
@@ -212,25 +224,25 @@ route("settings", async page => {
     if (n1 !== n2) throw new Error("PINs didn't match. Try again.");
     await api.rpc("set_pin", { p_new: n1, p_old: old }); toast("PIN saved ✓", "ok"); rerender();
   });
-  page.append(h("div.card", h("h3", "PIN"), h("p.hint", "Needed only to edit money entries and to export reports. You stay logged in otherwise."), pinBtn));
+  page.append(fold("shield", "PIN", hasPin ? "PIN is set" : "Not set yet", [h("p.hint", "Needed only to edit money entries and to export reports. You stay logged in otherwise."), pinBtn]));
 
   const pv = { ...p.privacy };
   const labels = { level: "My level", dp: "My DP and coins", streak: "My streak", badges: "My badges", charts: "My charts & heatmap" };
-  page.append(h("div.card", h("h3", "Privacy — what others can see"), h("p.hint", "Money, diary and photos are always private."),
+  page.append(fold("lock", "Privacy", "What others can see", [h("p.hint", "Money, diary and photos are always private."),
     Object.entries(labels).map(([k, l]) => h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", l),
-      h("input", { type: "checkbox", checked: !!pv[k], onchange: async e => { pv[k] = e.target.checked; await api.update("profiles", `id=eq.${p.id}`, { privacy: pv }); p.privacy = pv; toast(e.target.checked ? "Public" : "Private"); } })))));
+      h("input", { type: "checkbox", checked: !!pv[k], onchange: async e => { pv[k] = e.target.checked; await api.update("profiles", `id=eq.${p.id}`, { privacy: pv }); p.privacy = pv; toast(e.target.checked ? "Public" : "Private"); } })))]));
 
   const catName = h("input.input", { placeholder: "e.g. Coding" });
   let ccol = PALETTE[4];
-  const cbox = h("div.colors", PALETTE.slice(0, 8).map(c => h("button" + (c === ccol ? ".on" : ""), { type: "button", style: { background: c }, "aria-label": c, onclick: e => { ccol = c; cbox.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); } })));
+  const cbox = colorPicker(ccol, c => ccol = c);
   const addCat = h("button.btn.block", icon("plus"), "Add category");
   addCat.onclick = busy(addCat, async () => { if (!catName.value.trim()) throw new Error("Write a name."); await api.insert("user_categories", { user_id: p.id, name: catName.value.trim(), color: ccol }); await loadBasics(); toast("Category added ✓", "ok"); rerender(); });
-  page.append(h("div.card", h("h3", "Task categories"),
+  page.append(fold("flag", "Task categories", `${catNames().length} categories`, [
     h("div.small", catNames().map(n => h("div.row.between", { style: { padding: "5px 0" } }, h("span", h("i", { style: { display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: catColor(n), marginRight: "8px" } }), n), h("span.muted", `${catDp(n)} DP/hour`)))),
     h("p.hint.mt", "Your own categories earn " + (store.cfg.custom_category_dp ?? 5) + " DP/hour."),
-    h("label.f", h("span", "New category"), catName), cbox, h("div.mt", addCat)));
+    h("label.f", h("span", "New category"), catName), cbox, h("div.mt", addCat)]));
 
-  page.append(h("div.card", h("h3", "Telegram"), h("p.hint.mb0", "Coming soon: get reminders and password reset codes on Telegram.")));
+  page.append(fold("bell", "Telegram", "Coming soon", [h("p.hint.mb0", "Coming soon: get reminders and password reset codes on Telegram.")]));
 
   const exp = h("button.btn.block", icon("download"), "Download my data (backup)");
   exp.onclick = busy(exp, async () => {
@@ -241,31 +253,35 @@ route("settings", async page => {
     const a = h("a", { download: `amar-lifestyle-backup-${todayStr()}.json`, href: URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" })) });
     a.click(); toast("Backup downloaded ✓", "ok");
   });
-  page.append(h("div.card", h("h3", "Backup"), h("p.hint", "Your data is backed up on our server every day. You can also keep your own copy."), exp));
+  page.append(fold("download", "Backup", "Download your data", [h("p.hint", "Your data is backed up on our server every day. You can also keep your own copy."), exp]));
 }, { tab: "more" });
 
 // ---------- about us
-route("about", page => {
-  page.append(h("header.topbar", h("div.row", h("a.icon-btn", { href: api.getSession() ? "#/more" : "#/login", "aria-label": "Back" }, icon("back")), h("h1", t("About Us")))));
+export function aboutContent() {
   const cred = (ic, txt) => h("div.cred", icon(ic), h("span", txt));
-  page.append(
+  return h("div.grid-wide",
     h("div.card", { style: { padding: 0, overflow: "hidden" } },
       h("div.founder", h("img", { src: "assets/founder.jpg", alt: "Musfiqur Rahman", loading: "lazy" })),
-      h("div", { style: { padding: "16px" } },
-        h("h2", { style: { fontSize: "22px", margin: "0 0 2px" } }, "Musfiqur Rahman"),
+      h("div", { style: { padding: "14px" } },
+        h("h2", { style: { fontSize: "20px", margin: "0 0 2px" } }, "Musfiqur Rahman"),
         h("div.muted", "Founder & CEO, Amar Lifestyle"),
-        h("p", { style: { margin: "12px 0" } }, "By profession, a future engineer. By passion, a teacher and mentor. By hobby, a filmmaker and storyteller."),
+        h("p", { style: { margin: "10px 0" } }, "By profession, a future engineer. By passion, a teacher and mentor. By hobby, a filmmaker and storyteller."),
         cred("shield", "Ex Officer Cadet, Bangladesh Marine Academy (60th Batch)"),
         cred("student", "IoT & Robotics Engineering student, University of Frontier Technology, Bangladesh"),
         cred("book", "Physics & Biology Instructor, The Sun Academy"))),
-    h("div.card",
-      h("h3", "Why I built Amar Lifestyle"),
-      h("p", "At Bangladesh Marine Academy, I learned what real discipline means: every minute planned and every task done on time. During my admission journey, I learned self-discipline: keeping a routine even when no one is watching. Together, these gave me almost two years of a disciplined life."),
-      h("p", "But after I got into university, I struggled to keep my own routine and schedule. To solve that problem, I brought everything I had learned under one roof and built Amar Lifestyle."),
-      h("p.mb0", "I use it every day myself, and now I'm making it free for everyone. Because whoever leads a disciplined life can achieve whatever they want in life.")),
-    h("div.list",
-      h("a.li", { href: "https://www.facebook.com/engrmusfiqur", target: "_blank", rel: "noopener" }, h("div.ic", icon("fb")), h("div.grow", h("b", "Facebook"), h("div.small.muted", "facebook.com/engrmusfiqur")), icon("chev", "chev")),
-      h("a.li", { href: "https://www.facebook.com/rimonvideos", target: "_blank", rel: "noopener" }, h("div.ic", icon("video")), h("div.grow", h("b", "Rimon Videos"), h("div.small.muted", "facebook.com/rimonvideos")), icon("chev", "chev"))));
+    h("div",
+      h("div.card",
+        h("h3", "Why I built Amar Lifestyle"),
+        h("p", "At Bangladesh Marine Academy, I learned what real discipline means: every minute planned and every task done on time. During my admission journey, I learned self-discipline: keeping a routine even when no one is watching. Together, these gave me almost two years of a disciplined life."),
+        h("p", "But after I got into university, I struggled to keep my own routine and schedule. To solve that problem, I brought everything I had learned under one roof and built Amar Lifestyle."),
+        h("p.mb0", "I use it every day myself, and now I'm making it free for everyone. Because whoever leads a disciplined life can achieve whatever they want in life.")),
+      h("div.list",
+        h("a.li", { href: "https://www.facebook.com/engrmusfiqur", target: "_blank", rel: "noopener" }, h("div.ic", icon("fb")), h("div.grow", h("b", "Facebook"), h("div.small.muted", "facebook.com/engrmusfiqur")), icon("chev", "chev")),
+        h("a.li", { href: "https://www.facebook.com/rimonvideos", target: "_blank", rel: "noopener" }, h("div.ic", icon("video")), h("div.grow", h("b", "Rimon Videos"), h("div.small.muted", "facebook.com/rimonvideos")), icon("chev", "chev")))));
+}
+route("about", page => {
+  page.append(h("header.topbar", h("div.row", h("a.icon-btn", { href: api.getSession() ? "#/more" : "#/home", "aria-label": "Back" }, icon("back")), h("h1", t("About Us")))));
+  page.append(aboutContent());
 }, { public: true });
 
 // ---------- download / install

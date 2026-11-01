@@ -1,7 +1,7 @@
 // Amar Lifestyle — money: income, expenses, budgets, history, tuition, dues, savings
 import * as api from "./api.js";
-import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, donut, PALETTE, pad } from "./ui.js";
-import { route, store, rerender } from "./app.js";
+import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, donut, PALETTE, pad, colorPicker, barChart } from "./ui.js";
+import { route, store, rerender, backbar } from "./app.js";
 
 const INCOME_CATS = ["Tuition", "Salary", "Video work", "Gift", "Other income"];
 const expCats = () => store.cfg.expense_categories || ["Rent + Bills", "Food + Transport", "Study", "Shopping + Fun + Other"];
@@ -193,22 +193,15 @@ async function tuition(body, m) {
     const todayRec = mine.find(a => a.date === today);
     const p = paidSet[s.id];
     const payBtn = h("button.btn.small" + (p ? ".ghost" : ".primary"), p ? "✓ Paid" : "Mark paid");
-    if (!p) payBtn.onclick = busy(payBtn, async () => {
-      const amt = h("input.input", { type: "number", inputmode: "decimal", value: s.monthly_fee });
-      const ok = await sheet(`${s.name} · ${monthLabel(m)}`, [h("p.hint", "This will also be added to your income automatically."), h("label.f", h("span", "Amount received (৳)"), amt)], {
-        actions: close => [h("button.btn", { onclick: () => close(null) }, t("Cancel")), h("button.btn.primary", { onclick: () => close(true) }, "Save")] });
-      if (!ok) return;
-      await api.rpc("record_tuition_payment", { p_student: s.id, p_month: m, p_amount: Number(amt.value) || 0 });
-      toast("Fee saved and added to income ✓", "ok"); rerender();
-    });
+    if (!p) payBtn.onclick = () => receivePayment(s, m);
     const attBtn = h("button.btn.small" + (todayRec?.present ? ".ghost" : ""), todayRec?.present ? "✓ Came today" : "Came today");
     attBtn.onclick = busy(attBtn, async () => {
       if (todayRec) await api.remove("attendance", `student_id=eq.${s.id}&date=eq.${today}`);
       else await api.insert("attendance", { user_id: api.userId(), student_id: s.id, date: today, present: true });
       rerender();
     });
-    body.append(h("div.task", { style: { "--c": s.color } }, h("div.grow",
-      h("div.row.between", h("div.t", s.name), h("span.dp", tk(s.monthly_fee) + "/mo")),
+    body.append(h("div.task", { style: { "--c": s.color, cursor: "pointer" }, onclick: e => { if (!e.target.closest("button")) location.hash = `#/student/${s.id}`; } }, h("div.grow",
+      h("div.row.between", h("div.t", s.name, h("span.small.muted", "  · see graph ›")), h("span.dp", tk(s.monthly_fee) + "/mo")),
       h("div.meta", `Attendance this month: ${present} day${present === 1 ? "" : "s"}`, p ? h("span.ok", ` · paid ${tk(p.amount)}`) : h("span.warn", " · not paid yet")),
       h("div.acts", m === monthStart(today) ? attBtn : null, payBtn, h("button.btn.small.ghost", { onclick: () => addStudent(s) }, icon("edit"))))));
   });
@@ -218,7 +211,7 @@ function addStudent(s = null) {
   const name = h("input.input", { value: s?.name || "", placeholder: "e.g. Leon" });
   const fee = h("input.input", { type: "number", inputmode: "decimal", value: s?.monthly_fee || "", placeholder: "0" });
   let color = s?.color || PALETTE[Math.floor(Math.random() * 8)];
-  const colors = h("div.colors", PALETTE.slice(0, 8).map(c => h("button" + (c === color ? ".on" : ""), { type: "button", style: { background: c }, "aria-label": c, onclick: e => { color = c; colors.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); } })));
+  const colors = colorPicker(color, c => color = c);
   return sheet(s ? "Edit student" : "Add student", [h("label.f", h("span", "Name"), name), h("label.f", h("span", "Monthly fee (৳)"), fee), h("label.f", h("span", "Colour (used in the week chart)"), colors)], {
     actions: close => {
       const save = h("button.btn.primary", t("Save"));
@@ -287,3 +280,86 @@ function addGoal() {
       return [h("button.btn", { onclick: () => close(null) }, t("Cancel")), s]; },
   });
 }
+
+// ---------- receive tuition fee: choose which month(s) the money is for
+export async function receivePayment(s, preMonth) {
+  const today = todayStr();
+  const cur = monthStart(today);
+  const paid = new Set((await api.select("tuition_payments", `select=month&student_id=eq.${s.id}`)).map(x => x.month.slice(0, 7)));
+  const months = [...Array(8)].map((_, i) => shiftMonth(cur, i - 6)).filter(x => !paid.has(x.slice(0, 7)) && x >= [monthStart((s.created_at || today).slice(0, 10)), shiftMonth(cur, -3)].sort()[0]); // last 3 months (or since joined) … next month
+  if (!months.length) { toast("All recent months are already paid."); return; }
+  const pick = new Set([preMonth && months.includes(preMonth) ? preMonth : (months.filter(x => x < cur).pop() || months[0])]);
+  const amounts = {};
+  const box = h("div");
+  const total = h("b");
+  const draw = () => {
+    box.replaceChildren(...months.map(mo => {
+      const on = pick.has(mo);
+      const inp = h("input.input", { type: "number", inputmode: "decimal", min: "0", value: amounts[mo] ?? s.monthly_fee, style: { width: "120px", minHeight: "38px" }, oninput: e => { amounts[mo] = e.target.value; sum(); } });
+      return h("div.row.between", { style: { padding: "6px 0", borderBottom: "1px solid var(--line)" } },
+        h("label.check", { style: { margin: 0, alignItems: "center" } },
+          h("input", { type: "checkbox", checked: on, onchange: e => { e.target.checked ? pick.add(mo) : pick.delete(mo); draw(); } }),
+          h("span", monthLabel(mo), mo < cur ? h("span.small.warn", " · due") : mo === cur ? h("span.small.muted", " · this month") : h("span.small.muted", " · advance"))),
+        on ? inp : h("span.small.faint", "—"));
+    }));
+    sum();
+  };
+  const sum = () => { total.textContent = tk([...pick].reduce((a, mo) => a + (Number(amounts[mo] ?? s.monthly_fee) || 0), 0)); };
+  draw();
+  const ok = await sheet(`Receive fee · ${s.name}`, [
+    h("p.hint", "Tick the month(s) this money is for. Paying for two months together? Tick both. It's added to today's income."),
+    box, h("div.row.between.mt", h("span.muted", "Total received today"), total)], {
+    actions: close => [h("button.btn", { onclick: () => close(null) }, t("Cancel")), h("button.btn.primary", { onclick: () => close(true) }, "Save")] });
+  if (!ok) return;
+  if (!pick.size) { toast("Tick at least one month.", "bad"); return; }
+  try {
+    for (const mo of [...pick].sort()) await api.rpc("record_tuition_payment", { p_student: s.id, p_month: mo, p_amount: Number(amounts[mo] ?? s.monthly_fee) || 0 });
+    toast(`Saved for ${[...pick].sort().map(x => monthLabel(x).split(" ")[0]).join(" + ")} ✓ added to income`, "ok"); rerender();
+  } catch (e) { toast(e.message, "bad"); }
+}
+
+// ---------- one student: money and attendance month by month
+route("student", async (page, id) => {
+  const [rows, pays, att] = await Promise.all([
+    api.select("students", `select=*&id=eq.${id}`),
+    api.select("tuition_payments", `select=*&student_id=eq.${id}&order=month`),
+    api.select("attendance", `select=date,present&student_id=eq.${id}&order=date`),
+  ]);
+  const s = rows[0];
+  if (!s) throw new Error("Student not found.");
+  page.append(backbar(s.name, "#/money/tuition", h("div.row", h("button.btn.small.primary", { onclick: () => receivePayment(s) }, icon("money"), "Receive fee"), h("button.icon-btn", { "aria-label": "Edit student", onclick: () => addStudent(s) }, icon("edit")))));
+  // last 12 months
+  const today = todayStr();
+  const months = [...Array(12)].map((_, i) => shiftMonth(monthStart(today), i - 11));
+  const paid = Object.fromEntries(pays.map(p => [p.month.slice(0, 7), +p.amount]));
+  const days = {}; att.filter(a => a.present).forEach(a => days[a.date.slice(0, 7)] = (days[a.date.slice(0, 7)] || 0) + 1);
+  const firstM = [pays[0]?.month, att[0]?.date, s.created_at?.slice(0, 10)].filter(Boolean).sort()[0]?.slice(0, 7) || today.slice(0, 7);
+  const shown = months.filter(m => m.slice(0, 7) >= firstM);
+  const lbl = m => new Date(m + "T00:00:00").toLocaleDateString("en-GB", { month: "short" });
+  const total = pays.reduce((a, p) => a + +p.amount, 0);
+  const unpaid = shown.filter(m => !paid[m.slice(0, 7)] && m.slice(0, 7) < today.slice(0, 7)).length;
+  const thisM = today.slice(0, 7);
+  const last = shown.length > 1 ? paid[shown[shown.length - 2].slice(0, 7)] || 0 : 0;
+  const cur = paid[thisM] || 0;
+
+  page.append(h("div.grid3",
+    h("div.stat", h("div.k", "Total received"), h("div.v.ok", tk(total))),
+    h("div.stat", h("div.k", "Monthly fee"), h("div.v", tk(s.monthly_fee))),
+    h("div.stat", h("div.k", "Days taught (this month)"), h("div.v", days[thisM] || 0))));
+  page.append(h("p.small.muted", { style: { margin: "8px 2px 10px" } },
+    unpaid ? h("span.warn", `${unpaid} past month${unpaid > 1 ? "s" : ""} not paid. `) : "All past months paid. ",
+    cur && last ? (cur > last ? `Up ${tk(cur - last)} from last month.` : cur < last ? `Down ${tk(last - cur)} from last month.` : "Same as last month.") : ""));
+  page.append(h("div.card", h("h3", "Money received by month"),
+    barChart(shown.map(m => ({ l: lbl(m), v: paid[m.slice(0, 7)] || 0, c: s.color })), { fmt: tk }),
+    h("p.hint.mb0", "Empty bar = not paid that month.")));
+  page.append(h("div.card", h("h3", "Days taught by month"),
+    barChart(shown.map(m => ({ l: lbl(m), v: days[m.slice(0, 7)] || 0 })), { color: "var(--cyan)" }),
+    h("p.hint.mb0", "Counted automatically when a tuition task with this student is marked Completed, or when you tap “Came today”.")));
+  page.append(h("div.section-title", h("h2", "Month by month")));
+  page.append(h("div.list", shown.slice().reverse().map(m => {
+    const k = m.slice(0, 7), p = pays.find(x => x.month.slice(0, 7) === k);
+    return h("div.li", h("div.grow", h("b", new Date(m + "T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" })),
+      h("div.small.muted", `${days[k] || 0} day${days[k] === 1 ? "" : "s"} taught`, p ? ` · paid on ${fmtDate(p.paid_on)}` : "")),
+      p ? h("b.ok", tk(p.amount)) : h("span.badge" + (k < thisM ? ".bad" : ".warn"), k < thisM ? "Not paid" : "Due"));
+  })));
+}, { tab: "money" });

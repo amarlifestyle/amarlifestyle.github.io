@@ -156,7 +156,7 @@ export async function offlineSafe(op) {
 async function runOp(o, idMap, live = false) {
   const id = x => idMap[x] || x;
   if (o.kind === "mark") return rpc("complete_task", { p_task: id(o.taskId), p_result: o.result, p_client_time: live ? null : o.at });
-  if (o.kind === "task") return rpc("create_task", { p_title: o.title, p_category: o.category, p_start: o.start, p_end: o.end, p_pinned: !!o.pinned, p_made_at: live ? null : o.at });
+  if (o.kind === "task") return rpc("add_task", { p_title: o.title, p_category: o.category, p_start: o.start, p_end: o.end, p_pinned: !!o.pinned, p_made_at: live ? null : o.at, p_student: o.studentId || null });
   if (o.kind === "timer") return rpc("log_offline_timer", { p_title: o.title, p_category: o.category, p_start: o.start, p_end: o.end });
   if (o.kind === "insert") return insert(o.table, o.rows);
   if (o.kind === "upsert") return upsert(o.table, o.rows, o.onConflict);

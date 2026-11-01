@@ -2,6 +2,7 @@
 import * as api from "./api.js";
 import { h, icon, toast, busy, t } from "./ui.js";
 import { route, go, loadBasics, store } from "./app.js";
+import { aboutContent } from "./more.js";
 
 const field = (label, attrs) => { const i = h("input.input", attrs); return [h("label.f", h("span", label), i), i]; };
 
@@ -22,7 +23,7 @@ route("login", page => {
     store.profile = null; await loadBasics(); go("#/today");
   });
   page.append(shell(h("p.tag", "Build a disciplined life, one task at a time."), form,
-    h("p.center.small.faint", h("a", { href: "#/about" }, "About Amar Lifestyle"), " · ", h("a", { href: "#/privacy" }, "Privacy Policy"))));
+    h("p.center.small.faint", h("a", { href: "#/home" }, "← Welcome page"), " · ", h("a", { href: "#/privacy" }, "Privacy Policy"))));
 }, { public: true });
 
 route("register", page => {
@@ -90,4 +91,35 @@ route("privacy", page => {
   page.append(h("header.topbar", h("div.row", h("a.icon-btn", { href: api.getSession() ? "#/more" : "#/register", "aria-label": "Back" }, icon("back")), h("h1", "Privacy Policy"))),
     h("div.card", h("p.small.muted", "Privacy Policy and Terms of Use of Amar Lifestyle. Effective from 1 November 2026."),
       POLICY.map(([a, b]) => [h("h3", { style: { margin: "16px 0 6px", fontSize: "15px" } }, a), h("p.small", { style: { margin: 0 } }, b)])));
+}, { public: true });
+
+// ---------- welcome page for visitors (not logged in)
+route("home", page => {
+  if (api.getSession()) return go("#/today");
+  const feat = (ic, title, text) => h("div.card", { style: { marginBottom: 0 } }, h("div.row", { style: { gap: "10px", alignItems: "flex-start" } },
+    h("div.ic", { style: { width: "34px", height: "34px", borderRadius: "10px", background: "var(--card2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand)", flexShrink: 0 } }, icon(ic)),
+    h("div", h("b", title), h("div.small.muted", text))));
+  const cta = () => h("div.row", { style: { gap: "10px" } },
+    h("a.btn.primary.grow", { href: "#/register" }, t("Create account")), h("a.btn.grow", { href: "#/login" }, t("Log in")));
+  page.append(
+    h("div", { style: { textAlign: "center", padding: "28px 0 18px" } },
+      h("img", { src: document.documentElement.dataset.theme === "light" ? "assets/logo-light.png" : "assets/logo-dark.png", alt: "Amar Lifestyle", style: { width: "230px", margin: "0 auto 14px" } }),
+      h("h1", { style: { fontSize: "26px", margin: "0 0 6px", letterSpacing: "-0.5px" } }, "Welcome to Amar Lifestyle"),
+      h("p.muted", { style: { margin: "0 auto 18px", maxWidth: "460px" } }, "Plan your day, keep your routine, earn Discipline Points and see your progress — free for everyone."),
+      h("div", { style: { maxWidth: "420px", margin: "0 auto" } }, cta())),
+    h("div.section-title", h("h2", "What you can do")),
+    h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "10px" } },
+      feat("routine", "Daily & weekly routine", "Set tasks once — they repeat every week. Build your week like a neon routine chart."),
+      feat("medal", "Discipline Points & levels", "Hard tasks earn more DP. Climb Bronze → Silver → Gold → Platinum → Diamond every month."),
+      feat("timer", "Timer & Pomodoro", "Track study, tuition and gym time. 25 + 5 focus sessions."),
+      feat("money", "Money & budget", "Income, expenses, budgets and savings. Locked edit history keeps records honest."),
+      feat("student", "Tuition manager", "Students, fees, attendance and month-by-month graphs."),
+      feat("report", "Reports with QR", "PDF reports anyone can verify by scanning the QR code."),
+      feat("heart", "Daily life", "Sleep, water, habits, mood and a private diary."),
+      feat("mic", "Voice", "Say “Saturday 5 pm tuition 1 hour every week” and it's added."),
+      feat("today", "Works offline", "No internet? Keep marking tasks — it syncs when you're back online.")),
+    h("div.section-title", h("h2", t("About Us"))),
+    aboutContent(),
+    h("div.card.center", h("h3", "Ready to build a disciplined life?"), cta()),
+    h("p.center.small.faint", h("a", { href: "#/privacy" }, "Privacy Policy"), " · Amar Lifestyle"));
 }, { public: true });
