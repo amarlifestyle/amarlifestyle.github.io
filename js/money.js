@@ -386,6 +386,14 @@ function paidCell(st, p, e) {
   });
 }
 
+// count a student's fees from an earlier month (only months still open: until the 5th of the next month)
+async function markDueEarlier(st, mo) {
+  if (isLocked(mo)) { toast("This month is locked now.", "bad"); return; }
+  if (!(await confirmBox(`Mark ${monthLabel(mo)} as Due?`, `${st.name}'s fee (${tk(st.monthly_fee)}) for ${monthLabel(mo)} will show as Due. Fees are then counted from ${monthLabel(mo).split(" ")[0]}.`, "Mark as Due"))) return;
+  try { await api.update("students", `id=eq.${st.id}`, { created_at: new Date(mo + "T12:00:00+06:00").toISOString() }); toast("Marked as Due ✓", "ok"); rerender(); }
+  catch (e) { toast(e.message, "bad"); }
+}
+
 // ---------- dues + savings goals
 async function plans(body) {
   const [dues, goals, all] = await Promise.all([
@@ -563,6 +571,8 @@ route("payments", async (page, yr) => {
       return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, color: "var(--green)", borderColor: "color-mix(in srgb, var(--green) 55%, transparent)", background: "color-mix(in srgb, var(--green) 12%, transparent)" },
         title: `Paid on ${fmtDate(p.paid_on)}`, onclick: () => paidCell(st, p, e) }, tk(amountOf(p)).replace("৳", "৳ "), e?.edit_count ? " ✎" : ""));
     }
+    // a past month before the student's start, still open for editing → can be marked as Due
+    if (st.active && mo < startOf(st) && mo < cur && !isLocked(mo)) return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, color: "var(--muted)", borderColor: "var(--line2)", borderStyle: "dashed" }, title: "Tap to mark this month as Due", onclick: () => markDueEarlier(st, mo) }, "＋ Due"));
     if (!st.active || mo < startOf(st) || mo > cur) return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, cursor: "default", color: "var(--faint)", borderColor: "transparent" } }, "·"));
     const isDue = mo < cur;
     return h("td", { style: { padding: "0 3px" } }, h("div", { style: isDue
