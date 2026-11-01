@@ -5,7 +5,7 @@ import { route, store, rerender, backbar, role, showTuition } from "./app.js";
 
 const INCOME_DEFAULT = ["Tuition", "Salary", "Video work", "Gift", "Other income"];
 const incomeCats = () => role()?.income || INCOME_DEFAULT;
-const expCats = () => store.cfg.expense_categories || ["Rent + Bills", "Food + Transport", "Study", "Shopping + Fun + Other"];
+const expCats = () => store.cfg.expense_categories || ["Rent", "Bills", "Food", "Transport", "Study", "Shopping", "Fun", "Other"];
 const monthStart = s => s.slice(0, 7) + "-01";
 const monthEnd = m => { const [y, mo] = m.split("-").map(Number); return `${y}-${pad(mo)}-${pad(new Date(y, mo, 0).getDate())}`; };
 const shiftMonth = (m, n) => { const [y, mo] = m.split("-").map(Number); const d = new Date(y, mo - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`; };
@@ -17,7 +17,7 @@ export function lockAt(dateStr) {
 const isLocked = d => new Date() >= lockAt(d);
 const firstOpenDate = () => { const today = todayStr(); const prev = shiftMonth(monthStart(today), -1); return isLocked(prev) ? monthStart(today) : prev; };
 const monthLabel = m => new Date(m + "T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-const catCol = (c, i) => PALETTE[(expCats().indexOf(c) + 10) % 10] || PALETTE[i % 10];
+const catCol = (c, i) => PALETTE[(expCats().indexOf(c) + 12) % 12] || PALETTE[i % 10];
 
 route("money", async (page, tab = "overview", month) => {
   const m = month || monthStart(todayStr());

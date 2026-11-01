@@ -83,6 +83,8 @@ function syncToast(results) {
 }
 
 // ---------- router
+const snapshots = new Map();
+let renderTurn = 0;
 const routes = {};
 export function route(path, render, opts = {}) { routes[path] = { render, ...opts }; }
 const NAV = [["today", "#/today", "Today"], ["week", "#/week", "Week"], ["money", "#/money", "Money"], ["me", "#/me", "Me"], ["more", "#/more", "More"]];
@@ -102,12 +104,27 @@ async function render() {
   document.querySelector(".nav")?.remove();
   document.body.classList.toggle("no-nav", !!r.public);
   if (!r.public) document.body.appendChild(navBar(r.tab || path));
-  const page = h("div.page");
-  app.replaceChildren(page);
+  // show the last picture of this page at once (not tappable) while fresh data loads, then swap — no blank flashes
+  const key = location.hash || "#/today";
+  const same = app.firstElementChild?.dataset?.key === key;
+  const prevY = same ? scrollY : 0;
+  const snap = same ? app.firstElementChild : snapshots.get(key);
+  const page = h("div.page", { "data-key": key });
+  const myTurn = ++renderTurn;
+  if (snap) {
+    const ghost = snap.cloneNode(true); ghost.classList.add("ghost"); ghost.removeAttribute("data-key");
+    Object.assign(page.style, { position: "absolute", left: "0", right: "0", top: "0", visibility: "hidden" });
+    app.replaceChildren(ghost, page);
+  } else app.replaceChildren(page);
+  if (!same) window.scrollTo(0, 0);
   api.resetStale();
-  window.scrollTo(0, 0);
   try { await r.render(page, ...args); if (api.isStale && !r.public) page.prepend(offlineNote()); }
   catch (e) { page.replaceChildren(h("div.empty", icon("info"), h("p", e.message || "Could not load."), h("button.btn", { onclick: render }, "Try again"))); }
+  if (myTurn !== renderTurn) return; // user already moved on
+  page.removeAttribute("style"); page.classList.add(snap ? "swap" : "fresh");
+  app.replaceChildren(page);
+  if (same) window.scrollTo(0, prevY);
+  snapshots.set(key, page);
   dragFab();
   if (!r.public) daily();
 }

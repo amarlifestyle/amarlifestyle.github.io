@@ -76,8 +76,8 @@ img { max-width: 100%; display: block; }
 .brandmark b { color: var(--brand); }
 .brandmark svg { width: 28px; height: 28px; }
 
-.page { animation: pageIn .28s ease both; }
-@keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.page.fresh { animation: pageIn .18s ease both; }
+@keyframes pageIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* bottom nav */
 .nav {
@@ -430,3 +430,12 @@ body.fab-away .fab { transform: translateY(160%); opacity: 0; pointer-events: no
 
 .quote { font-size: 13px; font-style: italic; color: var(--muted); padding: 2px 6px 10px; line-height: 1.45; cursor: pointer; }
 .quote .by { font-style: normal; color: var(--faint); white-space: nowrap; }
+
+/* smoother: page ghost while loading, no heavy blur */
+#app { position: relative; }
+.ghost { pointer-events: none; }
+.ghost .fab { display: none; }
+.nav, .topbar { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.nav { background: var(--bg); }
+.week-scroll .cell { box-shadow: none; }
+.week-scroll .wday .h { box-shadow: none; }

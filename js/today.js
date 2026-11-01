@@ -97,7 +97,7 @@ route("today", async page => {
   const upNext = realTasks.find(x => x.status === "pending" && new Date(x.start_at) > new Date());
   if (upNext) {
     const m = Math.round((new Date(upNext.start_at) - new Date()) / 60000);
-    body.append(h("div.small.muted", { style: { margin: "-2px 4px 8px" } }, "⏭ Next: ", h("b", { style: { color: catColor(upNext.category) } }, upNext.title), ` at ${fmtTime(upNext.start_at)} · in ${m >= 60 ? Math.floor(m / 60) + "h " : ""}${m % 60}m`));
+    body.append(h("div.small.muted", { style: { margin: "-2px 4px 8px" } }, "⏭ Next: ", h("b", { style: { color: upNext.color || catColor(upNext.category) } }, upNext.title), ` at ${fmtTime(upNext.start_at)} · in ${m >= 60 ? Math.floor(m / 60) + "h " : ""}${m % 60}m`));
   }
   if (navigator.onLine) body.append(coachCard());
   // quote of the day (tap for another)
@@ -136,7 +136,7 @@ route("today", async page => {
 
 // ---------- task card
 function taskCard(tk, queued) {
-  const c = catColor(tk.category);
+  const c = tk.color || catColor(tk.category);
   const nowD = new Date();
   const ul = unlockAt(tk), le = lateEnd(tk);
   const el = h("div.task" + (["completed", "late_completed"].includes(tk.status) || queued ? ".done" : ""), { style: { "--c": c } });

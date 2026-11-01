@@ -105,24 +105,34 @@ route("life", async page => {
   db.onclick = busy(db, async () => { await save({ diary: diary.value }); toast("Diary saved ✓", "ok"); });
   page.append(h("div.card", h("h3", "📝 Mood & diary"), mrow, h("div.mt", diary), db));
 
-  // bad habits
+  // bad habits — tap + each time it happens (e.g. each cigarette), − to undo
   const hb = h("div.card", h("div.row.between", h("h3.mb0", "🚫 Bad habits"), h("button.btn.small", { onclick: addHabit }, icon("plus"), "Add")),
-    h("p.hint.mt", "Tap “Happened” when it happens. No DP is cut — it's just for you to see the pattern."));
+    h("p.hint.mt", "Tap ＋ each time it happens (for smoking: once per cigarette). No DP is cut — it's just for you to see the pattern."));
+  const SMOKE = /smok|cigar|sigar|সিগার|ধূমপান|বিড়ি|বিড়ি/i;
   habits.forEach(hab => {
     const mine = hlogs.filter(x => x.habit_id === hab.id);
+    const todayN = mine.filter(x => x.day === today).length;
     const last = mine[0]?.day;
     const clean = last ? Math.round((new Date(today) - new Date(last)) / 864e5) : Math.round((new Date(today) - new Date(hab.created_at.slice(0, 10))) / 864e5);
     const month = mine.filter(x => x.day.slice(0, 7) === today.slice(0, 7)).length;
-    const b = h("button.btn.small", "Happened");
-    b.onclick = busy(b, async () => { await api.insert("habit_logs", { user_id: api.userId(), habit_id: hab.id, day: today }); toast("Noted. Tomorrow is a new start 💪"); rerender(); });
-    hb.append(h("div.row.between", { style: { padding: "10px 0", borderTop: "1px solid var(--line)" } },
-      h("div", h("b", hab.name), h("div.small.muted", `${clean} day${clean === 1 ? "" : "s"} clean · ${month}× this month`)), b));
+    const week = mine.filter(x => x.day > addDays(today, -7)).length;
+    const unit = SMOKE.test(hab.name) ? ["cigarette", "cigarettes"] : ["time", "times"];
+    const u = n => `${n} ${n === 1 ? unit[0] : unit[1]}`;
+    const plus = h("button.btn.small", { "aria-label": "Add one" }, "＋1");
+    plus.onclick = busy(plus, async () => { await api.insert("habit_logs", { user_id: api.userId(), habit_id: hab.id, day: today }); rerender(); });
+    const minus = h("button.btn.small.ghost", { "aria-label": "Undo one", disabled: !todayN }, "−");
+    minus.onclick = busy(minus, async () => { const x = mine.find(y => y.day === today); if (x) await api.remove("habit_logs", `id=eq.${x.id}`); rerender(); });
+    hb.append(h("div.row.between", { style: { padding: "10px 0", borderTop: "1px solid var(--line)", gap: "8px" } },
+      h("div.grow", h("b", hab.name),
+        h("div.small", { style: { color: todayN ? "var(--red)" : "var(--green)" } }, todayN ? `Today: ${u(todayN)}` : "Today: none 👍"),
+        h("div.small.muted", `${todayN ? "" : clean + " day" + (clean === 1 ? "" : "s") + " clean · "}7 days: ${u(week)} · this month: ${u(month)}`)),
+      h("div.row", { style: { gap: "6px" } }, minus, plus)));
   });
   page.append(hb);
 }, { tab: "me" });
 
 function addHabit() {
-  const n = h("input.input", { placeholder: "e.g. Sleeping after 1 AM" });
+  const n = h("input.input", { placeholder: "e.g. Smoking · Sleeping after 1 AM" });
   sheet("Add bad habit", [h("label.f", h("span", "Habit"), n)], {
     actions: close => { const s = h("button.btn.primary", t("Save")); s.onclick = busy(s, async () => { if (!n.value.trim()) throw new Error("Write the habit."); await api.insert("bad_habits", { user_id: api.userId(), name: n.value.trim() }); close(true); rerender(); });
       return [h("button.btn", { onclick: () => close(null) }, t("Cancel")), s]; },
