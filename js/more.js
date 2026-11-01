@@ -10,10 +10,7 @@ const li = (href, ic, title, sub) => h("a.li", { href }, h("div.ic", icon(ic)), 
 route("more", page => {
   page.append(topbar(t("More")));
   page.append(h("div.list",
-    li("#/routine", "routine", "Repeating tasks", "Tasks that repeat every week — set once for the whole year"),
     li("#/calendar", "cal", "Calendar", "Extra classes, birthdays, meetings"),
-    li("#/goals", "goal", t("Goals"), "Year → month → week"),
-    li("#/money/tuition", "student", t("Tuition"), "Students, fees and attendance"),
     li("#/reports", "report", t("Reports"), "PDF with QR verification")));
   page.append(h("div.list",
     li("#/settings", "gear", t("Settings"), "PIN, theme, language, privacy"),

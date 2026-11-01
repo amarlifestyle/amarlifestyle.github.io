@@ -62,8 +62,7 @@ route("me", async page => {
     : h("p.hint.mb0", "Earn badges with a 7-day streak, 10 study hours and more.")));
   page.append(...statCharts(s).filter(Boolean));
   page.append(h("div.list",
-    h("a.li", { href: "#/life" }, h("div.ic", icon("heart")), h("div.grow", h("b", "Sleep, water, habits & diary")), icon("chev", "chev")),
-    h("a.li", { href: "#/reports" }, h("div.ic", icon("report")), h("div.grow", h("b", t("Reports"))), icon("chev", "chev"))));
+    h("a.li", { href: "#/life" }, h("div.ic", icon("heart")), h("div.grow", h("b", "Sleep, water, habits & diary")), icon("chev", "chev"))));
 }, { tab: "me" });
 
 // ---------- life tracking
