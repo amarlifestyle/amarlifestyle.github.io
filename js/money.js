@@ -212,7 +212,7 @@ async function tuition(body, m) {
   const due = students.reduce((a, st) => a + dueMonths(st).length * +st.monthly_fee, 0);
   const got = pays.reduce((a, p) => a + +p.amount, 0);
   body.append(h("div.grid2", h("div.stat", h("div.k", `Fees for ${monthLabel(m).split(" ")[0]} received`), h("div.v.ok", tk(got))), h("div.stat", h("div.k", "Due (past months)"), h("div.v.bad", tk(due)))));
-  body.append(h("a.btn.block.mt", { href: `#/payments/${m.slice(0, 4)}` }, icon("report"), "All payments — sheet view"));
+  body.append(h("a.btn.primary.block.mt", { href: `#/payments/${m.slice(0, 4)}` }, icon("report"), "📊 All payments — sheet (like Excel)"));
   body.append(h("div.section-title", h("h2", "Students"), h("button.btn.small", { onclick: () => addStudent() }, icon("plus"), "Add student")));
   if (!students.length) { body.append(h("div.card.empty", icon("student"), h("p", "No students yet."), h("p.small", "Add students to track fees and attendance."))); return; }
   students.forEach(s => {
@@ -441,15 +441,29 @@ route("payments", async (page, yr) => {
   };
   const lbl = mo => new Date(mo + "T00:00:00").toLocaleDateString("en-GB", { month: "short" });
   const colTotal = mo => pays.filter(p => p.month === mo).reduce((a, p) => a + amountOf(p), 0);
+  const rowTotal = st => pays.filter(p => p.student_id === st.id).reduce((a, p) => a + amountOf(p), 0);
+  const grand = pays.reduce((a, p) => a + amountOf(p), 0);
+  const totStyle = { textAlign: "right", fontSize: "12.5px", fontWeight: 700, padding: "0 8px 0 10px", whiteSpace: "nowrap" };
   const th = { position: "sticky", left: 0, background: "var(--card)", zIndex: 1, textAlign: "left", padding: "6px 10px 6px 6px", whiteSpace: "nowrap", boxShadow: "6px 0 8px -6px rgba(0,0,0,.5)" };
   const table = h("table", { style: { borderCollapse: "separate", borderSpacing: "0 4px", fontSize: "13px" } },
-    h("thead", h("tr", h("th", { style: th }, "Student"), months.map(mo => h("th", { style: { color: mo === cur ? "var(--brand)" : "var(--muted)", fontWeight: 600, fontSize: "12px" } }, lbl(mo))))),
+    h("thead", h("tr", h("th", { style: th }, "Student"), months.map(mo => h("th", { style: { color: mo === cur ? "var(--brand)" : "var(--muted)", fontWeight: 600, fontSize: "12px" } }, lbl(mo))), h("th", { style: { ...totStyle, color: "var(--muted)", fontWeight: 600 } }, "Total"))),
     h("tbody",
       list.map(st => h("tr", h("th", { style: th }, h("a", { href: `#/student/${st.id}`, style: { color: "var(--text)" } }, h("i", { style: { display: "inline-block", width: "9px", height: "9px", borderRadius: "3px", background: st.color, marginRight: "6px" } }), st.name),
-        h("div.small.faint", { style: { fontWeight: 400 } }, tk(st.monthly_fee) + "/mo", st.active ? "" : " · left")), months.map(mo => cell(st, mo)))),
-      h("tr", h("th", { style: { ...th, paddingTop: "10px" } }, "Received"), months.map(mo => h("td", { style: { textAlign: "center", fontSize: "12px", fontWeight: 700, paddingTop: "10px" } }, colTotal(mo) ? tk(colTotal(mo)) : "—")))));
+        h("div.small.faint", { style: { fontWeight: 400 } }, tk(st.monthly_fee) + "/mo", st.active ? "" : " · left")), months.map(mo => cell(st, mo)), h("td", { style: totStyle }, rowTotal(st) ? tk(rowTotal(st)) : "—"))),
+      h("tr", h("th", { style: { ...th, paddingTop: "10px" } }, "Received"), months.map(mo => h("td", { style: { textAlign: "center", fontSize: "12px", fontWeight: 700, paddingTop: "10px" } }, colTotal(mo) ? tk(colTotal(mo)) : "—")), h("td", { style: { ...totStyle, paddingTop: "10px", color: "var(--green)" } }, tk(grand)))));
   const wrap = h("div.card", { style: { padding: "4px 8px 4px 0", overflowX: "auto" } }, table);
   page.append(wrap);
   setTimeout(() => { const i = Number(today.slice(5, 7)) - 1; if (String(year) === today.slice(0, 4)) wrap.scrollLeft = Math.max(0, i * 70 - 160); }, 50);
+  // download the same sheet for Excel / Google Sheets
+  const dl = h("button.btn.small.mt", icon("download"), "Download for Excel");
+  dl.onclick = () => {
+    const q = v => `"${String(v).replace(/"/g, '""')}"`;
+    const rows = [["Name", ...months.map(lbl), "Total"]];
+    list.forEach(st => rows.push([st.name + (st.active ? "" : " (left)"), ...months.map(mo => { const p = pays.find(x => x.student_id === st.id && x.month === mo); return p ? amountOf(p) : ""; }), rowTotal(st)]));
+    rows.push(["Monthly Total", ...months.map(colTotal), grand]);
+    const blob = new Blob(["\ufeff" + rows.map(r => r.map(q).join(",")).join("\n")], { type: "text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `Tuitions-${year}.csv`; a.click();
+  };
+  page.append(dl);
   page.append(h("p.hint", "“Received” row = fees for that month, whenever they were paid. Edit a paid box within the edit window (until the 5th of the next month); after that it's locked and the history stays."));
 }, { tab: "money" });
