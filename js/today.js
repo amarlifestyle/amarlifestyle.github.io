@@ -4,7 +4,7 @@ import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fm
 import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation } from "./app.js";
 import { coachCard } from "./aicoach.js";
 import { quoteFor } from "./quotes.js";
-import { mealNow } from "./timetable.js";
+import { mealNow, classesBetween, classCard } from "./timetable.js";
 
 const unlockAt = tk => new Date(new Date(tk.start_at).getTime() + (new Date(tk.end_at) - new Date(tk.start_at)) * Number(store.cfg.unlock_fraction ?? 0.75));
 const lateEnd = tk => new Date(new Date(tk.end_at).getTime() + Number(store.cfg.late_window_min ?? 30) * 60000);
@@ -128,18 +128,23 @@ route("today", async page => {
   }
 
   // task list
+  // university classes from the timetable sit in the list by time (no DP)
+  let classes = [];
+  try { classes = await classesBetween(today, today); } catch { /* offline */ }
   body.append(h("div.section-title", h("h2", "Today's tasks"), h("a.small", { href: "#/routine" }, "Set routine")));
-  if (!realTasks.length && !running) {
+  if (!realTasks.length && !running && !classes.length) {
     body.append(h("div.card.empty", icon("today"), h("p", "No tasks today."),
       h("p.small", "Tap ＋ to add one, or set a daily routine so tasks appear by themselves."),
       h("div.row", { style: { justifyContent: "center" } }, h("button.btn.primary", { onclick: () => addTask() }, icon("plus"), t("Add task")), h("a.btn", { href: "#/routine" }, icon("routine"), t("Routine")))));
   } else {
-    if (!api.LS.get("al_tip_seen")) {
+    if (realTasks.length && !api.LS.get("al_tip_seen")) {
       const tip = h("div.card.small", h("b", "How it works: "), "Mark a task in its last quarter (a 1-hour task opens 15 min before it ends). Mark within 30 min after it ends for full DP. Unmarked tasks lose DP at 12 AM.",
         h("div", h("button.linkbtn", { onclick: () => { api.LS.set("al_tip_seen", 1); tip.remove(); } }, "Got it")));
       body.append(tip);
     }
-    tasks.filter(x => x.status !== "running").forEach(tk => body.append(taskCard(tk, queued.has(tk.id))));
+    const list = tasks.filter(x => x.status !== "running");
+    const pinned = list.filter(x => x.pinned), rest = [...list.filter(x => !x.pinned), ...classes].sort((a, b) => a.start_at.localeCompare(b.start_at));
+    [...pinned, ...rest].forEach(tk => body.append(tk.isClass ? classCard(tk) : taskCard(tk, queued.has(tk.id))));
   }
   body.append(h("p.center.small.faint.mt", "Unplanned work? Use ", h("button.linkbtn", { onclick: openTimer }, "the timer"), " to earn DP."));
   notifyLoop(tasks);

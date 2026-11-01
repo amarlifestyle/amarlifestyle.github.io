@@ -5,6 +5,7 @@ import { route, store, catColor, catNames, catDp, rerender } from "./app.js";
 import { addTask } from "./today.js";
 import { editRoutine } from "./more.js";
 import { aiPlanSheet } from "./aicoach.js";
+import { classesBetween, classSheet } from "./timetable.js";
 
 function weekStart(s) { const back = (new Date(s + "T00:00:00").getDay() + 1) % 7; return addDays(s, -back); } // week starts Saturday
 
@@ -18,11 +19,13 @@ route("week", async (page, offset = "0") => {
       h("a.icon-btn", { href: `#/week/${off - 1}`, "aria-label": "Previous week" }, icon("back")),
       h("a.icon-btn", { href: `#/week/${off + 1}`, "aria-label": "Next week" }, icon("chev")))));
   if (we >= today) { try { await api.rpc("ensure_tasks", { p_from: ws < today ? today : ws, p_to: we }); } catch {} }
-  const [tasks, routines, students] = await Promise.all([
+  const [tasks0, routines, students, classes] = await Promise.all([
     api.select("tasks", `select=*&day=gte.${ws}&day=lte.${we}&order=start_at`),
     api.select("routines", "select=*&active=eq.true"),
     api.select("students", "select=id,name,color&active=eq.true&order=name"),
+    classesBetween(ws, we).catch(() => []),
   ]);
+  const tasks = [...tasks0, ...classes].sort((a, b) => a.start_at.localeCompare(b.start_at));
   const rMap = Object.fromEntries(routines.map(r => [r.id, r]));
   const sMap = Object.fromEntries(students.map(s => [s.id, s]));
   const colorOf = tk => tk.color || rMap[tk.routine_id]?.color || sMap[tk.student_id]?.color || catColor(tk.category);
@@ -76,7 +79,7 @@ route("week", async (page, offset = "0") => {
   done.forEach(x => byCat[x.category] = (byCat[x.category] || 0) + mins(x.start_at, x.end_at));
   const dp = tasks.reduce((s, x) => s + (x.dp_awarded || 0), 0);
   page.append(h("div.card.week-total", h("h3", "This week"),
-    h("div.grid3", h("div.stat", h("div.k", "Tasks done"), h("div.v", `${done.filter(x => !x.is_timer).length}/${tasks.filter(x => !x.is_timer).length}`)),
+    h("div.grid3", h("div.stat", h("div.k", "Tasks done"), h("div.v", `${done.filter(x => !x.is_timer).length}/${tasks.filter(x => !x.is_timer && !x.isClass).length}`)),
       h("div.stat", h("div.k", "DP"), h("div.v", dp)), h("div.stat", h("div.k", "Hours"), h("div.v", (Object.values(byCat).reduce((a, b) => a + b, 0) / 60).toFixed(1)))),
     Object.keys(byCat).length ? h("div.mt", Object.entries(byCat).map(([c, m]) => h("div.row.between.small", { style: { padding: "3px 0" } },
       h("span", h("i", { style: { display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: catColor(c), marginRight: "6px" } }), c), h("b", durLabel(m))))) : null));
@@ -152,6 +155,7 @@ export function planSheet(ctx, pre = {}) {
 
 // ---------- tap a box
 function detail(tk, ctx) {
+  if (tk.isClass) return classSheet(tk);
   const st = { pending: "Not marked yet", completed: `Done · +${tk.dp_awarded} DP`, late_completed: "Done late · 0 DP", not_completed: `Not done · ${tk.dp_awarded} DP`, missed: `Missed · ${tk.dp_awarded} DP` }[tk.status] || tk.status;
   const routine = ctx.routines.find(r => r.id === tk.routine_id);
   const student = ctx.students.find(s => s.id === tk.student_id);

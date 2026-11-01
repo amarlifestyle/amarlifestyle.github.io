@@ -11,7 +11,11 @@ export const KINDS = {
   meal: { label: "Meals", icon: "🍽️", who: null, hint: "Your own meal times. The Today page reminds you a little before each one." },
 };
 // which tabs this person sees (no occupation chosen yet → show all)
-export const visibleKinds = () => Object.keys(KINDS).filter(k => !KINDS[k].who || !store.profile?.occupation || KINDS[k].who.includes(store.profile.occupation));
+let hasMeals = !!api.LS.get("al_has_meals");
+export const visibleKinds = () => Object.keys(KINDS).filter(k => k === "meal" ? hasMeals : (!store.profile?.occupation || KINDS[k].who.includes(store.profile.occupation)));
+async function checkMeals() {
+  try { const r = await api.select("timetable_items", "select=id&kind=eq.meal&limit=1"); hasMeals = r.length > 0; api.LS.set("al_has_meals", hasMeals); } catch { /* keep last */ }
+}
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const ORDER = [6, 0, 1, 2, 3, 4, 5]; // Sat first, like Bangladesh
@@ -40,6 +44,7 @@ const DEMO = {
   ],
 };
 
+export async function routineTabsAsync(active) { await checkMeals(); return routineTabs(active); }
 export function routineTabs(active) {
   const tabs = [["routine", "📋 My routine", "#/routine"], ...visibleKinds().map(k => [k, `${KINDS[k].icon} ${KINDS[k].label}`, `#/schedule/${k}`])];
   return h("div.seg", { style: { marginBottom: "12px", overflowX: "auto" } }, tabs.map(([k, l, href]) => h("button" + (k === active ? ".on" : ""), { onclick: () => { location.hash = href; }, style: { whiteSpace: "nowrap" } }, l)));
@@ -48,8 +53,8 @@ export function routineTabs(active) {
 const onDay = (it, dow) => !it.days?.length || it.days.includes(dow);
 
 route("schedule", async (page, kind = "university", dayArg) => {
-  if (!KINDS[kind]) kind = "meal";
-  page.append(backbar("Routine", "#/more"), routineTabs(kind));
+  if (!KINDS[kind]) kind = "university";
+  page.append(backbar("Routine", "#/more"), await routineTabsAsync(kind));
   const K = KINDS[kind];
   const items = (await api.select("timetable_items", `select=*&kind=eq.${kind}&order=start_time.nullslast,title`));
   const todayDow = dhakaNow().getDay();
@@ -176,4 +181,45 @@ export async function mealNow() {
   return h("a.card", { href: "#/schedule/meal", style: { display: "block", color: "inherit", borderColor: "color-mix(in srgb, var(--amber) 55%, transparent)", background: "linear-gradient(160deg, color-mix(in srgb, var(--amber) 10%, var(--card)), var(--card))" } },
     h("div.row.between", h("b", "🍽️ ", it.title), h("span.small", { style: { color: "var(--amber)" } }, soon ? `in ${m(it.start_time) - now} min` : "now")),
     h("div.small.muted", range(it)), it.detail ? h("div", { style: { marginTop: "4px" } }, it.detail) : null);
+}
+
+// ---------- university classes in the daily routine (no DP, no penalty; remove any day)
+const CLASS_COLOR = "#60A5FA";
+export async function classesBetween(from, to) {
+  if (!visibleKinds().includes("university")) return [];
+  const [items, skips] = await Promise.all([
+    api.select("timetable_items", "select=*&kind=eq.university&start_time=not.is.null"),
+    api.select("timetable_skips", `select=item_id,day&day=gte.${from}&day=lte.${to}`),
+  ]);
+  const out = [];
+  for (let d = from; d <= to; d = addDay(d)) {
+    const dow = new Date(d + "T00:00:00").getDay();
+    items.filter(it => it.kind === "university" && it.start_time && onDay(it, dow) && !skips.some(k => k.item_id === it.id && k.day === d)).forEach(it => {
+      const s = new Date(`${d}T${hm(it.start_time)}:00+06:00`), e = it.end_time ? new Date(`${d}T${hm(it.end_time)}:00+06:00`) : new Date(s.getTime() + 3600e3);
+      out.push({ id: `cls:${it.id}:${d}`, isClass: true, item: it, day: d, title: "🎓 " + it.title, category: "University class", start_at: s.toISOString(), end_at: e.toISOString(), status: "class", color: CLASS_COLOR, detail: it.detail });
+    });
+  }
+  return out;
+}
+const addDay = d => { const x = new Date(d + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); };
+export function classSheet(c) {
+  sheet("🎓 " + c.item.title, [h("p.mb0", fmtHM(hm(c.item.start_time)), c.item.end_time ? " – " + fmtHM(hm(c.item.end_time)) : "", " · ", new Date(c.day + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })),
+    c.detail ? h("p.small.muted", c.detail) : null, h("p.hint", "University class from your timetable. No DP, nothing is cut if you skip it.")], {
+    actions: close => {
+      const rm = h("button.btn.danger", icon("trash"), "Not going — remove for this day");
+      rm.onclick = busy(rm, async () => { await api.insert("timetable_skips", { user_id: api.userId(), item_id: c.item.id, day: c.day }); toast("Removed for this day ✓", "ok"); close(true); rerender(); });
+      return [h("a.btn", { href: "#/schedule/university", onclick: () => close(null) }, "Timetable"), rm];
+    },
+  });
+}
+// a simple card for the Today list
+export function classCard(c) {
+  const x = h("button.icon-btn", { "aria-label": "Not going today", title: "Not going today", style: { width: "34px", height: "34px" } }, icon("x"));
+  x.onclick = busy(x, async e => { e?.stopPropagation?.(); await api.insert("timetable_skips", { user_id: api.userId(), item_id: c.item.id, day: c.day }); toast("Removed for today ✓", "ok"); rerender(); });
+  const now = Date.now(), live = now >= new Date(c.start_at) && now < new Date(c.end_at);
+  return h("div.task", { style: { "--c": CLASS_COLOR, cursor: "pointer" }, onclick: e => { if (!x.contains(e.target)) classSheet(c); } },
+    h("div.row.between", { style: { alignItems: "flex-start", gap: "8px" } },
+      h("div.grow", h("b", "🎓 ", c.item.title, live ? h("span.badge.ok", { style: { marginLeft: "6px" } }, "Now") : null),
+        h("div.small.muted", `${fmtHM(hm(c.item.start_time))}${c.item.end_time ? " – " + fmtHM(hm(c.item.end_time)) : ""} · University class${c.detail ? " · " + c.detail : ""}`),
+        h("div.small.faint", "No DP · tap ✕ if you're not going")), x));
 }
