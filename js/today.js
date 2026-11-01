@@ -2,6 +2,7 @@
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender, go } from "./app.js";
+import { coachCard } from "./aicoach.js";
 
 const unlockAt = tk => new Date(new Date(tk.start_at).getTime() + (new Date(tk.end_at) - new Date(tk.start_at)) * Number(store.cfg.unlock_fraction ?? 0.75));
 const lateEnd = tk => new Date(new Date(tk.end_at).getTime() + Number(store.cfg.late_window_min ?? 30) * 60000);
@@ -80,6 +81,7 @@ route("today", async page => {
       h("div.row.wrap", { style: { gap: "8px", marginBottom: "6px" } }, h("span.level-pill", icon("medal"), lv.name), h("span.badge", "🔥 ", stats.streak, " day streak")),
       h("div", h("span.big", (stats.today.dp >= 0 ? "+" : "") + stats.today.dp), h("span.muted", " DP today")),
       h("div.small.muted", `${doneN}/${realTasks.length} tasks · ${stats.today.coins} coins · ${toNext}`))));
+  if (navigator.onLine) body.append(coachCard());
 
   // today's events + countdowns
   const evToday = events.filter(e => e.kind !== "countdown" && (e.date === today || (e.yearly && e.date.slice(5) === today.slice(5))));

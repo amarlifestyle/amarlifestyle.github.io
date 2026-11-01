@@ -5,6 +5,7 @@ import { route, store, catColor, catNames, catDp, rerender } from "./app.js";
 import { addTask } from "./today.js";
 import { editRoutine } from "./more.js";
 import { parseLine, micButton } from "./voice.js";
+import { aiPlanSheet } from "./aicoach.js";
 
 function weekStart(s) { const back = (new Date(s + "T00:00:00").getDay() + 1) % 7; return addDays(s, -back); } // week starts Saturday
 
@@ -44,6 +45,7 @@ route("week", async (page, offset = "0") => {
   }));
   page.append(h("div.row.wrap", { style: { gap: "8px", marginBottom: "10px" } },
     h("button.btn.primary.small", { onclick: () => planSheet(ctx, {}) }, icon("plus"), "Add to week"),
+    h("button.btn.small", { onclick: () => aiPlanSheet(ctx) }, "🤖 Build with AI"),
     h("button.btn.small", { onclick: () => planSheet(ctx, { voice: true }) }, icon("mic"), "Add by voice")));
   page.append(h("div.week-scroll", grid));
   page.append(h("p.small.faint", "↻ = repeats every week. Tap a box to edit or remove. ✓ = done, faded = missed."));

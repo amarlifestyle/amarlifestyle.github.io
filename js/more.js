@@ -236,14 +236,18 @@ route("settings", async page => {
       h("input", { type: "checkbox", checked: !!pv[k], onchange: async e => { pv[k] = e.target.checked; await api.update("profiles", `id=eq.${p.id}`, { privacy: pv }); p.privacy = pv; toast(e.target.checked ? "Public" : "Private"); } })))]));
 
   const catName = h("input.input", { placeholder: "e.g. Coding" });
+  const catDpIn = h("input.input", { type: "number", min: "1", max: "50", value: store.cfg.custom_category_dp ?? 5, inputmode: "numeric", style: { width: "90px" }, "aria-label": "DP per hour" });
+  const why = h("p.small.muted.mb0");
+  const aiDp = h("button.btn.small", "🤖 AI suggest");
+  aiDp.onclick = busy(aiDp, async () => { if (!catName.value.trim()) throw new Error("Write a name first."); why.textContent = "Thinking…"; const r = await api.ai("dp", { name: catName.value.trim() }); catDpIn.value = r.dp; why.textContent = `AI: ${r.dp} DP/hour — ${r.reason}`; });
   let ccol = PALETTE[4];
   const cbox = colorPicker(ccol, c => ccol = c);
   const addCat = h("button.btn.block", icon("plus"), "Add category");
-  addCat.onclick = busy(addCat, async () => { if (!catName.value.trim()) throw new Error("Write a name."); await api.insert("user_categories", { user_id: p.id, name: catName.value.trim(), color: ccol }); await loadBasics(); toast("Category added ✓", "ok"); rerender(); });
+  addCat.onclick = busy(addCat, async () => { if (!catName.value.trim()) throw new Error("Write a name."); await api.insert("user_categories", { user_id: p.id, name: catName.value.trim(), color: ccol, dp: Math.min(50, Math.max(1, Number(catDpIn.value) || 5)) }); await loadBasics(); toast("Category added ✓", "ok"); rerender(); });
   page.append(fold("flag", "Task categories", `${catNames().length} categories`, [
     h("div.small", catNames().map(n => h("div.row.between", { style: { padding: "5px 0" } }, h("span", h("i", { style: { display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: catColor(n), marginRight: "8px" } }), n), h("span.muted", `${catDp(n)} DP/hour`)))),
-    h("p.hint.mt", "Your own categories earn " + (store.cfg.custom_category_dp ?? 5) + " DP/hour."),
-    h("label.f", h("span", "New category"), catName), cbox, h("div.mt", addCat)]));
+    h("label.f.mt", h("span", "New category"), catName),
+    h("label.f", h("span", "DP per hour (harder work = more DP)"), h("div.row", catDpIn, aiDp)), why, cbox, h("div.mt", addCat)]));
 
   // phone notifications
   const nt = { tasks: true, unlock: true, events: true, night: true, ...(p.notify || {}) };

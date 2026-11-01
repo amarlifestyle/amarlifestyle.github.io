@@ -119,6 +119,16 @@ export async function telegram(action, payload = {}, { auth = false } = {}) {
   if (!r.ok || d.error) throw new ApiError(d.error || "Something went wrong.");
   return d;
 }
+// ---- AI Coach (server keeps the key)
+export async function ai(action, payload = {}) {
+  let r;
+  try {
+    r = await fetch(`${SB_URL}/functions/v1/ai?action=${action}`, { method: "POST", headers: { apikey: SB_KEY, ...(await authHeader()), "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  } catch { const e = new ApiError("AI needs internet."); e.offline = true; throw e; }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.error) throw new ApiError(d.error || "AI is busy. Try again.");
+  return d;
+}
 export function logout() { saveSession(null); }
 export async function setNewPassword(accessToken, password) {
   const r = await fetch(`${SB_URL}/auth/v1/user`, {

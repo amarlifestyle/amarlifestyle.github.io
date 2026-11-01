@@ -11,7 +11,7 @@ export function catNames() {
   return [...Object.keys(store.cfg.categories || {}), ...store.userCats.map(c => c.name)];
 }
 export function catDp(name) {
-  return store.cfg.categories?.[name]?.dp ?? store.cfg.custom_category_dp ?? 5;
+  return store.cfg.categories?.[name]?.dp ?? store.userCats.find(c => c.name === name)?.dp ?? store.cfg.custom_category_dp ?? 5;
 }
 
 export async function loadBasics() {
@@ -117,7 +117,7 @@ function dragFab() {
     start = null;
   });
   fab.addEventListener("click", e => { if (moved) { e.stopImmediatePropagation(); e.preventDefault(); moved = false; } }, true);
-  if (!api.LS.get("al_fab_tip")) { api.LS.set("al_fab_tip", 1); setTimeout(() => toast("Tip: hold and drag the ＋ button to move it anywhere."), 1200); }
+  if (!api.LS.get("al_fab_tip") && !window.__fabTip) { window.__fabTip = 1; api.LS.set("al_fab_tip", 1); setTimeout(() => toast("Tip: hold and drag the ＋ button to move it anywhere."), 1200); }
 }
 function offlineNote() {
   const n = api.pendingOps().length;
