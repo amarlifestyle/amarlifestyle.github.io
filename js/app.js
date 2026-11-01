@@ -188,5 +188,19 @@ export function start() {
   window.addEventListener("online", () => { api.flushQueue().then(r => { if (r.length) { syncToast(r); render(); } }); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && api.getSession()) daily(); });
   const th = api.LS.get("al_theme"); if (th) applyTheme(th);
+  // home-screen app has no browser back button: swipe from the left edge to go back
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (standalone) {
+    let sx = null, sy = 0;
+    addEventListener("touchstart", e => { const t = e.touches[0]; sx = t.clientX < 28 && e.touches.length === 1 ? t.clientX : null; sy = t.clientY; }, { passive: true });
+    addEventListener("touchend", e => {
+      if (sx === null) return; const t = e.changedTouches[0];
+      if (t.clientX - sx > 70 && Math.abs(t.clientY - sy) < 60) {
+        const open = document.querySelector(".backdrop");
+        if (open) open.click(); else if (history.length > 1) history.back();
+      }
+      sx = null;
+    }, { passive: true });
+  }
   render();
 }

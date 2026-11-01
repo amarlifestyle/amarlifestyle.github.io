@@ -233,11 +233,7 @@ route("settings", async page => {
   forgotPin.onclick = () => sheet("Forgot PIN", close => codeResetForm("pin", null, () => { close(); rerender(); }));
   page.append(fold("shield", "PIN", hasPin ? "PIN is set" : "Not set yet", [h("p.hint", "Needed only to edit money entries and to export reports. You stay logged in otherwise."), pinBtn, hasPin ? h("div.center", forgotPin) : null]));
 
-  const pv = { ...p.privacy };
-  const labels = { level: "My level", dp: "My DP and coins", streak: "My streak", badges: "My badges", charts: "My charts & heatmap" };
-  page.append(fold("lock", "Privacy", "What others can see", [h("p.hint", "Money, diary and photos are always private."),
-    Object.entries(labels).map(([k, l]) => h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", l),
-      h("input", { type: "checkbox", checked: !!pv[k], onchange: async e => { pv[k] = e.target.checked; await api.update("profiles", `id=eq.${p.id}`, { privacy: pv }); p.privacy = pv; toast(e.target.checked ? "Public" : "Private"); } })))]));
+  // nobody can see anyone else's points or profile, so there is nothing to hide here
 
   const catName = h("input.input", { placeholder: "e.g. Coding" });
   const catDpIn = h("input.input", { type: "number", min: "1", max: "50", value: store.cfg.custom_category_dp ?? 5, inputmode: "numeric", style: { width: "90px" }, "aria-label": "DP per hour" });

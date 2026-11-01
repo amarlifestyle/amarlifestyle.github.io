@@ -462,3 +462,13 @@ body.fab-away .fab { transform: translateY(160%); opacity: 0; pointer-events: no
 }
 .zoombar .btn { min-width: 38px; }
 .week-scroll { touch-action: pan-x pan-y; }
+
+/* iPhone "Add to Home Screen": keep everything below the notch/camera and away from rounded edges */
+:root { --sat: env(safe-area-inset-top, 0px); --sal: env(safe-area-inset-left, 0px); --sar: env(safe-area-inset-right, 0px); }
+body { padding-top: var(--sat); padding-left: var(--sal); padding-right: var(--sar); }
+body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: var(--sat); background: var(--bg); z-index: 45; pointer-events: none; }
+.topbar { top: var(--sat); }
+.sheet { max-height: calc(100vh - var(--sat) - 24px); max-height: calc(100dvh - var(--sat) - 24px); }
+.backdrop { padding-top: var(--sat); }
+.nav { padding-left: var(--sal); padding-right: var(--sar); }
+@media print { body { padding: 0; } body::before { display: none; } }

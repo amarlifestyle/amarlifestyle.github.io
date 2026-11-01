@@ -1,4 +1,4 @@
-// Amar Lifestyle — profile, stats, badges, heatmap, life tracking, people
+// Amar Lifestyle — profile, stats, badges, heatmap, life tracking
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, busy, todayStr, addDays, fmtDate, barChart, donut, PALETTE } from "./ui.js";
 import { route, store, catColor, rerender, backbar } from "./app.js";
@@ -62,7 +62,6 @@ route("me", async page => {
   page.append(...statCharts(s).filter(Boolean));
   page.append(h("div.list",
     h("a.li", { href: "#/life" }, h("div.ic", icon("heart")), h("div.grow", h("b", "Sleep, water, habits & diary")), icon("chev", "chev")),
-    h("a.li", { href: "#/people" }, h("div.ic", icon("people")), h("div.grow", h("b", "People"), h("div.small.muted", "See friends' levels")), icon("chev", "chev")),
     h("a.li", { href: "#/reports" }, h("div.ic", icon("report")), h("div.grow", h("b", t("Reports"))), icon("chev", "chev"))));
 }, { tab: "me" });
 
@@ -202,25 +201,4 @@ route("habit", async (page, id) => {
   }
 }, { tab: "me" });
 
-// ---------- people
-route("people", async page => {
-  page.append(backbar("People", "#/me"));
-  const people = await api.rpc("list_people");
-  page.append(h("p.hint", "Only what each person made public is shown."));
-  page.append(h("div.list", people.map(p => h("a.li", { href: `#/person/${p.id}` },
-    h("div.ic", p.name.slice(0, 1)), h("div.grow", h("b", p.name, p.id === api.userId() ? " (you)" : ""), h("div.small.muted", [p.level, p.month_dp != null ? p.month_dp + " DP" : null, p.streak != null ? "🔥 " + p.streak + "d" : null].filter(Boolean).join(" · ") || "Private")),
-    icon("chev", "chev")))));
-}, { tab: "me" });
 
-route("person", async (page, id) => {
-  page.append(backbar("Profile", "#/people"));
-  const p = await api.rpc("public_profile", { p_user: id });
-  page.append(h("div.hero", { style: { flexDirection: "column", alignItems: "stretch" } },
-    h("h2", { style: { margin: 0 } }, p.name), h("div.small.muted", "Member since " + fmtDate(p.since.slice(0, 10), { month: "long", year: "numeric" })),
-    p.level ? h("div.row.wrap", { style: { gap: "8px" } }, h("span.level-pill", icon("medal"), p.level.name + " · this month"), h("span.badge", "Year rank: " + p.year_level.name)) : null,
-    p.month_dp != null ? h("div", h("span.big", p.month_dp), h("span.muted", ` DP this month · ${p.year_dp} this year · 🪙 ${p.coins_total}`)) : null,
-    p.streak != null ? h("div", "🔥 ", p.streak, " day streak") : null));
-  if (p.badges_src) { const b = badgesFrom({ ...p.badges_src, hours30: p.badges_src.hours30 }); if (b.length) page.append(h("div.card", h("h3", "Badges"), h("div.row.wrap", { style: { gap: "8px" } }, b.map(([e, l]) => h("span.badge", e + " " + l))))); }
-  if (p.daily) page.append(...statCharts({ daily: p.daily, hours30: p.hours30, heatmap: p.heatmap }).filter(Boolean));
-  if (!p.level && p.month_dp == null && !p.daily) page.append(h("div.card.empty", icon("lock"), h("p", "This profile is private.")));
-}, { tab: "me" });
