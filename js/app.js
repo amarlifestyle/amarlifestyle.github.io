@@ -197,8 +197,21 @@ export function backbar(title, back = "#/more", right) {
   return h("header.topbar", h("div.row", h("a.icon-btn", { href: back, "aria-label": "Back" }, icon("back")), h("h1", title)), right || null);
 }
 
+// anonymous usage count for the admin: a random id per device, no names, no content
+function track(newPage) {
+  try {
+    let vis = api.LS.get("al_vid"); if (!vis) { vis = (crypto.randomUUID?.() || String(Math.random()).slice(2) + Date.now()); api.LS.set("al_vid", vis); }
+    let sid = sessionStorage.getItem("al_sid"); if (!sid) { sid = crypto.randomUUID?.() || "00000000-0000-4000-8000-" + String(Date.now()).slice(-12).padStart(12, "0"); sessionStorage.setItem("al_sid", sid); }
+    const ua = navigator.userAgent, standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+    const device = (/iPhone|iPod/.test(ua) ? "iPhone" : /iPad|Macintosh.*Mobile/.test(ua) || (navigator.maxTouchPoints > 1 && /Mac/.test(ua)) ? "iPad" : /Android/.test(ua) ? "Android" : "Computer") + (standalone ? " (app)" : " (browser)");
+    api.rpc("track_visit", { p_visit: sid, p_visitor: vis, p_device: device, p_path: (location.hash.split("/")[1] || "home").slice(0, 30), p_new_page: !!newPage }).catch(() => {});
+  } catch { /* never block the app */ }
+}
 export function start() {
   window.addEventListener("hashchange", render);
+  track(false);
+  window.addEventListener("hashchange", () => track(true));
+  setInterval(() => { if (!document.hidden) track(false); }, 60000); // keeps "time spent" up to date
   window.addEventListener("online", () => { api.flushQueue().then(r => { if (r.length) { syncToast(r); render(); } }); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && api.getSession()) daily(); });
   const th = api.LS.get("al_theme"); if (th) applyTheme(th);

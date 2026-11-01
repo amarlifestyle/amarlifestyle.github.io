@@ -146,9 +146,19 @@ route("today", async page => {
   let classes = [];
   try { classes = await classesBetween(today, today); } catch { /* offline */ }
   try { const ex = await examsCard(); if (ex) body.append(ex); } catch { /* offline */ }
+  // notifications off on this phone? ask once in a while (they are the heart of the reminders)
+  if (Date.now() - (api.LS.get("al_push_nudge") || 0) > 3 * 864e5) api.pushState().then(st => {
+    if (st === "on" || st === "unsupported" && !/iPhone|iPad|Android/.test(navigator.userAgent)) return;
+    const on = h("button.btn.small.primary", "Turn on");
+    on.onclick = busy(on, async () => { if (st === "unsupported") { location.hash = "#/notifications"; return; } await api.enablePush(); toast("Notifications on ✓", "ok"); await api.pushTest().catch(() => {}); c.remove(); });
+    const c = h("div.tg-hint", { style: { marginBottom: "10px", alignItems: "center", borderColor: "color-mix(in srgb, var(--amber) 45%, transparent)", background: "color-mix(in srgb, var(--amber) 8%, var(--card))" } },
+      h("span", "🔔"), h("span.grow", st === "unsupported" ? "নোটিফিকেশন পেতে আগে অ্যাপটা Home Screen-এ যোগ করুন (Share → Add to Home Screen)।" : st === "blocked" ? "নোটিফিকেশন বন্ধ করা আছে — ফোনের Settings থেকে এই সাইটের নোটিফিকেশন চালু করুন।" : "নোটিফিকেশন চালু নেই — টাস্ক, পরীক্ষা আর রাতের রিপোর্টের রিমাইন্ডার পাবেন না।"),
+      st === "off" ? on : null, h("button.linkbtn.small", { onclick: () => { api.LS.set("al_push_nudge", Date.now()); c.remove(); } }, "✕"));
+    body.querySelector(".upnext")?.after(c);
+  }).catch(() => {});
   if (!api.LS.get("al_tg_nudge") && navigator.onLine) {
     api.rpc("has_telegram").then(has => { if (has) { api.LS.set("al_tg_nudge", 1); return; }
-      const c = h("div.tg-hint", { style: { marginBottom: "10px" } }, h("span", "✈️"), h("span.grow", "পাসওয়ার্ড ভুলে গেলে যেন সহজে ফেরত পান — ", h("a", { href: "#/settings" }, "Telegram কানেক্ট করুন")), h("button.linkbtn.small", { onclick: () => { api.LS.set("al_tg_nudge", 1); c.remove(); } }, "✕"));
+      const c = h("div.tg-hint", { style: { marginBottom: "10px" } }, h("span", "✈️"), h("span.grow", "পাসওয়ার্ড ভুলে গেলে যেন সহজে ফেরত পান — ", h("a", { href: "#/notifications" }, "Telegram কানেক্ট করুন")), h("button.linkbtn.small", { onclick: () => { api.LS.set("al_tg_nudge", 1); c.remove(); } }, "✕"));
       body.querySelector(".upnext")?.after(c);
     }).catch(() => {});
   }

@@ -1,6 +1,6 @@
 // Amar Lifestyle — Admin panel (hidden link). Every action is checked again on the server.
 import * as api from "../js/api.js";
-import { h, icon, toast, sheet, confirmBox, busy, askPin, tk, fmtDate } from "../js/ui.js";
+import { h, icon, toast, sheet, confirmBox, busy, askPin, tk, fmtDate, barChart } from "../js/ui.js";
 
 const app = document.getElementById("app");
 try { if (JSON.parse(localStorage.getItem("al_theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -24,12 +24,12 @@ async function boot() {
 }
 
 function render() {
-  const tabs = [["overview", "Overview"], ["wishes", "Feature wishes"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
+  const tabs = [["overview", "Overview"], ["traffic", "Visitors"], ["wishes", "Feature wishes"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
   const body = h("div");
   app.replaceChildren(
     h("header.topbar", h("div.brandmark", h("img", { src: "../assets/icon-64.png", width: 30, alt: "", style: { borderRadius: "8px" } }), h("span", "Amar ", h("b", "Lifestyle"), h("span.muted", " · Control"))), h("a.btn.small", { href: "../" }, "Open app")),
     h("div.tabs", tabs.map(([k, l]) => h("button" + (k === tab ? ".on" : ""), { onclick: () => { tab = k; render(); } }, l))), body);
-  ({ overview, wishes, requests, users, logins, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
+  ({ overview, traffic, wishes, requests, users, logins, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
 }
 
 async function overview(b) {
@@ -179,6 +179,26 @@ async function apk(b) {
   const up = h("button.btn.primary.block", icon("download"), "Upload new APK");
   up.onclick = busy(up, async () => { if (!inp.files[0]) throw new Error("Choose the APK file."); await api.uploadApk(inp.files[0]); toast("Uploaded ✓ — the Download button now gives this version", "ok"); });
   b.append(h("div.card", h("h3", "Android app"), h("p.hint", "Upload a new APK. Users get it from More → Get the app."), inp, h("div.mt", up)));
+}
+
+// who is using the site: counts only (a random id per device, no names)
+async function traffic(b) {
+  const a = await api.rpc("admin_analytics", { p_days: 14 });
+  const t = a.today || {};
+  const stat = (k, v, sub) => h("div.stat", h("div.k", k), h("div.v", v), sub ? h("div.small.muted", sub) : null);
+  b.append(h("h3", "Today"), h("div.grid3",
+    stat("Visitors", t.visitors ?? 0, `${t.new_visitors ?? 0} new`),
+    stat("Visits", t.sessions ?? 0, `${t.pages ?? 0} pages opened`),
+    stat("Avg. time", `${t.avg_min ?? 0} min`, `${t.logged_in_pct ?? 0}% logged in`)));
+  b.append(h("div.card.mt", h("h3", "Visits by hour — today"), barChart((a.by_hour || []).map(x => ({ l: x.h % 3 === 0 ? (x.h % 12 || 12) + (x.h < 12 ? "a" : "p") : "", v: x.n }))),
+    a.peak_hour != null ? h("p.small.muted.mb0", `Busiest hour this week: ${(a.peak_hour % 12) || 12} ${a.peak_hour < 12 ? "AM" : "PM"}`) : null));
+  b.append(h("div.card", h("h3", "Visitors per day — last 14 days"), barChart((a.by_day || []).map(x => ({ l: String(x.d).slice(8), v: x.visitors }))),
+    h("div.list.mt", (a.by_day || []).slice(-7).reverse().map(x => h("div.li", h("div.grow", fmtDate(x.d, { weekday: "short", day: "numeric", month: "short" })), h("span.small", `${x.visitors} people · ${x.sessions} visits · ${x.avg_min} min avg`))))));
+  const dev = Object.entries(a.devices || {}).sort((p, q) => q[1] - p[1]);
+  const totalDev = dev.reduce((s, [, n]) => s + n, 0) || 1;
+  b.append(h("div.card", h("h3", "Devices — last 7 days"), h("div.list", dev.map(([d, n]) => h("div.li", h("div.grow", d), h("span.small", `${n} · ${Math.round(n / totalDev * 100)}%`)))),
+    h("p.small.muted.mb0", { style: { marginTop: "8px" } }, `Coming back again: ${a.returning_pct ?? 0}% of visitors this week · All-time visitors: ${a.total_visitors ?? 0}`)));
+  b.append(h("p.small.faint", "Counted with a random id per device — names, phone numbers and what people write are not tracked here."));
 }
 
 // things users asked the AI for that the app can't do yet — ideas for the next update
