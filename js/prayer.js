@@ -120,9 +120,10 @@ export async function prayerNow() {
   return h("div.card", { style: { padding: "8px 12px", marginBottom: "10px", borderColor: `color-mix(in srgb, ${C} 55%, transparent)`, background: `color-mix(in srgb, ${C} 8%, var(--card))` } },
     h("div.row.between", { style: { gap: "8px", alignItems: "center" } },
       h("a", { href: "#/prayer", style: { color: "inherit", minWidth: 0 } },
-        h("div", h("b", "🕌 ", w.bn, " time now")),
+        h("div", h("b", "🕌 ", w.bn, " time now"), st === "prayed" ? h("span.small", { style: { color: "var(--green)", marginLeft: "6px" } }, "Prayed") : st === "not_prayed" ? h("span.small", { style: { color: "var(--red)", marginLeft: "6px" } }, "Not prayed") : null),
         h("div.small.muted", `Ends ${tm(w.end)} · ${left(w.end - now)} left`)),
-      answerBtns(day, w, st, rerender)));
+      st === "prayed" ? h("span.mark.ok.big", "✓") : st === "not_prayed" ? h("span.mark.bad.big", "✕") : answerBtns(day, w, st, rerender)),
+    st === "not_prayed" ? h("div.small", { style: { marginTop: "6px", color: "var(--amber)" } }, "⚠️ নামাজ ফরজ — সময় থাকতে এখনো পড়ে নিতে পারেন। পরের ওয়াক্ত যেন মিস না হয়, ইনশাআল্লাহ।") : null);
 }
 // one line for the night report
 export async function prayerCount(day) {

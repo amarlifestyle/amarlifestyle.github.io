@@ -73,8 +73,8 @@ function describe(a, c) {
     case "add_event": if (!a.title || !DATE.test(a.date || "")) return null;
       return { ic: { birthday: "🎂", meeting: "🤝", countdown: "⏳" }[a.kind] || "📌", area: "event", text: `ক্যালেন্ডার: ${a.title} · ${fmtDate(a.date)}${a.time && HHMM.test(a.time) ? " " + fmtHM(a.time) : ""}${a.yearly ? " · প্রতি বছর" : ""}` };
     case "add_goal": if (!a.title) return null; return { ic: "🎯", area: "goal", text: `লক্ষ্য (${{ year: "বছর", month: "মাস", week: "সপ্তাহ" }[a.span] || "বছর"}): ${a.title}` };
-    case "habit": { const name = c.habits.find(x => x.id === a.habit_id)?.name || a.name; if (!name || !(+a.count > 0)) return null;
-      return { ic: "🚫", area: "habit", text: `খারাপ অভ্যাস: ${name} · আজ +${+a.count}${c.habits.some(x => x.id === a.habit_id) ? "" : " (নতুন যোগ হবে)"}` }; }
+    case "habit": { const name = c.habits.find(x => x.id === a.habit_id)?.name || a.name; if (!name || !(+a.count > 0 || +a.price > 0)) return null;
+      return { ic: "🚫", area: "habit", text: `অভ্যাস: ${name}${+a.count > 0 ? ` · আজ +${+a.count}` : ""}${+a.price > 0 ? ` · দাম ৳${+a.price}/টা` : ""}${c.habits.some(x => x.id === a.habit_id) ? "" : " (নতুন যোগ হবে)"}` }; }
     case "add_bill": if (!a.title || !(+a.amount >= 0)) return null;
       return { ic: "🧾", area: "bill", text: `বিল লিখে রাখা (এখনো দেওয়া হয়নি): ${a.title} · ${money(+a.amount)}${a.monthly === false ? " · শুধু এই মাস" : " · প্রতি মাসে"}${a.due_day ? ` · ${a.due_day} তারিখের মধ্যে` : ""}` };
     case "pay_bill": { const b = c.bills.find(x => x.id === a.bill_id); if (!b || c.billPaid.has(b.id)) return null;
@@ -156,7 +156,8 @@ async function run(a, c) {
     case "habit": {
       let id = c.habits.find(x => x.id === a.habit_id)?.id;
       if (!id) { const r = await api.insert("bad_habits", { user_id: api.userId(), name: a.name.trim() }); id = (Array.isArray(r) ? r[0] : r)?.id; if (!id) id = (await api.select("bad_habits", `select=id&name=eq.${encodeURIComponent(a.name.trim())}`))[0]?.id; }
-      for (let i = 0; i < Math.min(50, +a.count); i++) await api.insert("habit_logs", { user_id: api.userId(), habit_id: id, day: todayStr() });
+      if (+a.price > 0) await api.update("bad_habits", `id=eq.${id}`, { price: +a.price }).catch(() => {});
+      for (let i = 0; i < Math.min(50, +a.count || 0); i++) await api.insert("habit_logs", { user_id: api.userId(), habit_id: id, day: todayStr() });
       return;
     }
     case "add_bill": return api.insert("bills", { user_id: api.userId(), title: a.title.trim(), amount: +a.amount || 0, category: expCats().includes(a.category) ? a.category : "Bills", due_day: +a.due_day >= 1 && +a.due_day <= 31 ? +a.due_day : null, monthly: a.monthly !== false, start_month: c.month });

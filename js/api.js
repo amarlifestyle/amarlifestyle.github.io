@@ -161,10 +161,13 @@ export const rpc = (fn, args = {}) => READ_RPCS.has(fn)
   ? cachedRead(`rpc/${fn}/${JSON.stringify(args)}`, () => req(`/rest/v1/rpc/${fn}`, { method: "POST", body: args }))
   : req(`/rest/v1/rpc/${fn}`, { method: "POST", body: args });
 export const select = (table, query = "") => cachedRead(`${table}?${query}`, () => req(`/rest/v1/${table}?${query}`));
-export const insert = (table, rows) => req(`/rest/v1/${table}`, { method: "POST", body: rows, headers: { Prefer: "return=representation" } });
+// when the routine (or money) changes, today's AI advice is made again next time
+const STALE = new Set(["routines", "timetable_items", "timetable_tabs", "students", "bills", "finance_entries", "exams"]);
+const touch = t => { if (STALE.has(t)) try { localStorage.setItem("al_coach_stale", "1"); } catch {} };
+export const insert = (table, rows) => (touch(table), req(`/rest/v1/${table}`, { method: "POST", body: rows, headers: { Prefer: "return=representation" } }));
 export const upsert = (table, rows, onConflict) => req(`/rest/v1/${table}${onConflict ? `?on_conflict=${onConflict}` : ""}`, { method: "POST", body: rows, headers: { Prefer: "return=representation,resolution=merge-duplicates" } });
-export const update = (table, match, patch) => req(`/rest/v1/${table}?${match}`, { method: "PATCH", body: patch, headers: { Prefer: "return=representation" } });
-export const remove = (table, match) => req(`/rest/v1/${table}?${match}`, { method: "DELETE" });
+export const update = (table, match, patch) => (touch(table), req(`/rest/v1/${table}?${match}`, { method: "PATCH", body: patch, headers: { Prefer: "return=representation" } }));
+export const remove = (table, match) => (touch(table), req(`/rest/v1/${table}?${match}`, { method: "DELETE" }));
 
 // ---- storage
 export async function uploadProof(file, taskId) {

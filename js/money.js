@@ -130,6 +130,7 @@ async function overview(body, m, me) {
     h("div.stat", h("div.k", t("Expense")), h("div.v.bad", tk(exp))),
     h("div.stat", h("div.k", "Saved this month"), h("div.v", tk(inc - exp)))));
   body.append(h("p.small.muted", { style: { margin: "8px 2px 14px" } }, `Total savings (all time): `, h("b", tk(totalSaved)), " = all income − all expenses."));
+  if (m === monthStart(todayStr())) await dailyCard(body, m, me);
   await billsCard(body, m, inc - exp);
 
   // budgets
@@ -608,3 +609,40 @@ route("payments", async (page, yr) => {
   page.append(dl);
   page.append(h("p.hint", "“Received” row = fees for that month, whenever they were paid. Edit a paid box within the edit window (until 30 days after the month ends); after that it's locked and the history stays."));
 }, { tab: "money" });
+
+// ---------- daily small spending: fare, food, tea, cigarettes… one tap, then the amount
+const DAILY = [["🚌", "ভাড়া / Fare", "Transport"], ["🍞", "খাবার / Food", "Food"], ["☕", "চা-নাস্তা / Snacks", "Food"], ["🚬", "সিগারেট / Smoke", "Other"], ["📱", "রিচার্জ / Recharge", "Bills"], ["🛍️", "কেনাকাটা / Shopping", "Shopping"], ["🎮", "আড্ডা-বিনোদন / Fun", "Fun"], ["💸", "হুদাই খরচ / Wasted", "Other"]];
+async function dailyCard(body, m, me) {
+  const today = todayStr();
+  const labels = DAILY.map(d => d[1]);
+  const rows = await api.select("finance_entries", `select=amount,note,entry_date&kind=eq.expense&entry_date=gte.${m}&entry_date=lte.${me}`).catch(() => []);
+  const itemOf = r => labels.find(l => (r.note || "").startsWith(l));
+  const todaySum = rows.filter(r => r.entry_date === today).reduce((s, r) => s + +r.amount, 0);
+  const byItem = {}; rows.forEach(r => { const l = itemOf(r); if (l) byItem[l] = (byItem[l] || 0) + +r.amount; });
+  const card = h("div.card",
+    h("div.row.between", h("h3.mb0", "Daily spending"), h("span.small.muted", "Today ", h("b", { style: { color: "var(--text)" } }, tk(todaySum)))),
+    h("div.daily-grid", DAILY.map(([ic, label, cat]) => {
+      const b = h("button.daily-btn", { type: "button" }, h("span.ic", ic), h("span.l", label.split(" / ")[0]), byItem[label] ? h("span.v", tk(byItem[label])) : null);
+      b.onclick = () => quickSpend(ic, label, cat);
+      return b;
+    })),
+    h("p.small.muted.mb0", { style: { marginTop: "8px" } }, "Tap one, write the amount — it's saved as today's expense. The small number is this month's total."));
+  body.append(card);
+}
+function quickSpend(ic, label, cat) {
+  const amt = h("input.input", { type: "number", inputmode: "decimal", min: "1", placeholder: "৳", style: { fontSize: "22px", textAlign: "center" } });
+  const note = h("input.input", { placeholder: "Note (optional)", maxlength: "60" });
+  sheet(`${ic} ${label.split(" / ")[0]}`, [h("label.f", h("span", "How much? (৳)"), amt), h("label.f", h("span", "Note"), note)], {
+    actions: close => {
+      const save = h("button.btn.primary", "Save");
+      const go = busy(save, async () => {
+        const v = Number(amt.value); if (!(v > 0)) throw new Error("Write the amount.");
+        await api.insert("finance_entries", { user_id: api.userId(), kind: "expense", category: expCats().includes(cat) ? cat : "Other", amount: v, note: note.value.trim() ? `${label} — ${note.value.trim()}`.slice(0, 120) : label, entry_date: todayStr() });
+        toast(`${tk(v)} saved ✓`, "ok"); close(true); rerender();
+      });
+      save.onclick = go;
+      amt.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+      return [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
+    },
+  });
+}

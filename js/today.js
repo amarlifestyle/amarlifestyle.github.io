@@ -10,7 +10,7 @@ import { quoteFor } from "./quotes.js";
 import { mealNow, classesBetween, classCard } from "./timetable.js";
 
 const unlockAt = tk => new Date(new Date(tk.start_at).getTime() + (new Date(tk.end_at) - new Date(tk.start_at)) * Number(store.cfg.unlock_fraction ?? 0.75));
-const lateEnd = tk => new Date(new Date(tk.end_at).getTime() + Number(store.cfg.late_window_min ?? 30) * 60000);
+const lateEnd = tk => new Date(new Date(tk.end_at).getTime() + Number(store.cfg.late_window_min ?? 300) * 60000);
 
 function greeting() {
   const hr = dhakaNow().getHours();
@@ -146,6 +146,12 @@ route("today", async page => {
   let classes = [];
   try { classes = await classesBetween(today, today); } catch { /* offline */ }
   try { const ex = await examsCard(); if (ex) body.append(ex); } catch { /* offline */ }
+  if (!api.LS.get("al_tg_nudge") && navigator.onLine) {
+    api.rpc("has_telegram").then(has => { if (has) { api.LS.set("al_tg_nudge", 1); return; }
+      const c = h("div.tg-hint", { style: { marginBottom: "10px" } }, h("span", "✈️"), h("span.grow", "পাসওয়ার্ড ভুলে গেলে যেন সহজে ফেরত পান — ", h("a", { href: "#/settings" }, "Telegram কানেক্ট করুন")), h("button.linkbtn.small", { onclick: () => { api.LS.set("al_tg_nudge", 1); c.remove(); } }, "✕"));
+      body.querySelector(".upnext")?.after(c);
+    }).catch(() => {});
+  }
   try { const pn = await prayerNow(); if (pn) body.append(pn); } catch { /* offline */ }
   body.append(h("div.section-title", h("h2", "Today's tasks"), h("div.row", { style: { gap: "10px", alignItems: "center" } }, h("button.btn.small.emg", { onclick: () => emergencySheet(tasks) }, "🚨 Emergency"), h("a.small", { href: "#/routine" }, "Set routine"))));
   if (!realTasks.length && !running && !classes.length) {
@@ -200,7 +206,7 @@ function taskCard(tk, queued) {
     acts.append(b);
   }
   el.append(h("div.grow",
-    h("div.row.between", h("div.t", tk.pinned ? h("span.pin", "📌 ") : null, tk.title), status || h("span.dp", `${tk.is_timer ? "" : tk.dp_value + " DP"}`)),
+    h("div.row.between", h("div.t", ["completed", "late_completed"].includes(tk.status) ? h("span.mark.ok", "✓") : ["not_completed", "missed"].includes(tk.status) ? h("span.mark.bad", "✕") : null, tk.pinned ? h("span.pin", "📌 ") : null, tk.title), status || h("span.dp", `${tk.is_timer ? "" : tk.dp_value + " DP"}`)),
     h("div.meta", h("span", `${fmtTime(tk.start_at)} – ${fmtTime(tk.end_at)}`), h("span", "·"), h("span", tk.category), tk.is_timer ? h("span", "· timer") : null),
     acts));
   if (tk.offlineNew) el.querySelector(".meta")?.append(h("span.warn", "· saved offline"));
@@ -457,7 +463,9 @@ function tipTicker(today) {
   show();
   tickTimer = setInterval(() => { if (!document.body.contains(box)) return clearInterval(tickTimer); if (!document.hidden) show(); }, 7000);
   // refresh today's advice in the background (once a day it is new)
-  if (navigator.onLine) api.ai("coach", {}).then(r => { api.LS.set("al_coach", r); }).catch(() => {});
+  // refresh: new advice once a day, and again after the routine / money changed (at most every 20 min)
+  const stale = api.LS.get("al_coach_stale") && Date.now() - (api.LS.get("al_coach_at") || 0) > 20 * 60000;
+  if (navigator.onLine) api.ai("coach", stale ? { refresh: true } : {}).then(r => { api.LS.set("al_coach", r); if (stale) { api.LS.del("al_coach_stale"); api.LS.set("al_coach_at", Date.now()); } }).catch(() => {});
   return box;
 }
 
