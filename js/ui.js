@@ -251,3 +251,6 @@ export function pickColor(title, known = []) {
   const used = new Set(known.filter(r => r.color).map(r => r.color.toUpperCase()));
   return DISTINCT.find(c => !used.has(c.toUpperCase())) || DISTINCT[Math.floor(Math.random() * DISTINCT.length)];
 }
+
+// tap a shortened help line to read all of it
+document.addEventListener("click", e => { const x = e.target.closest?.(".hint"); if (x && !e.target.closest("a,button,input,select,textarea")) x.classList.toggle("open"); });

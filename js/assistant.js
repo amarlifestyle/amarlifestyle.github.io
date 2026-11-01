@@ -177,7 +177,7 @@ export async function shrink(file) {
 const YES = /^\s*(হ্যাঁ|হ্যা|হা|হুম|জি|ঠিক আছে|করো|করে দাও|yes|y|ok|okay|ha|haa|hmm|do it)\s*[.!।]*\s*$/i;
 
 export function askSheet() {
-  const q = h("textarea.input", { placeholder: "লিখুন বা বলুন… যেমন: আজকে Leon নাই বাদ দাও · শনিবার ৫টায় C.P যোগ করো · Leon অক্টোবরের ৩০০০ দিছে · ২০০ টাকা রিকশা ভাড়া · ক্যাটাগরি বানাও Coding", maxlength: "800", style: { minHeight: "64px" } });
+  const q = h("textarea.input", { placeholder: "যেমন: আজ Leon নাই, বাদ দাও", maxlength: "800", style: { minHeight: "56px" } });
   const out = h("div");
   const history = [];
   let photo = null, pending = null;
@@ -247,7 +247,8 @@ export function askSheet() {
   };
   const voice = voiceRecorder(audio => ask({ audio }), { label: "বলুন — প্রশ্ন বা কাজ" });
   // quick questions: tap to ask
-  const QUICK = ["আজকের দিনটা কীভাবে সাজাবো?", "এই সপ্তাহে কোথায় পিছিয়ে আছি?", "এই মাসের খরচ কেমন?", "কার টিউশন ফি বাকি?"];
+  const QUICK = ((api.LS.get("al_coach") || {}).questions || []).slice(0, 4).filter(Boolean);
+  if (QUICK.length < 2) QUICK.push("আজ আমার রুটিনে কী কী আছে?", "এই সপ্তাহে কোথায় পিছিয়ে আছি?");
   const chips = h("div.row.wrap", { style: { gap: "6px", margin: "8px 0 4px" } }, QUICK.map(x => {
     const b = h("button.chip", { type: "button" }, x);
     b.onclick = busy(b, async () => { q.value = x; await ask({ text: x }); });
@@ -256,8 +257,7 @@ export function askSheet() {
   return sheet("✨ AI", [
     coachBox(),
     chips,
-    h("p.hint", { style: { marginTop: "6px" } }, "প্রশ্ন করুন, বা যেকোনো কাজ বলুন — টাস্ক যোগ/বাদ, সময় বদল, মার্ক, রুটিন, স্টুডেন্ট, ফি, আয়-খরচ, বিল, ক্যালেন্ডার। ছবিও দিতে পারেন। করার আগে দেখিয়ে নেবে।"),
-    voice, h("div.small.faint", { style: { textAlign: "center", margin: "10px 0 6px" } }, "— অথবা লিখুন —"), q, h("div.row", { style: { gap: "8px", marginTop: "6px" } }, photoBtn, fileIn), thumb, out], {
+    voice, h("div", { style: { height: "8px" } }), q, h("div.row", { style: { gap: "8px", marginTop: "6px" } }, photoBtn, fileIn), thumb, out], {
     actions: close => {
       const go = h("button.btn.primary", "Send");
       go.onclick = busy(go, async () => {

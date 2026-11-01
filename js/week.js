@@ -299,7 +299,6 @@ function moveSheet(tk, ctx, dayList) {
   const scopeSeg = routine ? h("div.seg", [["day", "শুধু এই দিন"], ["every", "প্রতি সপ্তাহে"]].map(([k, l]) => h("button" + (k === scope ? ".on" : ""), { type: "button", "data-k": k, onclick: e => { scope = k; scopeSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === k)); } }, l))) : null;
   draw();
   sheet("↕ Move “" + tk.title + "”", [
-    h("p.hint", "উপরে মানে আগে, নিচে মানে পরে। পাশের টাস্কের সাথে জায়গাও বদলাতে পারেন।"),
     h("div.row.wrap", { style: { gap: "6px" } }, step(-60), step(-30), step(-15), step(15), step(30), step(60)),
     prev || next ? h("div.row.wrap", { style: { gap: "6px", marginTop: "8px" } },
       prev ? h("button.btn.small", { type: "button", onclick: () => { swap = "up"; shift = 0; draw(); } }, `⇅ “${prev.title}”-এর আগে নিন`) : null,

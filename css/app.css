@@ -53,7 +53,7 @@ body {
   background: var(--bg);
   color: var(--text);
   /* the phone's own standard font (San Francisco on iPhone, Roboto on Android) + Noto Sans Bengali for Bangla */
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Bengali", "Kohinoor Bangla", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Hind Siliguri", "Noto Sans Bengali", "Kohinoor Bangla", sans-serif;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
   font-size: 16px;
   line-height: 1.45;
@@ -533,3 +533,18 @@ h1, h2, h3, .big, .t, b { letter-spacing: -0.01em; }
 .nav a svg { transition: transform .22s cubic-bezier(.34,1.56,.64,1); }
 .nav a.on svg { transform: translateY(-1px) scale(1.08); }
 .sheet { will-change: transform; }
+
+/* rotating advice line */
+.ticker { position: relative; display: block; width: 100%; height: 50px; overflow: hidden; margin: 0 0 12px; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.ticker.warn { border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
+.tk-in { position: absolute; inset: 0; display: flex; align-items: center; gap: 10px; padding: 0 12px; animation: tkIn .42s cubic-bezier(.22,1,.36,1) both; }
+.tk-in.tk-out { animation: tkOut .26s ease both; }
+@keyframes tkIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes tkOut { to { opacity: 0; transform: translateY(-10px); } }
+.tk-ic { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+.tk-txt { min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.tk-txt b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-txt span { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* long help text: two lines, tap to read all */
+.hint { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.hint.open { -webkit-line-clamp: unset; display: block; }

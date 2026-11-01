@@ -118,7 +118,6 @@ route("schedule", async (page, key = "university", dayArg) => {
   const todayDow = dhakaNow().getDay();
   const dow = dayArg !== undefined && dayArg !== "" ? Number(dayArg) : todayDow;
   page.append(h("p.hint", K.hint));
-  page.append(h("div.card.small", { style: { borderColor: "color-mix(in srgb, var(--brand) 40%, transparent)", padding: "8px 12px" } }, "📷 রুটিনের একটা ছবি দিন — AI পড়ে নিজেই রুটিন বানিয়ে দেবে। আপনি দেখে নিয়ে সেভ করবেন।"));
   const tools = h("div.row.wrap", { style: { gap: "8px", marginBottom: "10px" } },
     h("button.btn.small", { onclick: () => photoImport(tab) }, "📷 From a photo (AI)"),
     h("button.btn.small.primary", { onclick: () => itemSheet(tab, null, kind === "meal" ? [] : [dow]) }, icon("plus"), "Add"));

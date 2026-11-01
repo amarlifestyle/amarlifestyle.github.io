@@ -123,12 +123,8 @@ route("today", async page => {
   } catch { /* offline: skip */ }
   // meal reminder (from your meal plan)
   try { const meal = await mealNow(); if (meal) body.append(meal); } catch { /* offline */ }
-  // quote of the day (tap for another)
-  let qShift = 0;
-  const qBox = h("div.quote", { role: "button", tabindex: "0", title: "Tap for another" });
-  const drawQ = () => { const [q, by] = quoteFor(store.profile?.occupation, today, qShift); qBox.replaceChildren(h("span", "“", q, "”"), h("span.by", " — ", by)); };
-  qBox.onclick = () => { qShift++; drawQ(); };
-  drawQ(); body.append(qBox);
+  // one line that changes every few seconds: today's AI advice + a quote (tap → AI)
+  body.append(tipTicker(today));
 
   // today's events + countdowns
   const evToday = events.filter(e => e.kind !== "countdown" && (e.date === today || (e.yearly && e.date.slice(5) === today.slice(5))));
@@ -151,7 +147,7 @@ route("today", async page => {
       h("div.row", { style: { justifyContent: "center" } }, h("button.btn.primary", { onclick: () => addTask() }, icon("plus"), t("Add task")), h("a.btn", { href: "#/routine" }, icon("routine"), t("Routine")))));
   } else {
     if (realTasks.length && !api.LS.get("al_tip_seen")) {
-      const tip = h("div.card.small", h("b", "How it works: "), "Mark a task in its last quarter (a 1-hour task opens 15 min before it ends). Mark within 30 min after it ends for full DP. Unmarked tasks lose DP at 12 AM.",
+      const tip = h("div.card.small", h("b", "Tip: "), "Mark a task near its end. Unmarked tasks lose DP at 12 AM.",
         h("div", h("button.linkbtn", { onclick: () => { api.LS.set("al_tip_seen", 1); tip.remove(); } }, "Got it")));
       body.append(tip);
     }
@@ -413,7 +409,6 @@ function emergencySheet(tasks) {
   };
   start.oninput = dur.onchange = preview; preview();
   sheet("🚨 Emergency task", [
-    h("p.hint", "Something urgent came up? Add it here. The task that is going on at that time stops when the emergency starts (its DP is counted for the shorter time)."),
     h("label.f", h("span", "What"), title),
     h("div.grid2", h("label.f", h("span", "Starts"), start), h("label.f", h("span", "How long"), dur)),
     h("label.f", h("span", "Category"), cat),
@@ -431,4 +426,33 @@ function emergencySheet(tasks) {
       return [h("button.btn", { onclick: () => close(null) }, t("Cancel")), go2];
     },
   });
+}
+
+// ---------- rotating advice line (changes every 7 s; new advice each day)
+let tickTimer = null;
+function tipTicker(today) {
+  clearInterval(tickTimer);
+  const box = h("button.ticker", { type: "button", onclick: () => askSheet(), "aria-label": "Open AI" });
+  const items = () => {
+    const c = api.LS.get("al_coach") || {};
+    const list = [...(c.alerts || []).map(a => ({ ic: "⚠️", t: a.title, d: a.text, warn: true })), ...(c.tips || []).map(x => ({ ic: "💡", t: x.title, d: x.text }))];
+    for (let k = 0; k < 2; k++) { const [q, by] = quoteFor(store.profile?.occupation, today, k); list.push({ ic: "❝", t: q, d: by }); }
+    return list;
+  };
+  let i = Number(api.LS.get("al_tick_i", 0)) || 0;
+  const show = () => {
+    const L = items(); if (!L.length) return;
+    const it = L[i % L.length];
+    const line = h("span.tk-in", h("span.tk-ic", it.ic), h("span.tk-txt", h("b", it.t), it.d ? h("span", it.d) : null));
+    if (it.warn) box.classList.add("warn"); else box.classList.remove("warn");
+    const old = box.firstChild;
+    if (old) { old.classList.add("tk-out"); setTimeout(() => old.remove(), 260); }
+    box.append(line);
+    i++; api.LS.set("al_tick_i", i % 1000);
+  };
+  show();
+  tickTimer = setInterval(() => { if (!document.body.contains(box)) return clearInterval(tickTimer); if (!document.hidden) show(); }, 7000);
+  // refresh today's advice in the background (once a day it is new)
+  if (navigator.onLine) api.ai("coach", {}).then(r => { api.LS.set("al_coach", r); }).catch(() => {});
+  return box;
 }
