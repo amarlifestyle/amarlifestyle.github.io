@@ -85,7 +85,7 @@ export function waqts(day) {
 const tm = d => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Dhaka" });
 const left = ms => { const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
 const C = "#10B981";
-const pdp = (k = "dhuhr") => Number(k === "fajr" ? store.cfg.prayer_dp_fajr ?? 30 : store.cfg.prayer_dp ?? 20), pen = () => Number(store.cfg.prayer_unmarked_dp ?? 10);
+const pdp = (k = "dhuhr") => Number(k === "fajr" ? store.cfg.prayer_dp_fajr ?? 10 : store.cfg.prayer_dp ?? 8), pen = k => pdp(k);
 
 export async function prayerLogs(from, to) {
   try { return await api.select("prayer_logs", `select=day,prayer,status,dp&day=gte.${from}&day=lte.${to}`); } catch { return []; }
@@ -95,7 +95,7 @@ const canMark = day => day === todayStr() || (day === addDays(todayStr(), -1) &&
 const dhakaHour = () => (new Date().getUTCHours() + 6) % 24;
 // two answers: prayed / not prayed
 function answerBtns(day, w, status, after) {
-  if (status === "unmarked") return h("span.small", { style: { color: "var(--red)" } }, `মার্ক করা হয়নি · −${pen()} DP`);
+  if (status === "unmarked") return h("span.small", { style: { color: "var(--red)" } }, `মার্ক করা হয়নি · −${pen(w.key)} DP`);
   if (!canMark(day)) return h("span.small.faint", status === "prayed" ? "✓ পড়েছি" : status === "not_prayed" ? "পড়িনি" : "—");
   const send = st => async e => {
     e?.stopPropagation?.();
@@ -168,7 +168,7 @@ route("prayer", async page => {
     page.append(yBtn);
   }
   page.append(h("div.card.small.mt", h("b", "পয়েন্টের নিয়ম"), h("p.small.muted.mb0", { style: { marginTop: "4px" } },
-    `পড়েছি = ফজর +${pdp("fajr")} DP, বাকি ওয়াক্ত +${pdp()} DP (যেকোনো টাস্কের এক ঘণ্টার চেয়ে বেশি) · পড়িনি = ০ (কিছু কাটা হয় না) · কিছুই মার্ক না করলে পরদিন সকাল ৬টায় ওই ওয়াক্তে −${pen()} DP। ওয়াক্ত শুরু হওয়ার পরই মার্ক করা যায়।`)));
+    `পড়েছি = ফজর +${pdp("fajr")} DP, বাকি ওয়াক্ত +${pdp()} DP (প্রস্তুতি সহ নামাজের সময়টা কঠিন কাজের সমান দামে ধরা) · পড়িনি = ০ (কিছু কাটা হয় না) · কিছুই মার্ক না করলে পরদিন সকাল ৬টায় যত পাওয়ার কথা ছিল ততটাই কাটা যাবে (ফজর −${pen("fajr")}, বাকি −${pen()})। ওয়াক্ত শুরু হওয়ার পরই মার্ক করা যায়।`)));
 
   // graphs
   const days = Array.from({ length: 30 }, (_, i) => addDays(today, i - 29));
