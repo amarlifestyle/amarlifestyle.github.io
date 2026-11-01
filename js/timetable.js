@@ -1,7 +1,7 @@
 // Amar Lifestyle — timetables under Routine: University classes, Coaching classes, Meal plan.
 // These only show the day's plan (no DP). Meals also remind you on the Today page.
 import * as api from "./api.js";
-import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtHM, dhakaNow } from "./ui.js";
+import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtHM, dhakaNow, pickPhoto } from "./ui.js";
 import { route, store, rerender, backbar } from "./app.js";
 import { shrink } from "./assistant.js";
 import { isMuslim } from "./prayer.js";
@@ -216,10 +216,8 @@ function itemSheet(tab, it, presetDays = []) {
 // photo of a timetable → AI reads it → you tick what to keep
 function photoImport(tab) {
   const kind = tab.kind;
-  const inp = h("input", { type: "file", accept: "image/*", style: { display: "none" } });
-  document.body.append(inp);
-  inp.onchange = async () => {
-    const f = inp.files[0]; inp.remove(); if (!f) return;
+  pickPhoto("রুটিনের ছবি দিন").then(async f => {
+    if (!f) return;
     const out = h("div", h("p.small.muted", "🤖 Reading the photo…"));
     let items = [];
     const s = sheet("📷 From a photo", [h("p.hint", "AI reads the photo. Check, untick what you don't want, then save."), out], {
@@ -245,8 +243,7 @@ function photoImport(tab) {
       document.getElementById("ttsave")?.removeAttribute("disabled");
     } catch (e) { out.replaceChildren(h("p.small.bad", e.message)); }
     void s;
-  };
-  inp.click();
+  });
 }
 
 // Today page: meal reminder from 30 minutes before until the meal ends

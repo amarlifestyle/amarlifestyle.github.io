@@ -187,12 +187,18 @@ function detail(tk, ctx, dayList = []) {
         await api.remove("tasks", `id=eq.${tk.id}&status=eq.pending`);
         toast("Removed ✓", "ok"); close(); rerender();
       });
-      const rmAll = routine ? h("button.btn.small.danger", icon("trash"), "Remove every week") : null;
+      const dow = new Date(tk.day + "T00:00:00").getDay(), dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dow];
+      const others = routine ? routine.days.filter(d => d !== dow) : [];
+      const rmAll = routine ? h("button.btn.small.danger", icon("trash"), `Remove every ${dayName}`) : null;
       if (rmAll) rmAll.onclick = busy(rmAll, async () => {
-        if (!(await confirmBox("Remove from every week?", `“${routine.title}” will stop repeating. Past days stay in your history.`, "Remove", true))) return;
-        await api.remove("tasks", `routine_id=eq.${routine.id}&status=eq.pending&end_at=gt.${new Date().toISOString()}`);
-        await api.update("routines", `id=eq.${routine.id}`, { active: false, template: "_removed" });
-        toast("Removed from every week ✓", "ok"); close(); rerender();
+        if (!(await confirmBox(`Remove from every ${dayName}?`, others.length ? `“${routine.title}” stays on the other days (${others.map(d => DAYS[d]).join(", ")}). Past days stay in your history.` : `“${routine.title}” will stop repeating. Past days stay in your history.`, "Remove", true))) return;
+        // remove only this weekday's upcoming copies (today's one too, if it hasn't been marked)
+        const pend = await api.select("tasks", `select=id,day&routine_id=eq.${routine.id}&status=eq.pending&end_at=gt.${new Date().toISOString()}`);
+        const ids = pend.filter(x => new Date(x.day + "T00:00:00").getDay() === dow).map(x => x.id);
+        if (ids.length) await api.remove("tasks", `id=in.(${ids.join(",")})&status=eq.pending`);
+        if (others.length) await api.update("routines", `id=eq.${routine.id}`, { days: others });
+        else await api.update("routines", `id=eq.${routine.id}`, { active: false, template: "_removed" });
+        toast(`Removed from every ${dayName} ✓`, "ok"); close(); rerender();
       });
       const mv = new Date(tk.start_at) > new Date() ? h("button.btn.small", "↕ Move") : null;
       if (mv) mv.onclick = () => { close(); moveSheet(tk, ctx, dayList); };

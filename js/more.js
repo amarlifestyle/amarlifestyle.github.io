@@ -105,7 +105,7 @@ export async function editRoutine(r, templates, activeT) {
       if (r) {
         const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash"));
         del.onclick = busy(del, async () => {
-          if (!(await confirmBox("Delete routine task?", "Upcoming copies are removed. Past ones stay.", "Delete", true))) return;
+          if (!(await confirmBox("Delete from ALL days?", `“${r.title}” will be removed from every day it repeats (${r.days.map(d => DAYS[d]).join(", ")}). To remove only one day, untick that day above and tap Save. Past days stay.`, "Delete all", true))) return;
           await api.remove("tasks", `routine_id=eq.${r.id}&status=eq.pending&start_at=gt.${new Date().toISOString()}`);
           await api.remove("routines", `id=eq.${r.id}`); close(true); rerender();
         });

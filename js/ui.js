@@ -254,3 +254,16 @@ export function pickColor(title, known = []) {
 
 // tap a shortened help line to read all of it
 document.addEventListener("click", e => { const x = e.target.closest?.(".hint"); if (x && !e.target.closest("a,button,input,select,textarea")) x.classList.toggle("open"); });
+
+// choose a photo: take one now with the camera, or pick one from the gallery
+export function pickPhoto(title = "ছবি দিন") {
+  return new Promise(resolve => {
+    let done = false;
+    const fin = f => { if (!done) { done = true; resolve(f || null); } };
+    const make = cam => { const i = h("input", { type: "file", accept: "image/*", style: { display: "none" } }); if (cam) i.setAttribute("capture", "environment"); i.onchange = () => { fin(i.files[0]); i.remove(); }; document.body.append(i); return i; };
+    const opt = (ic, label, sub, cam) => { const b = h("button.li", { type: "button", style: { textAlign: "left" } }, h("div.ic", ic), h("div.grow", h("b", label), h("div.small.muted", sub)));
+      b.onclick = () => { const i = make(cam); document.querySelector(".backdrop")?.click(); setTimeout(() => i.click(), 50); }; return b; };
+    sheet(title, [h("div.list", opt("📷", "Camera", "এখনই ছবি তুলুন", true), opt("🖼️", "Gallery", "আগে তোলা ছবি থেকে বেছে নিন", false))],
+      { actions: close => [h("button.btn", { onclick: () => { close(null); fin(null); } }, "Cancel")] }).then(v => { if (v === null) setTimeout(() => { /* picker may still answer */ }, 0); });
+  });
+}

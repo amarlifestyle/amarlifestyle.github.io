@@ -59,7 +59,9 @@ route("exams", async page => {
   const all = await api.select("exams", "select=*&order=due_at");
   const now = Date.now();
   const open = all.filter(e => !e.done && new Date(e.due_at) > now), past = all.filter(e => e.done || new Date(e.due_at) <= now).reverse().slice(0, 15);
-  page.append(h("button.btn.primary.block", { onclick: () => examSheet() }, icon("plus"), R.add));
+  page.append(h("div.grid2", { style: { gap: "8px" } },
+    h("button.btn.primary", { onclick: () => examSheet() }, icon("plus"), R.add),
+    h("button.btn", { onclick: () => import("./assistant.js").then(m => m.askSheet({ photo: true, text: "এই ছবি দেখে সব CT / ল্যাব রিপোর্ট / পরীক্ষা / ডেডলাইন তারিখ-সময় সহ যোগ করো" })) }, "📷 From a photo (AI)")));
   const row = e => h("button.li", { onclick: () => examSheet(e), style: { textAlign: "left", opacity: e.done ? .6 : 1 } },
     h("div.ic", EXAM_KINDS[e.kind][0]),
     h("div.grow", { style: { minWidth: 0 } }, h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.title), h("div.small.muted", [EXAM_KINDS[e.kind][1], e.course, when(e.due_at)].filter(Boolean).join(" · "))),
