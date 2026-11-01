@@ -24,12 +24,12 @@ async function boot() {
 }
 
 function render() {
-  const tabs = [["overview", "Overview"], ["requests", "Edit requests"], ["users", "Users"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
+  const tabs = [["overview", "Overview"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
   const body = h("div");
   app.replaceChildren(
     h("header.topbar", h("div.brandmark", h("img", { src: "../assets/icon-64.png", width: 30, alt: "", style: { borderRadius: "8px" } }), h("span", "Amar ", h("b", "Lifestyle"), h("span.muted", " · Control"))), h("a.btn.small", { href: "../" }, "Open app")),
     h("div.tabs", tabs.map(([k, l]) => h("button" + (k === tab ? ".on" : ""), { onclick: () => { tab = k; render(); } }, l))), body);
-  ({ overview, requests, users, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
+  ({ overview, requests, users, logins, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
 }
 
 async function overview(b) {
@@ -60,17 +60,46 @@ async function requests(b) {
   });
 }
 
+const when = t => t ? new Date(t).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "never";
+const EV = { login: "✅ Logged in", wrong_password: "❌ Wrong password", register: "🆕 Registered" };
+
 async function users(b) {
-  const list = await api.rpc("admin_users");
-  b.append(h("div.list", list.map(u => h("div.li",
+  const list = await api.rpc("admin_people");
+  const csv = h("button.btn.small", icon("download"), "Download all (CSV)");
+  csv.onclick = () => {
+    const rows = [["Name", "Phone", "Email", "Registered", "Last login", "Device", "Logins", "Telegram", "Level", "DP this month", "Blocked"],
+      ...list.map(u => [u.name, u.phone, u.email, when(u.created_at), when(u.last_login), u.last_device || "", u.logins, u.telegram ? "yes" : "no", u.level, u.month_dp, u.blocked ? "yes" : "no"])];
+    const text = "\ufeff" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    h("a", { download: `amar-lifestyle-users-${new Date().toISOString().slice(0, 10)}.csv`, href: URL.createObjectURL(new Blob([text], { type: "text/csv" })) }).click();
+  };
+  b.append(h("div.row.between", { style: { marginBottom: "10px" } }, h("b", `${list.length} user${list.length === 1 ? "" : "s"}`), csv));
+  b.append(h("div.list", list.map(u => h("div.li", { style: { alignItems: "flex-start" } },
     h("div.grow", h("b", u.name, u.is_admin ? " (admin)" : "", u.blocked ? h("span.bad", " · blocked") : null),
-      h("div.small.muted", `${u.phone} · ${u.email}`), h("div.small.muted", `${u.level} · ${u.month_dp} DP this month · joined ${fmtDate(u.created_at.slice(0, 10))}`)),
+      h("div.small", "📞 ", h("a", { href: `tel:${u.phone}` }, u.phone), "  ✉️ ", h("a", { href: `mailto:${u.email}` }, u.email)),
+      h("div.small.muted", `Last login: ${when(u.last_login)}${u.last_device ? " · " + u.last_device : ""} · ${u.logins} login${u.logins === 1 ? "" : "s"}`),
+      h("div.small.muted", `Joined ${when(u.created_at)} · Telegram ${u.telegram ? "✅" : "—"} · ${u.level} · ${u.month_dp} DP`)),
     h("div.row", { style: { flexDirection: "column", gap: "6px" } },
+      h("button.btn.small", { onclick: () => loginsOf(u) }, "Logins"),
       h("button.btn.small", { onclick: () => dataCheck(u) }, "Data"),
       u.is_admin ? null : h("button.btn.small" + (u.blocked ? "" : ".danger"), { onclick: async () => {
         if (!(await confirmBox(u.blocked ? "Unblock user?" : "Block user?", u.blocked ? `${u.name} can use Amar Lifestyle again.` : `${u.name} won't be able to log in.`, u.blocked ? "Unblock" : "Block", !u.blocked))) return;
         try { await api.rpc("admin_set_blocked", { p_user: u.id, p_blocked: !u.blocked }); toast("Done ✓", "ok"); render(); } catch (e) { toast(e.message, "bad"); }
       } }, u.blocked ? "Unblock" : "Block"))))));
+}
+
+async function loginsOf(u) {
+  const l = await api.rpc("admin_login_log", { p_user: u.id, p_limit: 100 });
+  sheet(`Logins · ${u.name}`, h("div", h("p.hint", `${u.phone} · ${u.email}`),
+    l.length ? h("div.list", l.map(x => h("div.li", h("div.grow", h("b", EV[x.event] || x.event), h("div.small.muted", `${when(x.at)} · ${x.device || ""}`))))) : h("p.muted", "No logins recorded yet.")));
+}
+
+async function logins(b) {
+  const l = await api.rpc("admin_login_log", { p_limit: 200 });
+  const people = Object.fromEntries((await api.rpc("admin_people")).map(u => [u.id, u]));
+  b.append(h("p.hint", "Every login, wrong password and new account, newest first."));
+  b.append(l.length ? h("div.list", l.map(x => h("div.li", h("div.grow", h("b", EV[x.event] || x.event, " · ", people[x.user_id]?.name || "Unknown"),
+    h("div.small.muted", `${x.phone} · ${people[x.user_id]?.email || ""}`), h("div.small.muted", `${when(x.at)} · ${x.device || ""}`)))))
+    : h("div.card.small.muted", "No logins recorded yet. They appear from now on."));
 }
 
 async function dataCheck(u) {

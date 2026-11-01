@@ -30,7 +30,7 @@ route("login", page => {
       if (e.code === "wrong_password") wrong++;
       help.replaceChildren(h("div.card", { style: { borderColor: "color-mix(in srgb, var(--red) 55%, transparent)", marginTop: "10px" } },
         h("b.bad", e.message), h("p.small.muted", { style: { margin: "4px 0 8px" } },
-          e.code === "no_account" ? "Check the number, or make a new account." : wrong >= 2 ? "Forgot it? Get a code on Telegram or email and set a new one." : "Check your password, or reset it."),
+          e.code === "no_account" ? "Check the number, or make a new account." : wrong >= 2 ? "Forgot it? Get a code on Telegram and set a new one." : "Check your password, or reset it."),
         e.code === "no_account" ? h("a.btn.small.primary", { href: "#/register" }, t("Create account")) : h("a.btn.small" + (wrong >= 2 ? ".primary" : ""), { href: "#/forgot" }, "Forgot password?")));
     } finally { btn.disabled = false; }
   };
@@ -41,7 +41,7 @@ route("login", page => {
 route("register", page => {
   const [nf, name] = field("Your name", { autocomplete: "name", placeholder: "e.g. Musfiqur Rahman" });
   const [pf, phone] = field(t("Phone number") + " (you log in with this)", { type: "tel", inputmode: "numeric", placeholder: "01XXXXXXXXX" });
-  const [ef, email] = field("Email (for password reset)", { type: "email", autocomplete: "email", placeholder: "you@gmail.com" });
+  const [ef, email] = field("Email", { type: "email", autocomplete: "email", placeholder: "you@gmail.com" });
   const [wf, pass] = field("Password (at least 6 characters)", { type: "password", autocomplete: "new-password" });
   const agree = h("input", { type: "checkbox", id: "agree" });
   const btn = h("button.btn.primary.block", { type: "submit" }, t("Create account"));
@@ -64,34 +64,27 @@ route("register", page => {
 // one form for "forgot password" (logged out) and "forgot PIN" (logged in): code by Telegram or email
 export function codeResetForm(target, phoneInput, done) {
   const isPin = target === "pin";
-  let way = "telegram";
-  const seg = h("div.seg", { style: { marginBottom: "10px" } }, [["telegram", "Telegram code"], ["email", "Email code"]].map(([k, l]) =>
-    h("button" + (k === way ? ".on" : ""), { type: "button", onclick: e => { way = k; seg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === e.target)); stage2.style.display = "none"; info.textContent = hint(); } }, l)));
-  const hint = () => way === "telegram" ? "A 6-digit code comes to the Telegram you connected in Settings." : "A 6-digit code comes to the email you gave when you registered.";
-  const info = h("p.hint", hint());
-  const [cf, code] = field("6-digit code", { inputmode: "numeric", maxlength: "8", placeholder: "123456", autocomplete: "one-time-code" });
+  const [cf, code] = field("6-digit code from Telegram", { inputmode: "numeric", maxlength: "8", placeholder: "123456", autocomplete: "one-time-code" });
   const [nf, nv] = isPin ? field("New 4-digit PIN", { type: "password", inputmode: "numeric", maxlength: "4" }) : field("New password (at least 6 characters)", { type: "password", autocomplete: "new-password" });
   const save = h("button.btn.primary.block", isPin ? "Save new PIN" : "Save new password");
   const stage2 = h("div", { style: { display: "none" } }, cf, nf, save);
-  const send = h("button.btn.block", "Send code");
+  const send = h("button.btn.block", "Send code to my Telegram");
   send.onclick = busy(send, async () => {
     const phone = phoneInput?.value;
     if (!isPin && !phone) throw new Error("Write your phone number first.");
-    let r;
-    if (way === "telegram") r = isPin ? await api.telegram("pin_request", {}, { auth: true }) : await api.telegram("reset_request", { phone });
-    else r = isPin ? await api.account("pin_email_code", {}, { auth: true }) : await api.account("email_code", { phone });
-    if (!isPin && r && r.sent_to === null || r?.linked === false) throw new Error("No account with this phone number.");
-    toast(way === "telegram" ? "Code sent to your Telegram ✓" : `Code sent to ${r.sent_to || "your email"} ✓`, "ok");
+    const r = isPin ? await api.telegram("pin_request", {}, { auth: true }) : await api.telegram("reset_request", { phone });
+    if (r?.linked === false) throw new Error("No account with this phone number.");
+    toast("Code sent to your Telegram ✓", "ok");
     stage2.style.display = ""; send.textContent = "Send again"; code.focus();
   });
   save.onclick = busy(save, async () => {
     const c = code.value.trim();
-    if (way === "telegram") isPin ? await api.telegram("pin_confirm", { code: c, pin: nv.value }, { auth: true }) : await api.telegram("reset_confirm", { phone: phoneInput.value, code: c, password: nv.value });
-    else isPin ? await api.account("pin_email_verify", { code: c, pin: nv.value }, { auth: true }) : await api.account("email_verify", { phone: phoneInput.value, code: c, password: nv.value });
+    isPin ? await api.telegram("pin_confirm", { code: c, pin: nv.value }, { auth: true }) : await api.telegram("reset_confirm", { phone: phoneInput.value, code: c, password: nv.value });
     toast(isPin ? "PIN changed ✓" : "Password changed ✓ Please log in.", "ok");
     done?.();
   });
-  return h("div", seg, info, send, h("div.mt", stage2));
+  return h("div", h("p.hint", "A 6-digit code comes to the Telegram you connected in Settings → Telegram."), send, h("div.mt", stage2),
+    h("p.small.faint.mt.mb0", "Telegram not connected? Message the Admin: ", h("a", { href: "https://www.facebook.com/engrmusfiqur", target: "_blank", rel: "noopener" }, "facebook.com/engrmusfiqur")));
 }
 
 route("forgot", page => {
