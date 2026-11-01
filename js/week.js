@@ -29,7 +29,8 @@ route("week", async (page, offset = "0") => {
   const ctx = { ws, we, today, students, routines };
 
   const days = [...Array(7)].map((_, i) => addDays(ws, i));
-  const grid = h("div.week", days.map(d => {
+  let zoom = Math.min(2, Math.max(0, Number(api.LS.get("al_week_zoom", 0)) || 0));
+  const grid = h("div.week.z" + zoom, days.map(d => {
     const list = tasks.filter(x => x.day === d && x.status !== "running");
     const dow = new Date(d + "T00:00:00").getDay();
     return h("div.wday",
@@ -37,7 +38,7 @@ route("week", async (page, offset = "0") => {
       list.map(tk => {
         const st = ["completed", "late_completed"].includes(tk.status) ? ".done" : ["missed", "not_completed"].includes(tk.status) ? ".missed" : "";
         return h("div.cell" + st, { style: { "--c": colorOf(tk) }, role: "button", tabindex: "0", onclick: () => detail(tk, ctx) },
-          fmtTime(tk.start_at).replace(":00", ""), " → ", tk.title,
+          h("span.tm", fmtTime(tk.start_at).replace(":00", "")), h("span.arr", " → "), h("span.tt", tk.title),
           h("small", durLabel(mins(tk.start_at, tk.end_at)), tk.routine_id ? " · ↻" : ""));
       }),
       d >= today ? h("button.cell.add", { type: "button", onclick: () => planSheet(ctx, { days: [dow], day: d }), "aria-label": `Add on ${DAYS[dow]}` }, icon("plus"), "Add") : null);
@@ -46,8 +47,28 @@ route("week", async (page, offset = "0") => {
     h("button.btn.primary.small", { onclick: () => planSheet(ctx, {}) }, icon("plus"), "Add to week"),
     h("button.btn.small", { onclick: () => aiPlanSheet(ctx) }, icon("mic"), "Build with AI") ));
   const scroller = h("div.week-scroll", grid);
-  page.append(scroller);
-  setTimeout(() => { const t = scroller.querySelector(".wday .h.today")?.parentElement; if (t && scroller.scrollWidth > scroller.clientWidth) scroller.scrollLeft = Math.max(0, t.offsetLeft - 16); }, 0);
+  const zl = h("span.small.muted");
+  const setZoom = z => {
+    zoom = Math.min(2, Math.max(0, z)); api.LS.set("al_week_zoom", zoom);
+    grid.className = "week z" + zoom; zl.textContent = ["7 days fit", "Medium", "Big"][zoom];
+    zIn.disabled = zoom === 2; zOut.disabled = zoom === 0;
+    const t = scroller.querySelector(".wday .h.today")?.parentElement;
+    scroller.scrollLeft = zoom && t ? Math.max(0, t.offsetLeft - 10) : 0;
+  };
+  const zOut = h("button.btn.small", { "aria-label": "Zoom out", onclick: () => setZoom(zoom - 1) }, "−");
+  const zIn = h("button.btn.small", { "aria-label": "Zoom in", onclick: () => setZoom(zoom + 1) }, "＋");
+  // two-finger pinch on the chart also zooms
+  let pinch = null;
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  scroller.addEventListener("touchstart", e => { if (e.touches.length === 2) pinch = dist(e.touches); }, { passive: true });
+  scroller.addEventListener("touchmove", e => {
+    if (!pinch || e.touches.length !== 2) return;
+    const r = dist(e.touches) / pinch;
+    if (r > 1.3) { setZoom(zoom + 1); pinch = dist(e.touches); } else if (r < 0.77) { setZoom(zoom - 1); pinch = dist(e.touches); }
+  }, { passive: true });
+  scroller.addEventListener("touchend", () => { pinch = null; }, { passive: true });
+  page.append(h("div.zoombar", zl, zOut, zIn), scroller);
+  setTimeout(() => setZoom(zoom), 0);
   page.append(h("p.small.faint", "↻ = repeats every week. Tap a box to edit or remove. ✓ = done, faded = missed."));
 
   const done = tasks.filter(x => ["completed", "late_completed"].includes(x.status));

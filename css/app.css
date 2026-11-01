@@ -440,11 +440,25 @@ body.fab-away .fab { transform: translateY(160%); opacity: 0; pointer-events: no
 .week-scroll .cell { box-shadow: none; }
 .week-scroll .wday .h { box-shadow: none; }
 
-/* week grid on phones: bigger columns (about 2 on screen), swipe sideways */
+.zoombar { display: none; align-items: center; justify-content: flex-end; gap: 6px; margin: -4px 0 6px; }
+/* week grid on phones: all 7 days fit the screen by default; zoom with − / ＋ or two fingers */
 @media (max-width: 759px) {
-  .week { grid-template-columns: repeat(7, minmax(150px, 44vw)); gap: 8px; }
-  .week-scroll .cell { font-size: 14px; min-height: 58px; padding: 8px 9px; }
-  .week-scroll .cell small { font-size: 12px; }
-  .week-scroll { scroll-snap-type: x proximity; scroll-padding-left: 16px; }
-  .week-scroll .wday { scroll-snap-align: start; }
+  .week-scroll { margin: 0 -10px; padding: 0 10px 6px; }
+  .week.z0 { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+  .week.z0 .wday .h { font-size: 12px; padding: 5px 0; border-radius: 8px; margin-bottom: 4px; }
+  .week.z0 .wday .h small { font-size: 9px; }
+  .week.z0 .cell { font-size: 9.5px; letter-spacing: -0.2px; line-height: 1.25; padding: 4px 2px 4px 3px; min-height: 40px; border-radius: 7px; margin-bottom: 4px; border-width: 1.2px; overflow-wrap: break-word; hyphens: auto; }
+  .week.z0 .cell small { font-size: 8.5px; }
+  .week.z0 .cell.add { font-size: 0; min-height: 26px; padding: 0; } .week.z0 .cell.add svg { width: 14px; height: 14px; }
+  .week.z1 { grid-template-columns: repeat(7, 96px); gap: 5px; }
+  .week.z1 .cell { font-size: 12px; padding: 6px 5px; min-height: 48px; }
+  .week.z2 { grid-template-columns: repeat(7, minmax(150px, 44vw)); gap: 8px; }
+  .week.z2 .cell { font-size: 14px; min-height: 58px; padding: 8px 9px; }
+  .week.z1 + *, .week.z2 + * { }
+  .zoombar { display: flex; }
+  .week.z0 .cell .tm { display: block; font-size: 9px; opacity: .9; white-space: nowrap; letter-spacing: -0.2px; }
+  .week.z0 .cell .arr { display: none; }
+  .week.z0 .cell small { display: none; }
 }
+.zoombar .btn { min-width: 38px; }
+.week-scroll { touch-action: pan-x pan-y; }
