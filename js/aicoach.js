@@ -4,30 +4,42 @@ import { h, icon, toast, sheet, busy, todayStr, addDays, DAYS, PALETTE, dhakaIso
 import { store, catNames, rerender } from "./app.js";
 import { voiceRecorder } from "./voice.js";
 
-// card on the Today page (loads after the page so nothing waits for it)
+// small bar on the Today page: one line; tap to open the full advice
 export function coachCard() {
-  const box = h("div.card", { style: { borderColor: "color-mix(in srgb, var(--brand) 40%, transparent)", background: "linear-gradient(160deg, color-mix(in srgb, var(--brand) 9%, var(--card)), var(--card))" } });
-  const head = (extra) => h("div.row.between", h("b", "🤖 AI Coach"), extra);
+  const box = h("div.card.coach");
+  let open = !!api.LS.get("al_coach_open");
+  const askBtn = () => h("button.btn.small", { onclick: e => { e.stopPropagation(); askSheet(); } }, icon("mic"), "Ask AI");
+  const line = (text, color) => h("div.row.coach-line", { role: "button", tabindex: "0", "aria-expanded": String(open), onclick: () => { open = !open; api.LS.set("al_coach_open", open); last && draw(last); } },
+    h("span", "🤖"), h("span.grow.ell.small", { style: { color: color || "" } }, text), last ? h("span.small.faint", open ? "▲" : "▼") : null, askBtn());
+  let last = null;
   const load = async refresh => {
-    box.replaceChildren(head(), h("p.small.muted.mb0", refresh ? "Thinking…" : "Loading advice…"));
+    if (!last) box.replaceChildren(line(refresh ? "Thinking…" : "AI Coach loading…"));
     try {
       const r = await api.ai("coach", { refresh });
       api.LS.set("al_coach", r);
       draw(r);
     } catch (e) {
       const c = api.LS.get("al_coach");
-      if (c) { draw(c); box.append(h("p.small.faint.mb0", e.offline ? "Offline — showing last advice." : e.message)); }
-      else box.replaceChildren(head(), h("p.small.muted.mb0", e.message));
+      if (c) draw(c); else box.replaceChildren(line(e.offline ? "AI needs internet." : e.message));
     }
   };
   const draw = r => {
-    const re = h("button.btn.small.ghost", { "aria-label": "New advice" }, icon("routine"));
-    re.onclick = busy(re, () => load(true));
-    box.replaceChildren(...[head(h("div.row", { style: { gap: "6px" } }, h("button.btn.small", { onclick: askSheet }, "Ask AI"), re)),
-      r.summary ? h("p", { style: { margin: "6px 0 8px" } }, r.summary) : null,
-      (r.alerts || []).map(a => h("div", { style: { padding: "8px 10px", borderRadius: "10px", margin: "6px 0", background: `color-mix(in srgb, ${a.level === "high" ? "var(--red)" : "var(--amber)"} 13%, transparent)`, border: `1px solid color-mix(in srgb, ${a.level === "high" ? "var(--red)" : "var(--amber)"} 45%, transparent)` } },
-        h("b", { style: { color: a.level === "high" ? "var(--red)" : "var(--amber)" } }, "⚠️ ", a.title), h("div.small", a.text))),
-      (r.tips || []).map(t => h("div", { style: { padding: "6px 0", borderTop: "1px solid var(--line)" } }, h("b.small", "💡 ", t.title), h("div.small.muted", t.text)))].flat().filter(Boolean));
+    last = r;
+    const alerts = r.alerts || [], tips = r.tips || [];
+    const top = alerts[0];
+    const headTxt = top ? `⚠️ ${top.title}` + (alerts.length > 1 ? ` (+${alerts.length - 1})` : "") : (r.summary || tips[0]?.title || "AI Coach");
+    const kids = [line(headTxt, top ? (top.level === "high" ? "var(--red)" : "var(--amber)") : "")];
+    if (open) {
+      const re = h("button.btn.small.ghost", { "aria-label": "New advice" }, icon("routine"), "New advice");
+      re.onclick = busy(re, () => load(true));
+      kids.push(
+        r.summary && top ? h("p.small", { style: { margin: "8px 0 4px" } }, r.summary) : null,
+        ...alerts.map(a => h("div", { style: { padding: "7px 9px", borderRadius: "10px", margin: "6px 0", background: `color-mix(in srgb, ${a.level === "high" ? "var(--red)" : "var(--amber)"} 13%, transparent)`, border: `1px solid color-mix(in srgb, ${a.level === "high" ? "var(--red)" : "var(--amber)"} 45%, transparent)` } },
+          h("b.small", { style: { color: a.level === "high" ? "var(--red)" : "var(--amber)" } }, "⚠️ ", a.title), h("div.small", a.text))),
+        ...tips.map(t => h("div", { style: { padding: "6px 0", borderTop: "1px solid var(--line)" } }, h("b.small", "💡 ", t.title), h("div.small.muted", t.text))),
+        h("div.row", { style: { justifyContent: "flex-end", marginTop: "4px" } }, re));
+    }
+    box.replaceChildren(...kids.filter(Boolean));
   };
   load(false);
   return box;
@@ -69,7 +81,7 @@ export function aiPlanSheet(ctx) {
         h("option", { value: "perm", selected: it.repeat !== "week" }, "Every week"), h("option", { value: "week", selected: it.repeat === "week" }, "This week"));
       return h("div.li", { style: { alignItems: "flex-start" } },
         h("input", { type: "checkbox", checked: it.on !== false, style: { width: "22px", height: "22px", accentColor: "var(--brand)", marginTop: "3px" }, onchange: e => it.on = e.target.checked, "aria-label": "Include" }),
-        h("div.grow", h("b", it.title), it.student ? h("span.small.muted", " · " + it.student) : null,
+        h("div.grow", /^#[0-9a-f]{6}$/i.test(it.color || "") ? h("i", { style: { display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: it.color, marginRight: "6px" } }) : null, h("b", it.title), it.student ? h("span.small.muted", " · " + it.student) : null,
           h("div.small.muted", `${days.join(", ")} · ${fmtHM(it.start)} · ${durLabel(it.minutes || 60)} · ${it.category}`),
           it.guessed ? h("div.small.warn", "🤔 Guess: ", it.note || "from your usual routine") : null),
         rep);
@@ -111,11 +123,12 @@ export function aiPlanSheet(ctx) {
         const cats = catNames();
         let n = 0;
         for (const [i, it] of chosen.entries()) {
-          const st = students.find(s => s.name.toLowerCase() === String(it.student || "").toLowerCase());
+          const norm = x => String(x || "").toLowerCase().replace(/[.\s]/g, "");
+          const st = students.find(s => norm(s.name) === norm(it.student) || norm(s.name) === norm(it.title));
           const cat = cats.includes(it.category) ? it.category : (st ? "Tuition" : "Work / Personal");
           const days = (it.days || []).map(d => DAYMAP[d.slice(0, 3)]).filter(d => d !== undefined);
           const minutes = Math.min(720, Math.max(5, Number(it.minutes) || 60));
-          const color = st?.color || PALETTE[(i * 5) % PALETTE.length];
+          const color = (/^#[0-9a-f]{6}$/i.test(it.color || "") ? it.color : null) || st?.color || PALETTE[(i * 5) % PALETTE.length];
           if (it.repeat === "week") {
             for (const d of days) {
               const date = [...Array(7)].map((_, k) => addDays(ctx.ws, k)).find(x => new Date(x + "T00:00:00").getDay() === d);

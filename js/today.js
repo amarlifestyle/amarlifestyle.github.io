@@ -75,12 +75,15 @@ route("today", async page => {
   // hero
   const lv = stats.level;
   const toNext = lv.next ? `${lv.next_min - stats.month_dp} DP to ${lv.next}` : "Top level this month!";
-  body.append(h("div.hero",
-    ring(pct, `${Math.round(pct * 100)}%`, "done"),
-    h("div.grow",
-      h("div.row.wrap", { style: { gap: "8px", marginBottom: "6px" } }, h("span.level-pill", icon("medal"), lv.name), h("span.badge", "🔥 ", stats.streak, " day streak")),
-      h("div", h("span.big", (stats.today.dp >= 0 ? "+" : "") + stats.today.dp), h("span.muted", " DP today")),
-      h("div.small.muted", `${doneN}/${realTasks.length} tasks · ${stats.today.coins} coins · ${toNext}`))));
+  // compact summary strip (tasks get the space)
+  body.append(h("div.hero.mini",
+    ring(pct, `${Math.round(pct * 100)}%`, ""),
+    h("div.grow", { style: { minWidth: 0 } },
+      h("div", h("b.mid", (stats.today.dp >= 0 ? "+" : "") + stats.today.dp, " DP"), h("span.small.muted", ` · ${doneN}/${realTasks.length} tasks`)),
+      h("div.small.muted.ell", toNext)),
+    h("div.col-end",
+      h("a.level-pill", { href: "#/me" }, icon("medal"), lv.name),
+      h("span.small.muted", "🔥 ", stats.streak, "d"))));
   if (navigator.onLine) body.append(coachCard());
 
   // today's events + countdowns

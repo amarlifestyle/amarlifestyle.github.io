@@ -92,7 +92,15 @@ function navBar(active) {
 export const rerender = () => render();
 
 // the round ＋ button can be dragged anywhere so it never covers what you want to tap
+let lastY = 0;
+addEventListener("scroll", () => {
+  const y = scrollY, atEnd = innerHeight + y >= document.documentElement.scrollHeight - 4;
+  if (y < 40 || (y < lastY - 6 && !atEnd)) document.body.classList.remove("fab-away");
+  else if (y > lastY + 6 || atEnd) document.body.classList.add("fab-away");
+  lastY = y;
+}, { passive: true });
 function dragFab() {
+  document.body.classList.remove("fab-away"); lastY = scrollY;
   const fab = document.querySelector(".fab");
   if (!fab) return;
   const place = pos => {

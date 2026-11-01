@@ -406,3 +406,20 @@ svg.chev { width: 18px; height: 18px; flex-shrink: 0; }
 @media (min-width: 760px) { body.no-nav #app { padding-left: 28px; } }
 
 .ic svg, .cred svg, .btn svg, .icon-btn svg, .nav a svg, .fab svg, .lockline svg, .empty svg, .li .ic svg { display: block; }
+
+/* Today: compact top so tasks show first */
+.hero.mini { padding: 8px 12px; gap: 12px; border-radius: 16px; margin-bottom: 8px; }
+.hero.mini .ring, .hero.mini .ring svg { width: 50px; height: 50px; }
+.hero.mini .ring .lbl b { font-size: 13px; }
+.hero.mini .ring .lbl span { display: none; }
+.hero.mini .mid { font-size: 18px; }
+.hero.mini .level-pill { font-size: 12px; padding: 3px 8px; }
+.col-end { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card.coach { padding: 6px 8px 6px 12px; margin-bottom: 10px; border-color: color-mix(in srgb, var(--brand) 40%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--brand) 9%, var(--card)), var(--card)); }
+.coach-line { gap: 8px; align-items: center; cursor: pointer; min-height: 36px; }
+.coach-line .grow { min-width: 0; }
+/* ＋ hides while scrolling down, comes back when scrolling up (like normal apps) */
+.fab { transition: transform .25s ease, opacity .25s ease; }
+body.fab-away .fab { transform: translateY(160%); opacity: 0; pointer-events: none; }
+.page { padding-bottom: 96px; }
