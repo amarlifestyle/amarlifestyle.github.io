@@ -59,9 +59,10 @@ export function routineTabs(active) {
 function addTabSheet() {
   const name = h("input.input", { placeholder: "e.g. Gym plan · Exam routine" });
   const pick = async (kind, nm, ic) => {
-    const r = await api.insert("timetable_tabs", { user_id: api.userId(), kind, name: nm, icon: ic });
-    const row = Array.isArray(r) ? r[0] : r;
-    await loadTabs(); location.hash = `#/schedule/${kind === "custom" ? row?.id || "" : kind}`;
+    const r = await api.insert("timetable_tabs", { user_id: api.userId(), kind, name: nm, icon: ic, merge: kind === "university" ? "today" : "none" });
+    const row = (Array.isArray(r) ? r[0] : r) || {};
+    await loadTabs(); location.hash = `#/schedule/${kind === "custom" ? row.id || "" : kind}`;
+    if (kind !== "meal" && row.id) setTimeout(() => mergeSheet(TABS.find(t => t.id === row.id) || row, rerender), 400);
   };
   const opt = (kind, nm, ic, sub) => {
     if (kind !== "custom" && hasTab(kind)) return null;
@@ -84,6 +85,28 @@ function addTabSheet() {
 
 const onDay = (it, dow) => !it.days?.length || it.days.includes(dow);
 
+// keep the weekly routine in step with tabs set to "Weekly" (today's tasks are never touched)
+export async function syncWeekly() {
+  try {
+    const old = await api.rpc("sync_timetable_routines");
+    if (Array.isArray(old) && old.length) {
+      await api.remove("tasks", `routine_id=in.(${old.join(",")})&status=eq.pending&day=gt.${todayStr()}`);
+      const tm = new Date(todayStr() + "T00:00:00Z"); tm.setUTCDate(tm.getUTCDate() + 1);
+      const from = tm.toISOString().slice(0, 10); tm.setUTCDate(tm.getUTCDate() + 7);
+      await api.rpc("ensure_tasks", { p_from: from, p_to: tm.toISOString().slice(0, 10) });
+      toast("Weekly routine updated from your timetable ✓", "ok");
+    }
+  } catch (e) { toast("Couldn't update the weekly routine: " + e.message, "bad"); }
+}
+const MERGE = [["weekly", "📅 Weekly-তে যোগ", "এই ক্লাসগুলো আপনার সাপ্তাহিক রুটিনের টাস্ক হবে (DP সহ)"], ["today", "🗓️ শুধু Today-তে", "প্রতিদিন Today তালিকায় দেখাবে, DP ছাড়া, যেকোনো দিন বাদ দেওয়া যাবে"], ["none", "📁 আলাদা থাকুক", "শুধু এই ট্যাবেই থাকবে"]];
+// ask how this tab should join the daily plan
+function mergeSheet(tab, after) {
+  sheet(`“${tab.name}” — রুটিনের সাথে মেলাবেন?`, [h("p.hint", "এই ট্যাবের ক্লাসগুলো কি আপনার সাপ্তাহিক রুটিনে যোগ হবে? পরে এই ট্যাব থেকেই বদলানো যাবে।"),
+    h("div.list", MERGE.map(([k, l, sub]) => { const b = h("button.li", { style: { textAlign: "left" } }, h("div.grow", h("b", l, tab.merge === k ? " ✓" : ""), h("div.small.muted", sub)));
+      b.onclick = busy(b, async () => { await api.update("timetable_tabs", `id=eq.${tab.id}`, { merge: k }); tab.merge = k; await loadTabs(); await syncWeekly(); document.querySelector(".backdrop")?.click(); after?.(); });
+      return b; }))], { actions: close => [h("button.btn", { onclick: () => close(null) }, "Later")] });
+}
+
 route("schedule", async (page, key = "university", dayArg) => {
   await loadTabs();
   const tab = TABS.find(t => tabKey(t) === key) || (KINDS[key] && key !== "custom" ? { kind: key, name: KINDS[key].label, icon: KINDS[key].icon, virtual: true } : null);
@@ -99,11 +122,16 @@ route("schedule", async (page, key = "university", dayArg) => {
     h("button.btn.small", { onclick: () => photoImport(tab) }, "📷 From a photo (AI)"),
     h("button.btn.small.primary", { onclick: () => itemSheet(tab, null, kind === "meal" ? [] : [dow]) }, icon("plus"), "Add"));
   page.append(tools);
+  if (kind !== "meal" && !tab.virtual) {
+    const cur = MERGE.find(m => m[0] === (tab.merge || "none"));
+    page.append(h("button.card.small", { onclick: () => mergeSheet(tab, rerender), style: { width: "100%", textAlign: "left", cursor: "pointer", padding: "8px 12px" } },
+      "রুটিনের সাথে: ", h("b", cur[1]), h("span.muted", " — ", cur[2], " · বদলাতে চাপুন")));
+  }
   const removeTab = h("button.linkbtn.small", { style: { color: "var(--red)", marginTop: "16px" } }, "Remove this tab");
   removeTab.onclick = async () => {
     if (tab.virtual) return;
     if (!(await confirmBox(`Remove “${tab.name}” tab?`, kind === "custom" ? "Everything in this tab is deleted." : "The tab is hidden. Its items stay saved and come back if you add the tab again.", "Remove", true))) return;
-    try { await api.remove("timetable_tabs", `id=eq.${tab.id}`); await loadTabs(); location.hash = "#/week"; } catch (e) { toast(e.message, "bad"); }
+    try { await api.remove("timetable_tabs", `id=eq.${tab.id}`); await loadTabs(); await syncWeekly(); location.hash = "#/week"; } catch (e) { toast(e.message, "bad"); }
   };
   setTimeout(() => page.append(h("div.center", removeTab)), 0);
 
@@ -113,7 +141,7 @@ route("schedule", async (page, key = "university", dayArg) => {
       h("b", "Example — you can make yours like this:"),
       h("div.list.mt", demo.map(d => h("div.li", h("div.grow", h("b", d.title), h("div.small.muted", [d.days.length ? d.days.map(x => DAYS[x]).join(", ") : (d.start_time ? "Every day" : "Note"), range(d), d.detail].filter(Boolean).join(" · ")))))),
       h("div.row.mt", { style: { gap: "8px" } },
-        (() => { const b = h("button.btn.small", "Use this example"); b.onclick = busy(b, async () => { await api.insert("timetable_items", demo.map(d => ({ ...d, kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId() }))); toast("Example added — tap any item to change it ✓", "ok"); rerender(); }); return b; })())));
+        (() => { const b = h("button.btn.small", "Use this example"); b.onclick = busy(b, async () => { await api.insert("timetable_items", demo.map(d => ({ ...d, kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId() }))); if (tab.merge === "weekly") await syncWeekly(); toast("Example added — tap any item to change it ✓", "ok"); rerender(); }); return b; })())));
     return;
   }
 
@@ -150,12 +178,17 @@ function itemSheet(tab, it, presetDays = []) {
   const dayBox = h("div.row.wrap", { style: { gap: "6px" } });
   const drawDays = () => dayBox.replaceChildren(...ORDER.map(d => h("button.btn.small" + (days.includes(d) ? ".primary" : ""), { type: "button", onclick: () => { days = days.includes(d) ? days.filter(x => x !== d) : [...days, d]; drawDays(); } }, DAYS[d])));
   drawDays();
+  const weekly = tab.merge === "weekly";
+  const mine = h("input", { type: "checkbox", id: "ttmine", checked: it ? it.mine !== false : true });
+  const code = h("input.input", { value: it?.code || "", placeholder: "e.g. CCP (optional)", maxlength: "20" });
   sheet(it ? "Edit" : `Add to ${tab.name}`, [
     h("label.f", h("span", kind === "meal" ? "Meal / note" : "Class"), title),
     h("div.grid2", h("label.f", h("span", "Start"), start), h("label.f", h("span", "End"), end)),
     h("label.f", h("span", kind === "meal" ? "Days (none = every day)" : "Days"), dayBox),
     h("label.f", h("span", kind === "meal" ? "What to eat / notes" : "Room, teacher, notes"), detail),
     kind === "meal" ? h("p.hint", "Leave the time empty to make a note (like “Keep with you”).") : null,
+    weekly ? h("label.check", { for: "ttmine" }, mine, h("span", "My class — put it in my weekly routine")) : null,
+    weekly ? h("label.f", h("span", "Name in the weekly routine (short code)"), code) : null,
   ], {
     actions: close => {
       const save = h("button.btn.primary", "Save");
@@ -163,13 +196,15 @@ function itemSheet(tab, it, presetDays = []) {
         if (!title.value.trim()) throw new Error("Write a name.");
         if (kind !== "meal" && !days.length) throw new Error("Pick at least one day.");
         const row = { title: title.value.trim(), detail: detail.value.trim() || null, start_time: start.value || null, end_time: end.value || null, days };
+        if (weekly) { row.mine = mine.checked; row.code = code.value.trim() || null; }
         if (it) await api.update("timetable_items", `id=eq.${it.id}`, row); else await api.insert("timetable_items", { ...row, kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId() });
+        if (weekly) await syncWeekly();
         close(true); rerender();
       });
       const out = [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
       if (it) {
         const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash"));
-        del.onclick = busy(del, async () => { if (!(await confirmBox("Delete this?", it.title, "Delete", true))) return; await api.remove("timetable_items", `id=eq.${it.id}`); close(true); rerender(); });
+        del.onclick = busy(del, async () => { if (!(await confirmBox("Delete this?", it.title, "Delete", true))) return; await api.remove("timetable_items", `id=eq.${it.id}`); if (weekly) await syncWeekly(); close(true); rerender(); });
         out.unshift(del);
       }
       return out;
@@ -192,7 +227,7 @@ function photoImport(tab) {
         save.onclick = busy(save, async () => {
           const rows = items.filter(x => x.on).map(x => ({ kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId(), title: x.title, detail: x.detail || null, start_time: /^\d{2}:\d{2}$/.test(x.start || "") ? x.start : null, end_time: /^\d{2}:\d{2}$/.test(x.end || "") ? x.end : null, days: (x.days || []).map(d => DAYS.indexOf(String(d).slice(0, 3))).filter(d => d >= 0) }));
           if (!rows.length) throw new Error("Tick at least one.");
-          await api.insert("timetable_items", rows); toast(`Saved ${rows.length} ✓`, "ok"); close(true); rerender();
+          await api.insert("timetable_items", rows); if (tab.merge === "weekly") await syncWeekly(); toast(`Saved ${rows.length} ✓`, "ok"); close(true); rerender();
         });
         return [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
       },
@@ -232,17 +267,20 @@ export async function mealNow() {
 const CLASS_COLOR = "#60A5FA";
 export async function classesBetween(from, to) {
   await loadTabs();
-  if (!hasTab("university")) return [];
+  const todayTabs = TABS.filter(t => t.merge === "today");
+  if (!todayTabs.length) return [];
   const [items, skips] = await Promise.all([
-    api.select("timetable_items", "select=*&kind=eq.university&start_time=not.is.null"),
+    api.select("timetable_items", "select=*&start_time=not.is.null"),
     api.select("timetable_skips", `select=item_id,day&day=gte.${from}&day=lte.${to}`),
   ]);
+  const inTab = it => todayTabs.some(t => t.kind === it.kind && (it.kind !== "custom" || t.id === it.tab_id));
   const out = [];
   for (let d = from; d <= to; d = addDay(d)) {
     const dow = new Date(d + "T00:00:00").getDay();
-    items.filter(it => it.kind === "university" && it.start_time && onDay(it, dow) && !skips.some(k => k.item_id === it.id && k.day === d)).forEach(it => {
+    items.filter(it => it.start_time && it.kind !== "meal" && inTab(it) && onDay(it, dow) && !skips.some(k => k.item_id === it.id && k.day === d)).forEach(it => {
       const s = new Date(`${d}T${hm(it.start_time)}:00+06:00`), e = it.end_time ? new Date(`${d}T${hm(it.end_time)}:00+06:00`) : new Date(s.getTime() + 3600e3);
-      out.push({ id: `cls:${it.id}:${d}`, isClass: true, item: it, day: d, title: "🎓 " + it.title, category: "University class", start_at: s.toISOString(), end_at: e.toISOString(), status: "class", color: CLASS_COLOR, detail: it.detail });
+      const ic = KINDS[it.kind]?.icon || "📌";
+      out.push({ id: `cls:${it.id}:${d}`, isClass: true, item: it, day: d, title: ic + " " + it.title, category: "Class", start_at: s.toISOString(), end_at: e.toISOString(), status: "class", color: CLASS_COLOR, detail: it.detail });
     });
   }
   return out;
@@ -250,7 +288,7 @@ export async function classesBetween(from, to) {
 const addDay = d => { const x = new Date(d + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); };
 export function classSheet(c) {
   sheet("🎓 " + c.item.title, [h("p.mb0", fmtHM(hm(c.item.start_time)), c.item.end_time ? " – " + fmtHM(hm(c.item.end_time)) : "", " · ", new Date(c.day + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })),
-    c.detail ? h("p.small.muted", c.detail) : null, h("p.hint", "University class from your timetable. No DP, nothing is cut if you skip it.")], {
+    c.detail ? h("p.small.muted", c.detail) : null, h("p.hint", "Class from your timetable. No DP, nothing is cut if you skip it.")], {
     actions: close => {
       const rm = h("button.btn.danger", icon("trash"), "Not going — remove for this day");
       rm.onclick = busy(rm, async () => { await api.insert("timetable_skips", { user_id: api.userId(), item_id: c.item.id, day: c.day }); toast("Removed for this day ✓", "ok"); close(true); rerender(); });
@@ -266,6 +304,6 @@ export function classCard(c) {
   return h("div.task", { style: { "--c": CLASS_COLOR, cursor: "pointer" }, onclick: e => { if (!x.contains(e.target)) classSheet(c); } },
     h("div.row.between", { style: { alignItems: "flex-start", gap: "8px" } },
       h("div.grow", h("b", "🎓 ", c.item.title, live ? h("span.badge.ok", { style: { marginLeft: "6px" } }, "Now") : null),
-        h("div.small.muted", `${fmtHM(hm(c.item.start_time))}${c.item.end_time ? " – " + fmtHM(hm(c.item.end_time)) : ""} · University class${c.detail ? " · " + c.detail : ""}`),
+        h("div.small.muted", `${fmtHM(hm(c.item.start_time))}${c.item.end_time ? " – " + fmtHM(hm(c.item.end_time)) : ""} · Class (no DP)${c.detail ? " · " + c.detail : ""}`),
         h("div.small.faint", "No DP · tap ✕ if you're not going")), x));
 }
