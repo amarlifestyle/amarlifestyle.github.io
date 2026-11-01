@@ -73,6 +73,18 @@ export async function account(action, payload) {
   if (d.session) saveSession(d.session);
   return d;
 }
+export const TG_BOT = "AmarLifestyleBot"; // set when the bot is created
+export async function telegram(action, payload = {}) {
+  let r;
+  try {
+    r = await fetch(`${SB_URL}/functions/v1/telegram?action=${action}`, {
+      method: "POST", headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+  } catch { throw new ApiError("No internet connection."); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.error) throw new ApiError(d.error || "Something went wrong.");
+  return d;
+}
 export function logout() { saveSession(null); }
 export async function setNewPassword(accessToken, password) {
   const r = await fetch(`${SB_URL}/auth/v1/user`, {

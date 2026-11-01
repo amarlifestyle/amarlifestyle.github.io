@@ -242,7 +242,27 @@ route("settings", async page => {
     h("p.hint.mt", "Your own categories earn " + (store.cfg.custom_category_dp ?? 5) + " DP/hour."),
     h("label.f", h("span", "New category"), catName), cbox, h("div.mt", addCat)]));
 
-  page.append(fold("bell", "Telegram", "Coming soon", [h("p.hint.mb0", "Coming soon: get reminders and password reset codes on Telegram.")]));
+  const hasTg = await api.rpc("has_telegram").catch(() => false);
+  const nt = { tasks: true, unlock: true, events: true, night: true, ...(p.notify || {}) };
+  const tgBody = [];
+  if (hasTg) {
+    const off = h("button.btn.block.danger", "Disconnect Telegram");
+    off.onclick = busy(off, async () => { await api.rpc("telegram_unlink"); toast("Disconnected"); rerender(); });
+    const nl = { tasks: "10 min before a task or tuition", unlock: "When Completed can be marked", events: "Meetings and birthdays", night: "Night report" };
+    tgBody.push(h("p.hint", "✅ Connected. Messages come even when the app is closed."),
+      Object.entries(nl).map(([k, l]) => h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", l),
+        h("input", { type: "checkbox", checked: !!nt[k], onchange: async e => { nt[k] = e.target.checked; await api.update("profiles", `id=eq.${p.id}`, { notify: nt }); p.notify = nt; } }))), off);
+  } else {
+    const con = h("button.btn.primary.block", icon("bell"), "Connect Telegram");
+    con.onclick = busy(con, async () => {
+      const code = await api.rpc("telegram_link_code");
+      window.open(`https://t.me/${api.TG_BOT}?start=${code}`, "_blank");
+      toast("Tap START in Telegram, then come back here.", "ok");
+    });
+    tgBody.push(h("p.hint", "Get reminders (tasks, tuition, meetings, night report) on Telegram even when the app is closed, and reset your password by Telegram code."), con,
+      h("button.linkbtn.small", { onclick: () => rerender() }, "I've pressed START — refresh"));
+  }
+  page.append(fold("bell", "Telegram", hasTg ? "Connected" : "Not connected", tgBody));
 
   const exp = h("button.btn.block", icon("download"), "Download my data (backup)");
   exp.onclick = busy(exp, async () => {

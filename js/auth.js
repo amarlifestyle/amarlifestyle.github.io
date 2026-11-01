@@ -51,14 +51,31 @@ route("register", page => {
 
 route("forgot", page => {
   const [pf, phone] = field(t("Phone number"), { type: "tel", inputmode: "numeric", placeholder: "01XXXXXXXXX" });
-  const btn = h("button.btn.primary.block", "Send reset link to my email");
-  btn.onclick = busy(btn, async () => {
-    await api.account("reset_email", { phone: phone.value, redirect: api.SITE_URL });
-    toast("If this number has an account, a reset link was sent to its email.", "ok");
-  });
-  page.append(shell(h("div.card", h("h2", "Reset password"),
-    h("p.hint", "We'll email you a link to set a new password. Telegram reset works after you connect Telegram in Settings."),
-    pf, btn, h("div.center.mt", h("button.linkbtn", { onclick: () => go("#/login") }, "Back to login")))));
+  let way = "telegram";
+  const seg = h("div.seg", { style: { marginBottom: "12px" } }, [["telegram", "Code on Telegram"], ["email", "Link by email"]].map(([k, l]) =>
+    h("button" + (k === way ? ".on" : ""), { type: "button", onclick: e => { way = k; seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); draw(); } }, l)));
+  const box = h("div");
+  const draw = () => {
+    if (way === "email") {
+      const btn = h("button.btn.primary.block", "Send reset link to my email");
+      btn.onclick = busy(btn, async () => {
+        await api.account("reset_email", { phone: phone.value, redirect: api.SITE_URL });
+        toast("If this number has an account, a reset link was sent to its email.", "ok");
+      });
+      box.replaceChildren(h("p.hint", "We'll email a link to the address you gave when you registered."), btn);
+    } else {
+      const [cf, code] = field("6-digit code from Telegram", { inputmode: "numeric", maxlength: "6", placeholder: "123456", autocomplete: "one-time-code" });
+      const [nf, pass] = field("New password", { type: "password", autocomplete: "new-password" });
+      const send = h("button.btn.block", "Send code to my Telegram");
+      const save = h("button.btn.primary.block.mt", "Save new password");
+      send.onclick = busy(send, async () => { await api.telegram("reset_request", { phone: phone.value }); toast("If Telegram is connected to this number, a code was sent.", "ok"); });
+      save.onclick = busy(save, async () => { await api.telegram("reset_confirm", { phone: phone.value, code: code.value, password: pass.value }); toast("Password changed. Please log in.", "ok"); go("#/login"); });
+      box.replaceChildren(h("p.hint", "Works if you connected Telegram in Settings."), send, h("div.mt", cf, nf), save);
+    }
+  };
+  draw();
+  page.append(shell(h("div.card", h("h2", "Reset password"), pf, seg, box,
+    h("div.center.mt", h("button.linkbtn", { onclick: () => go("#/login") }, "Back to login")))));
 }, { public: true });
 
 route("newpass", page => {
