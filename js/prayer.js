@@ -85,7 +85,7 @@ export function waqts(day) {
 const tm = d => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Dhaka" });
 const left = ms => { const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
 const C = "#10B981";
-const pdp = () => Number(store.cfg.prayer_dp ?? 20), pen = () => Number(store.cfg.prayer_unmarked_dp ?? 10);
+const pdp = (k = "dhuhr") => Number(k === "fajr" ? store.cfg.prayer_dp_fajr ?? 30 : store.cfg.prayer_dp ?? 20), pen = () => Number(store.cfg.prayer_unmarked_dp ?? 10);
 
 export async function prayerLogs(from, to) {
   try { return await api.select("prayer_logs", `select=day,prayer,status,dp&day=gte.${from}&day=lte.${to}`); } catch { return []; }
@@ -103,7 +103,7 @@ function answerBtns(day, w, status, after) {
     toast(st === "prayed" ? `${w.bn} ✓ আলহামদুলিল্লাহ · +${r.dp} DP` : "ঠিক আছে — পরের ওয়াক্তে ইনশাআল্লাহ। (DP কাটা হয়নি)", st === "prayed" ? "ok" : "");
     after();
   };
-  const yes = h("button.btn.small" + (status === "prayed" ? ".primary" : ""), { type: "button" }, status === "prayed" ? "✓ পড়েছি" : `পড়েছি +${pdp()}`);
+  const yes = h("button.btn.small" + (status === "prayed" ? ".primary" : ""), { type: "button" }, status === "prayed" ? "✓ পড়েছি" : `পড়েছি +${pdp(w.key)}`);
   const no = h("button.btn.small" + (status === "not_prayed" ? ".danger" : ""), { type: "button" }, "পড়িনি");
   yes.onclick = busy(yes, send("prayed")); no.onclick = busy(no, send("not_prayed"));
   return h("div.row", { style: { gap: "6px", flexShrink: 0 } }, yes, no);
@@ -168,7 +168,7 @@ route("prayer", async page => {
     page.append(yBtn);
   }
   page.append(h("div.card.small.mt", h("b", "পয়েন্টের নিয়ম"), h("p.small.muted.mb0", { style: { marginTop: "4px" } },
-    `পড়েছি = +${pdp()} DP (যেকোনো টাস্কের এক ঘণ্টার চেয়ে বেশি) · পড়িনি = ০ (কিছু কাটা হয় না) · কিছুই মার্ক না করলে পরদিন সকাল ৬টায় ওই ওয়াক্তে −${pen()} DP। ওয়াক্ত শুরু হওয়ার পরই মার্ক করা যায়।`)));
+    `পড়েছি = ফজর +${pdp("fajr")} DP, বাকি ওয়াক্ত +${pdp()} DP (যেকোনো টাস্কের এক ঘণ্টার চেয়ে বেশি) · পড়িনি = ০ (কিছু কাটা হয় না) · কিছুই মার্ক না করলে পরদিন সকাল ৬টায় ওই ওয়াক্তে −${pen()} DP। ওয়াক্ত শুরু হওয়ার পরই মার্ক করা যায়।`)));
 
   // graphs
   const days = Array.from({ length: 30 }, (_, i) => addDays(today, i - 29));
