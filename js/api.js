@@ -60,16 +60,17 @@ async function req(path, { method = "GET", body, headers = {}, raw = false } = {
 }
 
 // ---- auth (phone + password through our "account" function)
-export async function account(action, payload) {
+export async function account(action, payload, { auth = false } = {}) {
   let r;
+  const ah = auth ? await authHeader() : { Authorization: `Bearer ${SB_KEY}` };
   try {
     r = await fetch(`${SB_URL}/functions/v1/account`, {
-      method: "POST", headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" },
+      method: "POST", headers: { apikey: SB_KEY, ...ah, "Content-Type": "application/json" },
       body: JSON.stringify({ action, ...payload }),
     });
   } catch { throw new ApiError("No internet connection."); }
   const d = await r.json().catch(() => ({}));
-  if (!r.ok || d.error) throw new ApiError(d.error || "Something went wrong.");
+  if (!r.ok || d.error) { const e = new ApiError(d.error || "Something went wrong."); e.code = d.code; throw e; }
   if (d.session) saveSession(d.session);
   return d;
 }
@@ -106,11 +107,12 @@ export async function pushTest() {
   return d.sent;
 }
 export const TG_BOT = "AmarLifestyleBot"; // set when the bot is created
-export async function telegram(action, payload = {}) {
+export async function telegram(action, payload = {}, { auth = false } = {}) {
   let r;
+  const ah = auth ? await authHeader() : { Authorization: `Bearer ${SB_KEY}` };
   try {
     r = await fetch(`${SB_URL}/functions/v1/telegram?action=${action}`, {
-      method: "POST", headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      method: "POST", headers: { apikey: SB_KEY, ...ah, "Content-Type": "application/json" }, body: JSON.stringify(payload),
     });
   } catch { throw new ApiError("No internet connection."); }
   const d = await r.json().catch(() => ({}));

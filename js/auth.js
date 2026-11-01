@@ -11,17 +11,29 @@ function shell(...kids) {
 }
 
 route("login", page => {
+  const help = h("div");
   const [pf, phone] = field(t("Phone number"), { type: "tel", inputmode: "numeric", autocomplete: "tel", placeholder: "01XXXXXXXXX" });
   const [wf, pass] = field(t("Password"), { type: "password", autocomplete: "current-password" });
   const btn = h("button.btn.primary.block", { type: "submit" }, t("Log in"));
-  const form = h("form.card", pf, wf, btn,
+  const form = h("form.card", pf, wf, btn, help,
     h("div.row.between.mt", h("button.linkbtn", { type: "button", onclick: () => go("#/forgot") }, "Forgot password?"),
       h("button.linkbtn", { type: "button", onclick: () => go("#/register") }, t("Create account"))));
   form.addEventListener("submit", e => { e.preventDefault(); login(); });
-  const login = busy(btn, async () => {
-    await api.account("login", { phone: phone.value, password: pass.value });
-    store.profile = null; await loadBasics(); go("#/today");
-  });
+  let wrong = 0;
+  const login = async () => {
+    btn.disabled = true;
+    try {
+      await api.account("login", { phone: phone.value, password: pass.value });
+      store.profile = null; await loadBasics(); go("#/today");
+    } catch (e) {
+      sessionStorage.setItem("al_last_phone", phone.value);
+      if (e.code === "wrong_password") wrong++;
+      help.replaceChildren(h("div.card", { style: { borderColor: "color-mix(in srgb, var(--red) 55%, transparent)", marginTop: "10px" } },
+        h("b.bad", e.message), h("p.small.muted", { style: { margin: "4px 0 8px" } },
+          e.code === "no_account" ? "Check the number, or make a new account." : wrong >= 2 ? "Forgot it? Get a code on Telegram or email and set a new one." : "Check your password, or reset it."),
+        e.code === "no_account" ? h("a.btn.small.primary", { href: "#/register" }, t("Create account")) : h("a.btn.small" + (wrong >= 2 ? ".primary" : ""), { href: "#/forgot" }, "Forgot password?")));
+    } finally { btn.disabled = false; }
+  };
   page.append(shell(h("p.tag", "Build a disciplined life, one task at a time."), form,
     h("p.center.small.faint", h("a", { href: "#/home" }, "← Welcome page"), " · ", h("a", { href: "#/privacy" }, "Privacy Policy"))));
 }, { public: true });
@@ -49,32 +61,42 @@ route("register", page => {
   page.append(shell(form));
 }, { public: true });
 
-route("forgot", page => {
-  const [pf, phone] = field(t("Phone number"), { type: "tel", inputmode: "numeric", placeholder: "01XXXXXXXXX" });
+// one form for "forgot password" (logged out) and "forgot PIN" (logged in): code by Telegram or email
+export function codeResetForm(target, phoneInput, done) {
+  const isPin = target === "pin";
   let way = "telegram";
-  const seg = h("div.seg", { style: { marginBottom: "12px" } }, [["telegram", "Code on Telegram"], ["email", "Link by email"]].map(([k, l]) =>
-    h("button" + (k === way ? ".on" : ""), { type: "button", onclick: e => { way = k; seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); draw(); } }, l)));
-  const box = h("div");
-  const draw = () => {
-    if (way === "email") {
-      const btn = h("button.btn.primary.block", "Send reset link to my email");
-      btn.onclick = busy(btn, async () => {
-        await api.account("reset_email", { phone: phone.value, redirect: api.SITE_URL });
-        toast("If this number has an account, a reset link was sent to its email.", "ok");
-      });
-      box.replaceChildren(h("p.hint", "We'll email a link to the address you gave when you registered."), btn);
-    } else {
-      const [cf, code] = field("6-digit code from Telegram", { inputmode: "numeric", maxlength: "6", placeholder: "123456", autocomplete: "one-time-code" });
-      const [nf, pass] = field("New password", { type: "password", autocomplete: "new-password" });
-      const send = h("button.btn.block", "Send code to my Telegram");
-      const save = h("button.btn.primary.block.mt", "Save new password");
-      send.onclick = busy(send, async () => { await api.telegram("reset_request", { phone: phone.value }); toast("If Telegram is connected to this number, a code was sent.", "ok"); });
-      save.onclick = busy(save, async () => { await api.telegram("reset_confirm", { phone: phone.value, code: code.value, password: pass.value }); toast("Password changed. Please log in.", "ok"); go("#/login"); });
-      box.replaceChildren(h("p.hint", "Works if you connected Telegram in Settings."), send, h("div.mt", cf, nf), save);
-    }
-  };
-  draw();
-  page.append(shell(h("div.card", h("h2", "Reset password"), pf, seg, box,
+  const seg = h("div.seg", { style: { marginBottom: "10px" } }, [["telegram", "Telegram code"], ["email", "Email code"]].map(([k, l]) =>
+    h("button" + (k === way ? ".on" : ""), { type: "button", onclick: e => { way = k; seg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === e.target)); stage2.style.display = "none"; info.textContent = hint(); } }, l)));
+  const hint = () => way === "telegram" ? "A 6-digit code comes to the Telegram you connected in Settings." : "A 6-digit code comes to the email you gave when you registered.";
+  const info = h("p.hint", hint());
+  const [cf, code] = field("6-digit code", { inputmode: "numeric", maxlength: "8", placeholder: "123456", autocomplete: "one-time-code" });
+  const [nf, nv] = isPin ? field("New 4-digit PIN", { type: "password", inputmode: "numeric", maxlength: "4" }) : field("New password (at least 6 characters)", { type: "password", autocomplete: "new-password" });
+  const save = h("button.btn.primary.block", isPin ? "Save new PIN" : "Save new password");
+  const stage2 = h("div", { style: { display: "none" } }, cf, nf, save);
+  const send = h("button.btn.block", "Send code");
+  send.onclick = busy(send, async () => {
+    const phone = phoneInput?.value;
+    if (!isPin && !phone) throw new Error("Write your phone number first.");
+    let r;
+    if (way === "telegram") r = isPin ? await api.telegram("pin_request", {}, { auth: true }) : await api.telegram("reset_request", { phone });
+    else r = isPin ? await api.account("pin_email_code", {}, { auth: true }) : await api.account("email_code", { phone });
+    if (!isPin && r && r.sent_to === null || r?.linked === false) throw new Error("No account with this phone number.");
+    toast(way === "telegram" ? "Code sent to your Telegram ✓" : `Code sent to ${r.sent_to || "your email"} ✓`, "ok");
+    stage2.style.display = ""; send.textContent = "Send again"; code.focus();
+  });
+  save.onclick = busy(save, async () => {
+    const c = code.value.trim();
+    if (way === "telegram") isPin ? await api.telegram("pin_confirm", { code: c, pin: nv.value }, { auth: true }) : await api.telegram("reset_confirm", { phone: phoneInput.value, code: c, password: nv.value });
+    else isPin ? await api.account("pin_email_verify", { code: c, pin: nv.value }, { auth: true }) : await api.account("email_verify", { phone: phoneInput.value, code: c, password: nv.value });
+    toast(isPin ? "PIN changed ✓" : "Password changed ✓ Please log in.", "ok");
+    done?.();
+  });
+  return h("div", seg, info, send, h("div.mt", stage2));
+}
+
+route("forgot", page => {
+  const [pf, phone] = field(t("Phone number"), { type: "tel", inputmode: "numeric", placeholder: "01XXXXXXXXX", value: sessionStorage.getItem("al_last_phone") || "" });
+  page.append(shell(h("div.card", h("h2", "Forgot password"), pf, codeResetForm("password", phone, () => go("#/login")),
     h("div.center.mt", h("button.linkbtn", { onclick: () => go("#/login") }, "Back to login")))));
 }, { public: true });
 

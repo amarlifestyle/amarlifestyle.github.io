@@ -2,6 +2,7 @@
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go } from "./app.js";
+import { codeResetForm } from "./auth.js";
 
 const li = (href, ic, title, sub) => h("a.li", { href }, h("div.ic", icon(ic)), h("div.grow", h("b", title), sub ? h("div.small.muted", sub) : null), icon("chev", "chev"));
 
@@ -224,7 +225,9 @@ route("settings", async page => {
     if (n1 !== n2) throw new Error("PINs didn't match. Try again.");
     await api.rpc("set_pin", { p_new: n1, p_old: old }); toast("PIN saved ✓", "ok"); rerender();
   });
-  page.append(fold("shield", "PIN", hasPin ? "PIN is set" : "Not set yet", [h("p.hint", "Needed only to edit money entries and to export reports. You stay logged in otherwise."), pinBtn]));
+  const forgotPin = h("button.linkbtn.small", "Forgot PIN?");
+  forgotPin.onclick = () => sheet("Forgot PIN", close => codeResetForm("pin", null, () => { close(); rerender(); }));
+  page.append(fold("shield", "PIN", hasPin ? "PIN is set" : "Not set yet", [h("p.hint", "Needed only to edit money entries and to export reports. You stay logged in otherwise."), pinBtn, hasPin ? h("div.center", forgotPin) : null]));
 
   const pv = { ...p.privacy };
   const labels = { level: "My level", dp: "My DP and coins", streak: "My streak", badges: "My badges", charts: "My charts & heatmap" };
