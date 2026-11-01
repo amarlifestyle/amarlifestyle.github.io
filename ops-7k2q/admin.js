@@ -24,12 +24,12 @@ async function boot() {
 }
 
 function render() {
-  const tabs = [["overview", "Overview"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
+  const tabs = [["overview", "Overview"], ["wishes", "Feature wishes"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
   const body = h("div");
   app.replaceChildren(
     h("header.topbar", h("div.brandmark", h("img", { src: "../assets/icon-64.png", width: 30, alt: "", style: { borderRadius: "8px" } }), h("span", "Amar ", h("b", "Lifestyle"), h("span.muted", " · Control"))), h("a.btn.small", { href: "../" }, "Open app")),
     h("div.tabs", tabs.map(([k, l]) => h("button" + (k === tab ? ".on" : ""), { onclick: () => { tab = k; render(); } }, l))), body);
-  ({ overview, requests, users, logins, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
+  ({ overview, wishes, requests, users, logins, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
 }
 
 async function overview(b) {
@@ -179,6 +179,18 @@ async function apk(b) {
   const up = h("button.btn.primary.block", icon("download"), "Upload new APK");
   up.onclick = busy(up, async () => { if (!inp.files[0]) throw new Error("Choose the APK file."); await api.uploadApk(inp.files[0]); toast("Uploaded ✓ — the Download button now gives this version", "ok"); });
   b.append(h("div.card", h("h3", "Android app"), h("p.hint", "Upload a new APK. Users get it from More → Get the app."), inp, h("div.mt", up)));
+}
+
+// things users asked the AI for that the app can't do yet — ideas for the next update
+async function wishes(b) {
+  const l = await api.rpc("admin_feature_requests", { p_limit: 300 });
+  const ROLE = { school: "School/college", student: "University", teacher: "Teacher", business: "Business", job: "Job", homemaker: "Homemaker" };
+  b.append(h("p.small.muted", "When a user asks the AI for something the app can't do, it is saved here with what kind of user they are."));
+  b.append(l.length ? h("div.list", l.map(x => h("div.li", { style: { alignItems: "flex-start" } }, h("div.grow",
+    h("b", x.wish),
+    x.asked ? h("div.small.faint", "“" + x.asked + "”") : null,
+    h("div.small.muted", [x.name || "—", (x.roles || []).filter(Boolean).map(r => ROLE[r] || r).join(" + "), x.religion, new Date(x.created_at).toLocaleString("en-GB")].filter(Boolean).join(" · "))))))
+    : h("div.card.small.muted", "No wishes yet."));
 }
 
 async function logs(b) {

@@ -71,8 +71,8 @@ route("today", async page => {
   const pct = realTasks.length ? doneW / realTasks.length : 0;
   if (realTasks.length && (nowMin >= sleepMin - 30 || nowMin < 240)) {
     const pc = await prayerCount(nowMin < 240 ? addDays(today, -1) : today).catch(() => null);
-    body.append(h("div.card", { style: { background: "linear-gradient(135deg, color-mix(in srgb, var(--cyan) 14%, var(--card)), var(--card))" } },
-      h("h3", "🌙 Today's report"),
+    body.append(h("a.card", { href: "#/day", style: { display: "block", color: "inherit", background: "linear-gradient(135deg, color-mix(in srgb, var(--cyan) 14%, var(--card)), var(--card))" } },
+      h("div.row.between", h("h3.mb0", "🌙 Today's report"), h("span.small", { style: { color: "var(--brand)" } }, "Full report & AI review →")),
       h("div.big", `${Math.round(pct * 100)}% tasks done`),
       h("p.muted.mb0", `${doneN} of ${realTasks.length} tasks · ${stats.today.dp >= 0 ? "+" : ""}${stats.today.dp} DP · ${stats.today.coins} coins today. `,
         pct >= 0.8 ? "Great discipline — streak kept! 🔥" : "Tomorrow is a new chance. Mark the rest before 12 AM."),
@@ -100,7 +100,7 @@ route("today", async page => {
   }
 
   // compact summary strip (tasks get the space)
-  body.append(h("div.hero.mini",
+  body.append(h("a.hero.mini", { href: "#/day", style: { color: "inherit" }, title: "Today's full report" },
     ring(pct, `${Math.round(pct * 100)}%`, ""),
     h("div.grow", { style: { minWidth: 0 } },
       h("div", h("b.mid", (stats.today.dp >= 0 ? "+" : "") + stats.today.dp, " DP"), h("span.small.muted", ` · ${doneN}/${realTasks.length} tasks`)),

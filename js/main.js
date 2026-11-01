@@ -8,6 +8,7 @@ import "./me.js";
 import "./more.js";
 import "./timetable.js";
 import "./exams.js";
+import "./dayreport.js";
 
 // password-reset link from email arrives as #access_token=...&type=recovery
 const hp = new URLSearchParams(location.hash.replace(/^#/, ""));
