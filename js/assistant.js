@@ -1,0 +1,247 @@
+// Amar Lifestyle — Ask AI: answer questions AND do things in the app by text, voice or photo.
+// The AI only proposes. The user sees exactly what will change, and nothing happens until they tap "Yes".
+import * as api from "./api.js";
+import { h, icon, toast, sheet, busy, todayStr, addDays, dhakaIso, fmtDate, fmtHM, durLabel, PALETTE, tk as money } from "./ui.js";
+import { store, catNames, catDp, rerender, loadBasics, role } from "./app.js";
+import { voiceRecorder } from "./voice.js";
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const BN_DAYS = { Sat: "শনি", Sun: "রবি", Mon: "সোম", Tue: "মঙ্গল", Wed: "বুধ", Thu: "বৃহস্পতি", Fri: "শুক্র" };
+const hm = iso => new Date(new Date(iso).getTime() + 6 * 3600e3).toISOString().slice(11, 16);
+const HHMM = /^\d{2}:\d{2}$/, DATE = /^\d{4}-\d{2}-\d{2}$/, MONTH = /^\d{4}-\d{2}$/, HEX = /^#[0-9a-f]{6}$/i;
+const INCOME_DEFAULT = ["Tuition", "Salary", "Video work", "Gift", "Other income"];
+const expCats = () => store.cfg.expense_categories || ["Rent", "Bills", "Food", "Transport", "Study", "Shopping", "Fun", "Other"];
+const incCats = () => role()?.income || INCOME_DEFAULT;
+
+// everything the AI may need to know to act (ids included so it can point at the right thing)
+async function gather() {
+  const today = todayStr();
+  const [tasks, routines, students, pays, habits] = await Promise.all([
+    api.select("tasks", `select=id,title,category,day,start_at,end_at,status,routine_id,student_id,color&day=gte.${addDays(today, -1)}&day=lte.${addDays(today, 7)}&status=neq.running&order=start_at`),
+    api.select("routines", "select=id,title,category,days,start_time,duration_min,student_id,color,template&active=eq.true"),
+    api.select("students", "select=id,name,monthly_fee,active,color,created_at&order=name"),
+    api.select("tuition_payments", `select=student_id,month&month=gte.${addDays(today, -190).slice(0, 7)}-01`),
+    api.select("bad_habits", "select=id,name"),
+  ]);
+  const sName = id => students.find(s => s.id === id)?.name || null;
+  const forAi = {
+    tasks: tasks.map(t => ({ id: t.id, title: t.title, category: t.category, date: t.day, weekday: DAYS[new Date(t.day + "T00:00:00").getDay()], start: hm(t.start_at), end: hm(t.end_at), status: t.status, repeats: !!t.routine_id, student: sName(t.student_id) })),
+    routines: routines.map(r => ({ id: r.id, title: r.title, category: r.category, days: r.days.map(d => DAYS[d]), start: r.start_time.slice(0, 5), minutes: r.duration_min, student: sName(r.student_id), color: r.color })),
+    students: students.map(s => ({ id: s.id, name: s.name, monthly_fee: +s.monthly_fee, active: s.active, paid_months: pays.filter(p => p.student_id === s.id).map(p => p.month.slice(0, 7)).sort() })),
+    habits: habits.map(x => ({ id: x.id, name: x.name })),
+    task_categories: Object.fromEntries(catNames().map(c => [c, catDp(c)])),
+    expense_categories: expCats(), income_categories: incCats(),
+  };
+  return { tasks, routines, students, habits, forAi };
+}
+
+// one plain line for each proposed change, made from the real data (not from the AI's words)
+function describe(a, c) {
+  const T = id => c.tasks.find(x => x.id === id), R = id => c.routines.find(x => x.id === id), S = id => c.students.find(x => x.id === id);
+  const when = (d, t) => `${fmtDate(d, { weekday: "short", day: "numeric", month: "short" })} ${fmtHM(t)}`;
+  const tline = t => `${t.title} · ${when(t.day, hm(t.start_at))}`;
+  const days = ds => (ds || []).map(d => BN_DAYS[d] || d).join(", ");
+  switch (a.type) {
+    case "add_task": if (!a.title || !DATE.test(a.date || "") || !HHMM.test(a.start || "")) return null;
+      return { ic: "➕", area: "task+", text: `নতুন টাস্ক: ${a.title} · ${when(a.date, a.start)} · ${durLabel(a.minutes || 60)} · ${a.category || "Work / Personal"}${a.student_id && S(a.student_id) ? " · " + S(a.student_id).name : ""}` };
+    case "remove_task": { const t = T(a.task_id); if (!t || t.status !== "pending") return null; return { ic: "🗑️", area: "task-", text: `বাদ: ${tline(t)}` }; }
+    case "move_task": { const t = T(a.task_id); if (!t || t.status !== "pending" || !HHMM.test(a.new_start || "")) return null;
+      return { ic: "🕒", area: "task~", text: `সময় বদল: ${tline(t)} → ${when(DATE.test(a.new_date || "") ? a.new_date : t.day, a.new_start)}` }; }
+    case "mark_task": { const t = T(a.task_id); if (!t || !["completed", "not_completed"].includes(a.result)) return null;
+      return { ic: a.result === "completed" ? "✅" : "❌", area: "mark", text: `${a.result === "completed" ? "Completed" : "Not completed"} মার্ক: ${tline(t)}` }; }
+    case "add_routine": if (!a.title || !HHMM.test(a.start || "") || !(a.days || []).length) return null;
+      return { ic: "🔁", area: "routine+", text: `প্রতি সপ্তাহে: ${a.title} · ${days(a.days)} · ${fmtHM(a.start)} · ${durLabel(a.minutes || 60)}${a.student_id && S(a.student_id) ? " · " + S(a.student_id).name : ""}` };
+    case "edit_routine": { const r = R(a.routine_id); if (!r) return null;
+      const ch = [a.title && `নাম → ${a.title}`, a.start && `সময় → ${fmtHM(a.start)}`, a.minutes && `সময়কাল → ${durLabel(a.minutes)}`, a.days && `দিন → ${days(a.days)}`, a.category && `ক্যাটাগরি → ${a.category}`, a.color && "রঙ বদল", a.student_id !== undefined && `স্টুডেন্ট → ${S(a.student_id)?.name || "কেউ না"}`].filter(Boolean);
+      return ch.length ? { ic: "✏️", area: "routine~", text: `রুটিন বদল: ${r.title} (${r.days.map(d => BN_DAYS[DAYS[d]]).join(", ")} ${fmtHM(r.start_time.slice(0, 5))}) — ${ch.join(", ")}` } : null; }
+    case "remove_routine": { const r = R(a.routine_id); if (!r) return null; return { ic: "🗑️", area: "routine-", text: `রুটিন থেকে পুরো বাদ: ${r.title} (${r.days.map(d => BN_DAYS[DAYS[d]]).join(", ")} ${fmtHM(r.start_time.slice(0, 5))})` }; }
+    case "add_category": if (!a.name) return null; return { ic: "🏷️", area: "cat", text: `নতুন ক্যাটাগরি: ${a.name} · ${Math.min(20, Math.max(1, +a.dp || 5))} DP/ঘণ্টা` };
+    case "add_student": if (!a.name) return null; return { ic: "🎓", area: "student", text: `নতুন স্টুডেন্ট: ${a.name} · মাসিক ${money(+a.monthly_fee || 0)}` };
+    case "edit_student": { const s = S(a.student_id); if (!s) return null;
+      const ch = [a.name && `নাম → ${a.name}`, a.monthly_fee != null && `ফি → ${money(+a.monthly_fee)}`, a.active === false && "পড়ানো বন্ধ", a.active === true && "আবার চালু"].filter(Boolean);
+      return ch.length ? { ic: "✏️", area: "student", text: `স্টুডেন্ট বদল: ${s.name} — ${ch.join(", ")}` } : null; }
+    case "record_fee": { const s = S(a.student_id); if (!s || !MONTH.test(a.month || "")) return null;
+      return { ic: "💵", area: "fee", amount: +a.amount || +s.monthly_fee, text: `ফি পাওয়া: ${s.name} · ${fmtDate(a.month + "-01", { month: "long", year: "numeric" })} · ${money(+a.amount || +s.monthly_fee)} (আজকের আয়ে যোগ হবে)` }; }
+    case "add_money": if (!["income", "expense"].includes(a.kind) || !(+a.amount > 0)) return null;
+      return { ic: a.kind === "income" ? "💰" : "💸", area: a.kind, amount: +a.amount, text: `${a.kind === "income" ? "আয়" : "খরচ"}: ${money(+a.amount)} · ${a.category || "Other"}${a.note ? " · " + a.note : ""} · ${fmtDate(DATE.test(a.date || "") ? a.date : todayStr())}` };
+    case "add_event": if (!a.title || !DATE.test(a.date || "")) return null;
+      return { ic: { birthday: "🎂", meeting: "🤝", countdown: "⏳" }[a.kind] || "📌", area: "event", text: `ক্যালেন্ডার: ${a.title} · ${fmtDate(a.date)}${a.time && HHMM.test(a.time) ? " " + fmtHM(a.time) : ""}${a.yearly ? " · প্রতি বছর" : ""}` };
+    case "add_goal": if (!a.title) return null; return { ic: "🎯", area: "goal", text: `লক্ষ্য (${{ year: "বছর", month: "মাস", week: "সপ্তাহ" }[a.span] || "বছর"}): ${a.title}` };
+    case "habit": { const name = c.habits.find(x => x.id === a.habit_id)?.name || a.name; if (!name || !(+a.count > 0)) return null;
+      return { ic: "🚫", area: "habit", text: `খারাপ অভ্যাস: ${name} · আজ +${+a.count}${c.habits.some(x => x.id === a.habit_id) ? "" : " (নতুন যোগ হবে)"}` }; }
+    case "add_due": if (!a.person || !(+a.amount > 0)) return null;
+      return { ic: "🤝", area: "due", text: `${a.direction === "i_owe" ? "আমি দেব" : "আমি পাব"}: ${a.person} · ${money(+a.amount)}` };
+  }
+  return null;
+}
+
+function summary(items) {
+  const n = k => items.filter(x => x.d.area === k).length;
+  const sum = k => items.filter(x => x.d.area === k).reduce((s, x) => s + (x.d.amount || 0), 0);
+  return [
+    (n("task+") || n("task-") || n("task~") || n("mark")) && `📅 টাস্ক: ${[n("task+") && "+" + n("task+") + " নতুন", n("task-") && "−" + n("task-") + " বাদ", n("task~") && n("task~") + "টা সময় বদল", n("mark") && n("mark") + "টা মার্ক"].filter(Boolean).join(", ")}`,
+    (n("routine+") || n("routine~") || n("routine-")) && `🔁 প্রতি সপ্তাহের রুটিন: ${[n("routine+") && "+" + n("routine+") + " নতুন", n("routine~") && n("routine~") + "টা বদল", n("routine-") && "−" + n("routine-") + " বাদ"].filter(Boolean).join(", ")}`,
+    (sum("income") + sum("fee")) && `💰 আয় বাড়বে: ${money(sum("income") + sum("fee"))}`,
+    sum("expense") && `💸 খরচ বাড়বে: ${money(sum("expense"))}`,
+    (n("student") || n("fee")) && `🎓 টিউশন: ${[n("student") && n("student") + "টা স্টুডেন্ট যোগ/বদল", n("fee") && n("fee") + "টা মাসের ফি"].filter(Boolean).join(", ")}`,
+    n("cat") && `🏷️ +${n("cat")} ক্যাটাগরি`, n("event") && `🗓️ +${n("event")} ক্যালেন্ডারে`, n("goal") && `🎯 +${n("goal")} লক্ষ্য`, n("habit") && `🚫 ${n("habit")}টা অভ্যাসের হিসাব`, n("due") && `🤝 +${n("due")} পাওনা/দেনা`,
+  ].filter(Boolean);
+}
+
+async function run(a, c) {
+  const T = id => c.tasks.find(x => x.id === id);
+  const activeTemplate = c.routines.find(r => r.template)?.template || "Normal";
+  const dayNums = ds => (ds || []).map(d => DAYS.indexOf(String(d).slice(0, 3))).filter(d => d >= 0);
+  const okCat = x => catNames().includes(x) ? x : "Work / Personal";
+  const addOne = async (title, category, date, start, minutes, student, color) => {
+    const s = dhakaIso(date, start);
+    const id = await api.rpc("add_task", { p_title: title, p_category: okCat(category), p_start: s, p_end: new Date(new Date(s).getTime() + minutes * 60000).toISOString(), p_student: student || null });
+    if (color && id) await api.update("tasks", `id=eq.${id}`, { color });
+  };
+  const len = (t, m) => Number(m) || Math.round((new Date(t.end_at) - new Date(t.start_at)) / 60000);
+  switch (a.type) {
+    case "add_task": return addOne(a.title, a.category, a.date, a.start, Math.min(720, Math.max(5, +a.minutes || 60)), a.student_id, HEX.test(a.color || "") ? a.color : null);
+    case "remove_task": case "move_task": {
+      const t = T(a.task_id);
+      if (t.routine_id) { try { await api.insert("routine_skips", { routine_id: t.routine_id, day: t.day, user_id: api.userId() }); } catch { /* already */ } }
+      await api.remove("tasks", `id=eq.${t.id}&status=eq.pending`);
+      if (a.type === "move_task") await addOne(t.title, t.category, DATE.test(a.new_date || "") ? a.new_date : t.day, a.new_start, len(t, a.minutes), t.student_id, t.color || c.routines.find(r => r.id === t.routine_id)?.color);
+      return;
+    }
+    case "mark_task": return api.rpc("complete_task", { p_task: a.task_id, p_result: a.result });
+    case "add_routine": {
+      const st = c.students.find(s => s.id === a.student_id);
+      await api.insert("routines", { user_id: api.userId(), title: a.title, category: okCat(a.category), start_time: a.start, duration_min: Math.min(720, Math.max(5, +a.minutes || 60)), days: dayNums(a.days), color: HEX.test(a.color || "") ? a.color : st?.color || PALETTE[Math.floor(Math.random() * PALETTE.length)], template: activeTemplate, student_id: st?.id || null, active: true });
+      return;
+    }
+    case "edit_routine": {
+      const row = {};
+      if (a.title) row.title = a.title; if (a.category) row.category = okCat(a.category); if (HHMM.test(a.start || "")) row.start_time = a.start;
+      if (+a.minutes) row.duration_min = Math.min(720, Math.max(5, +a.minutes)); if ((a.days || []).length) row.days = dayNums(a.days);
+      if (HEX.test(a.color || "")) row.color = a.color; if (a.student_id !== undefined) row.student_id = c.students.some(s => s.id === a.student_id) ? a.student_id : null;
+      await api.update("routines", `id=eq.${a.routine_id}`, row);
+      await api.remove("tasks", `routine_id=eq.${a.routine_id}&status=eq.pending&start_at=gt.${new Date().toISOString()}`);
+      return;
+    }
+    case "remove_routine":
+      await api.remove("tasks", `routine_id=eq.${a.routine_id}&status=eq.pending&end_at=gt.${new Date().toISOString()}`);
+      await api.update("routines", `id=eq.${a.routine_id}`, { active: false, template: "_removed" });
+      return;
+    case "add_category": return api.insert("user_categories", { user_id: api.userId(), name: a.name.trim(), color: HEX.test(a.color || "") ? a.color : PALETTE[Math.floor(Math.random() * PALETTE.length)], dp: Math.min(20, Math.max(1, Math.round(+a.dp || 5))) });
+    case "add_student": return api.insert("students", { user_id: api.userId(), name: a.name.trim(), monthly_fee: +a.monthly_fee || 0, color: HEX.test(a.color || "") ? a.color : PALETTE[Math.floor(Math.random() * PALETTE.length)] });
+    case "edit_student": {
+      const row = {}; if (a.name) row.name = a.name.trim(); if (a.monthly_fee != null) row.monthly_fee = +a.monthly_fee; if (typeof a.active === "boolean") row.active = a.active;
+      return api.update("students", `id=eq.${a.student_id}`, row);
+    }
+    case "record_fee": { const s = c.students.find(x => x.id === a.student_id); return api.rpc("record_tuition_payment", { p_student: s.id, p_month: a.month + "-01", p_amount: +a.amount || +s.monthly_fee }); }
+    case "add_money": { const amt = +a.amount; return api.insert("finance_entries", { user_id: api.userId(), kind: a.kind, category: a.category || (a.kind === "income" ? "Other income" : "Other"), amount: amt, original_amount: amt, note: a.note || null, entry_date: DATE.test(a.date || "") ? a.date : todayStr() }); }
+    case "add_event": return api.insert("events", { user_id: api.userId(), title: a.title, kind: ["birthday", "meeting", "countdown"].includes(a.kind) ? a.kind : "other", date: a.date, time: HHMM.test(a.time || "") ? a.time : null, yearly: !!a.yearly });
+    case "add_goal": {
+      const span = ["year", "month", "week"].includes(a.span) ? a.span : "year", now = todayStr();
+      const wk = (() => { const d = new Date(now); const j = new Date(d.getFullYear(), 0, 1); return `${d.getFullYear()}-W${String(Math.ceil(((d - j) / 864e5 + j.getDay() + 1) / 7)).padStart(2, "0")}`; })();
+      return api.insert("goals", { user_id: api.userId(), title: a.title, span, parent_id: null, period: span === "year" ? now.slice(0, 4) : span === "month" ? now.slice(0, 7) : wk });
+    }
+    case "habit": {
+      let id = c.habits.find(x => x.id === a.habit_id)?.id;
+      if (!id) { const r = await api.insert("bad_habits", { user_id: api.userId(), name: a.name.trim() }); id = (Array.isArray(r) ? r[0] : r)?.id; if (!id) id = (await api.select("bad_habits", `select=id&name=eq.${encodeURIComponent(a.name.trim())}`))[0]?.id; }
+      for (let i = 0; i < Math.min(50, +a.count); i++) await api.insert("habit_logs", { user_id: api.userId(), habit_id: id, day: todayStr() });
+      return;
+    }
+    case "add_due": return api.insert("dues", { user_id: api.userId(), person: a.person, amount: +a.amount, direction: a.direction === "i_owe" ? "i_owe" : "they_owe", note: a.note || null });
+  }
+}
+
+// small photo: max 1280px JPEG
+async function shrink(file) {
+  const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error("Couldn't open the photo.")); i.src = URL.createObjectURL(file); });
+  const k = Math.min(1, 1280 / Math.max(img.width, img.height));
+  const cv = document.createElement("canvas"); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+  cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+  return { mime: "image/jpeg", data: cv.toDataURL("image/jpeg", 0.82).split(",")[1], url: cv.toDataURL("image/jpeg", 0.5) };
+}
+
+const YES = /^\s*(হ্যাঁ|হ্যা|হা|হুম|জি|ঠিক আছে|করো|করে দাও|yes|y|ok|okay|ha|haa|hmm|do it)\s*[.!।]*\s*$/i;
+
+export function askSheet() {
+  const q = h("textarea.input", { placeholder: "লিখুন বা বলুন… যেমন: আজকে Leon নাই বাদ দাও · শনিবার ৫টায় C.P যোগ করো · Leon অক্টোবরের ৩০০০ দিছে · ২০০ টাকা রিকশা ভাড়া · ক্যাটাগরি বানাও Coding", maxlength: "800", style: { minHeight: "64px" } });
+  const out = h("div");
+  const history = [];
+  let photo = null, pending = null;
+  const thumb = h("div");
+  const fileIn = h("input", { type: "file", accept: "image/*", style: { display: "none" } });
+  fileIn.onchange = async () => {
+    const f = fileIn.files[0]; fileIn.value = ""; if (!f) return;
+    try { photo = await shrink(f); thumb.replaceChildren(h("div.row", { style: { gap: "8px", marginTop: "8px" } }, h("img", { src: photo.url, style: { width: "56px", height: "56px", objectFit: "cover", borderRadius: "10px" } }), h("span.small.muted.grow", "ছবি যোগ হয়েছে — এখন লিখে/বলে বলুন কী করতে হবে"), h("button.btn.small.ghost", { type: "button", onclick: () => { photo = null; thumb.replaceChildren(); } }, "✕"))); }
+    catch (e) { toast(e.message, "bad"); }
+  };
+  const photoBtn = h("button.btn.small", { type: "button", onclick: () => fileIn.click() }, "📷 ছবি");
+
+  const showPlan = (r, c) => {
+    const low = x => String(x || "").trim().toLowerCase();
+    const dup = a => (a.type === "add_category" && catNames().some(n => low(n) === low(a.name))) || (a.type === "add_student" && c.students.some(st => low(st.name) === low(a.name)));
+    const acts = (r.actions || []).filter(a => !dup(a));
+    const items = acts.map(a => ({ a, d: describe(a, c), on: true })).filter(x => x.d);
+    const bad = acts.length - items.length;
+    const box = h("div");
+    if (r.answer) box.append(h("div.card", { style: { marginTop: "10px", whiteSpace: "pre-wrap" } }, r.answer));
+    if (bad) box.append(h("p.small.warn", `⚠️ ${bad}টা জিনিস বোঝা যায়নি বা করা সম্ভব না, ওগুলো বাদ রাখলাম।`));
+    if (!items.length) { pending = null; out.replaceChildren(box); return; }
+    const sumBox = h("div.small", { style: { padding: "8px 10px", borderRadius: "10px", background: "var(--bg2)", margin: "8px 0" } });
+    const drawSum = () => sumBox.replaceChildren(h("b", "এতে যা বদলাবে:"), ...summary(items.filter(x => x.on)).map(l => h("div", l)));
+    const list = h("div.list", items.map(x => h("label.li", { style: { alignItems: "flex-start", cursor: "pointer" } },
+      h("input", { type: "checkbox", checked: true, style: { width: "20px", height: "20px", accentColor: "var(--brand)", marginTop: "2px", flexShrink: 0 }, onchange: e => { x.on = e.target.checked; drawSum(); } }),
+      h("div.grow", h("div", x.d.ic, " ", x.d.text), x.a.label && x.a.label !== x.d.text ? h("div.small.faint", x.a.label) : null))));
+    drawSum();
+    const log = h("div.small", { style: { marginTop: "8px" } });
+    const yes = h("button.btn.primary", "✅ হ্যাঁ, করো");
+    const no = h("button.btn", "বাতিল");
+    const doIt = async () => {
+      const FIRST = ["add_category", "add_student", "edit_student"];
+      const chosen = items.filter(x => x.on).sort((p, q) => (FIRST.includes(q.a.type) ? 1 : 0) - (FIRST.includes(p.a.type) ? 1 : 0));
+      if (!chosen.length) { toast("অন্তত একটা টিক দিন।", "bad"); return; }
+      pending = null; yes.disabled = no.disabled = true; list.querySelectorAll("input").forEach(i => i.disabled = true);
+      let ok = 0, needTasks = false, needBasics = false;
+      for (const x of chosen) {
+        const line = h("div", "⏳ ", x.d.text); log.append(line);
+        try { await run(x.a, c); ok++; line.replaceChildren("✓ ", x.d.text); line.style.color = "var(--green)"; }
+        catch (e) { line.replaceChildren("✗ ", x.d.text, " — ", e.message || "হয়নি"); line.style.color = "var(--red)"; }
+        if (/routine|task/.test(x.d.area)) needTasks = true; if (x.d.area === "cat") needBasics = true;
+      }
+      try { if (needTasks) await api.rpc("ensure_tasks", { p_from: todayStr(), p_to: addDays(todayStr(), 7) }); if (needBasics) await loadBasics(); } catch { /* next open fixes it */ }
+      log.append(h("div", { style: { marginTop: "6px", fontWeight: 700 } }, `${ok}/${chosen.length}টা হয়ে গেছে ✓`));
+      yes.remove(); no.remove();
+      toast(`${ok}টা কাজ হয়ে গেছে ✓`, "ok"); rerender();
+    };
+    yes.onclick = busy(yes, doIt);
+    no.onclick = () => { pending = null; out.replaceChildren(h("p.small.muted", "বাতিল করা হয়েছে, কিছু বদলায়নি।")); };
+    pending = doIt;
+    box.append(h("div.card", { style: { marginTop: "10px", borderColor: "color-mix(in srgb, var(--brand) 45%, transparent)" } },
+      h("b", "🤖 আপনি কি এগুলো করতে বলছেন?"), h("p.small.muted", { style: { margin: "4px 0 8px" } }, "যেটা চান না, টিক তুলে দিন। “হ্যাঁ, করো” না চাপা পর্যন্ত কিছুই বদলাবে না।"),
+      list, sumBox, h("div.row", { style: { gap: "8px", justifyContent: "flex-end" } }, no, yes), log));
+    out.replaceChildren(box);
+  };
+
+  const ask = async ({ text, audio }) => {
+    if (!audio && !photo && pending && YES.test(text || "")) { q.value = ""; await pending(); return; }
+    out.replaceChildren(h("p.small.muted", photo ? "🤖 ছবি দেখছে…" : "🤖 ভাবছে…"));
+    const c = await gather();
+    const r = await api.ai("ask", { question: text || "", audio: audio || null, image: photo ? { mime: photo.mime, data: photo.data } : null, ctx: c.forAi, history: history.slice(-6), today: todayStr() });
+    if (r.heard) q.value = r.heard;
+    history.push({ role: "user", text: r.heard || text || (photo ? "[photo]" : "") }, { role: "ai", text: (r.answer || "").slice(0, 400) + ((r.actions || []).length ? ` [proposed ${(r.actions || []).length} changes]` : "") });
+    photo = null; thumb.replaceChildren();
+    showPlan(r, c);
+  };
+  const voice = voiceRecorder(audio => ask({ audio }), { label: "বলুন — প্রশ্ন বা কাজ" });
+  return sheet("🤖 Ask AI", [
+    h("p.hint", { style: { marginTop: 0 } }, "প্রশ্ন করুন, বা যেকোনো কাজ বলুন — টাস্ক যোগ/বাদ, সময় বদল, মার্ক, রুটিন, ক্যাটাগরি, স্টুডেন্ট, ফি, আয়-খরচ, ক্যালেন্ডার, লক্ষ্য, অভ্যাস। ছবিও দিতে পারেন (রুটিনের ছবি, রসিদ…)। করার আগে দেখিয়ে নেবে।"),
+    voice, h("div.small.faint", { style: { textAlign: "center", margin: "10px 0 6px" } }, "— অথবা লিখুন —"), q, h("div.row", { style: { gap: "8px", marginTop: "6px" } }, photoBtn, fileIn), thumb, out], {
+    actions: close => {
+      const go = h("button.btn.primary", "Send");
+      go.onclick = busy(go, async () => {
+        if (!q.value.trim() && !photo) throw new Error("লিখুন, বলুন বা ছবি দিন।");
+        await ask({ text: q.value.trim() });
+      });
+      return [h("button.btn", { onclick: () => close() }, "Close"), go];
+    },
+  });
+}
