@@ -73,6 +73,38 @@ export async function account(action, payload) {
   if (d.session) saveSession(d.session);
   return d;
 }
+// ---- phone notifications (Web Push)
+export const VAPID_PUBLIC = "BBf9Sr04a9jWNyncJsHJQAYXLF0nPnpCCPOVgf2WGXD6d-5uC1pwJMEFfiJZIDppdOUTIOfZlTCbFycLIZEEXdk";
+const b64ToBytes = b => { const p = "=".repeat((4 - b.length % 4) % 4); const r = atob((b + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+export const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+export async function pushState() {
+  if (!pushSupported()) return "unsupported";
+  if (Notification.permission === "denied") return "blocked";
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = reg && await reg.pushManager.getSubscription();
+  return sub ? "on" : "off";
+}
+export async function enablePush() {
+  if (!pushSupported()) throw new ApiError("This browser can't show notifications. On iPhone/iPad, first add the app to your Home Screen.");
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") throw new ApiError("Notifications are blocked. Allow them for this site in your browser settings.");
+  const reg = await navigator.serviceWorker.register("sw.js");
+  await navigator.serviceWorker.ready;
+  const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_PUBLIC) });
+  const j = sub.toJSON();
+  await upsert("push_subs", [{ endpoint: j.endpoint, user_id: userId(), p256dh: j.keys.p256dh, auth: j.keys.auth }], "endpoint");
+}
+export async function disablePush() {
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = reg && await reg.pushManager.getSubscription();
+  if (sub) { await remove("push_subs", `endpoint=eq.${encodeURIComponent(sub.endpoint)}`).catch(() => {}); await sub.unsubscribe(); }
+}
+export async function pushTest() {
+  const r = await fetch(`${SB_URL}/functions/v1/push?action=test`, { method: "POST", headers: { apikey: SB_KEY, ...(await authHeader()), "Content-Type": "application/json" }, body: "{}" });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ApiError(d.error || "Could not send a test.");
+  return d.sent;
+}
 export const TG_BOT = "AmarLifestyleBot"; // set when the bot is created
 export async function telegram(action, payload = {}) {
   let r;

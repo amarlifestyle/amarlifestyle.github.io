@@ -242,27 +242,47 @@ route("settings", async page => {
     h("p.hint.mt", "Your own categories earn " + (store.cfg.custom_category_dp ?? 5) + " DP/hour."),
     h("label.f", h("span", "New category"), catName), cbox, h("div.mt", addCat)]));
 
-  const hasTg = await api.rpc("has_telegram").catch(() => false);
+  // phone notifications
   const nt = { tasks: true, unlock: true, events: true, night: true, ...(p.notify || {}) };
+  const pst = await api.pushState().catch(() => "unsupported");
+  const nBody = [];
+  if (pst === "on") {
+    const test = h("button.btn.small", "Send a test");
+    test.onclick = busy(test, async () => { const n = await api.pushTest(); toast(n ? "Test sent — check your notifications ✓" : "No phone found. Turn notifications off and on again.", n ? "ok" : "bad"); });
+    const off = h("button.btn.small.danger", "Turn off on this phone");
+    off.onclick = busy(off, async () => { await api.disablePush(); toast("Notifications off on this phone"); rerender(); });
+    const nl = { tasks: "10 min before a task or tuition", unlock: "When Completed can be marked", events: "Meetings and birthdays", night: "Night report (30 min before bedtime)" };
+    nBody.push(h("p.hint", "✅ On for this phone. They come even when the app is closed (internet needed)."),
+      Object.entries(nl).map(([k, l]) => h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", l),
+        h("input", { type: "checkbox", checked: !!nt[k], onchange: async e => { nt[k] = e.target.checked; await api.update("profiles", `id=eq.${p.id}`, { notify: nt }); p.notify = nt; } }))),
+      h("div.row", { style: { gap: "8px" } }, test, off));
+  } else {
+    const on = h("button.btn.primary.block", icon("bell"), "Turn on notifications");
+    on.onclick = busy(on, async () => { await api.enablePush(); toast("Notifications on ✓", "ok"); await api.pushTest().catch(() => {}); rerender(); });
+    nBody.push(h("p.hint", pst === "blocked" ? "Notifications are blocked for this site. Allow them in your browser's site settings, then tap below."
+      : pst === "unsupported" ? "On iPhone/iPad: first add the app to the Home Screen (Share → Add to Home Screen), open it from there, then tap below."
+      : "Reminders for tasks, tuition, meetings, birthdays and your night report — even when the app is closed."), on);
+  }
+  page.append(fold("bell", "Notifications", pst === "on" ? "On" : "Off", nBody));
+
+  // Telegram: only for password reset
+  const hasTg = await api.rpc("has_telegram").catch(() => false);
   const tgBody = [];
   if (hasTg) {
     const off = h("button.btn.block.danger", "Disconnect Telegram");
     off.onclick = busy(off, async () => { await api.rpc("telegram_unlink"); toast("Disconnected"); rerender(); });
-    const nl = { tasks: "10 min before a task or tuition", unlock: "When Completed can be marked", events: "Meetings and birthdays", night: "Night report" };
-    tgBody.push(h("p.hint", "✅ Connected. Messages come even when the app is closed."),
-      Object.entries(nl).map(([k, l]) => h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", l),
-        h("input", { type: "checkbox", checked: !!nt[k], onchange: async e => { nt[k] = e.target.checked; await api.update("profiles", `id=eq.${p.id}`, { notify: nt }); p.notify = nt; } }))), off);
+    tgBody.push(h("p.hint", "✅ Connected. If you forget your password, a reset code will come to your Telegram."), off);
   } else {
-    const con = h("button.btn.primary.block", icon("bell"), "Connect Telegram");
+    const con = h("button.btn.primary.block", "Connect Telegram");
     con.onclick = busy(con, async () => {
       const code = await api.rpc("telegram_link_code");
       window.open(`https://t.me/${api.TG_BOT}?start=${code}`, "_blank");
       toast("Tap START in Telegram, then come back here.", "ok");
     });
-    tgBody.push(h("p.hint", "Get reminders (tasks, tuition, meetings, night report) on Telegram even when the app is closed, and reset your password by Telegram code."), con,
+    tgBody.push(h("p.hint", "Used only for password reset: forgot your password? Get a code on Telegram."), con,
       h("button.linkbtn.small", { onclick: () => rerender() }, "I've pressed START — refresh"));
   }
-  page.append(fold("bell", "Telegram", hasTg ? "Connected" : "Not connected", tgBody));
+  page.append(fold("lock", "Telegram (password reset)", hasTg ? "Connected" : "Not connected", tgBody));
 
   const exp = h("button.btn.block", icon("download"), "Download my data (backup)");
   exp.onclick = busy(exp, async () => {
