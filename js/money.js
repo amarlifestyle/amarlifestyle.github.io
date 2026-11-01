@@ -210,7 +210,7 @@ async function tuition(body, m) {
   // a month becomes due only after it ends: during November, October and before are due
   const cur = monthStart(today);
   const paidAll = new Set(allPays.map(p => p.student_id + p.month.slice(0, 7)));
-  const dueMonths = st => { const out = []; for (let mo = [monthStart(joinDay(st)), shiftMonth(cur, -3)].sort()[0]; mo < cur; mo = shiftMonth(mo, 1)) if (!paidAll.has(st.id + mo.slice(0, 7))) out.push(mo); return out; };
+  const dueMonths = st => { const out = []; for (let mo = [monthStart(joinDay(st)), shiftMonth(cur, -3)].sort().pop(); mo < cur; mo = shiftMonth(mo, 1)) if (!paidAll.has(st.id + mo.slice(0, 7))) out.push(mo); return out; };
   const due = students.reduce((a, st) => a + dueMonths(st).length * +st.monthly_fee, 0);
   const got = pays.reduce((a, p) => a + +p.amount, 0);
   body.append(h("div.grid2", h("div.stat", h("div.k", `Fees for ${monthLabel(m).split(" ")[0]} received`), h("div.v.ok", tk(got))), h("div.stat", h("div.k", "Due (past months)"), h("div.v.bad", tk(due)))));
@@ -317,7 +317,7 @@ export async function receivePayment(s, preMonth) {
   const today = todayStr();
   const cur = monthStart(today);
   const paid = new Set((await api.select("tuition_payments", `select=month&student_id=eq.${s.id}`)).map(x => x.month.slice(0, 7)));
-  const months = [...Array(8)].map((_, i) => shiftMonth(cur, i - 6)).filter(x => !paid.has(x.slice(0, 7)) && x >= [monthStart(joinDay(s)), shiftMonth(cur, -3)].sort()[0]); // last 3 months (or since joined) … next month
+  const months = [...Array(8)].map((_, i) => shiftMonth(cur, i - 6)).filter(x => !paid.has(x.slice(0, 7)) && x >= [monthStart(joinDay(s)), shiftMonth(cur, -3)].sort().pop()); // last 3 months (or since joined) … next month
   if (!months.length) { toast("All recent months are already paid."); return; }
   const pick = new Set([preMonth && months.includes(preMonth) ? preMonth : (months.filter(x => x < cur).pop() || months[0])]);
   const amounts = {};
@@ -409,7 +409,7 @@ route("payments", async (page, yr) => {
   ]);
   const ent = Object.fromEntries(entries.map(e => [e.id, e]));
   const months = [...Array(12)].map((_, i) => `${year}-${pad(i + 1)}-01`);
-  const startOf = st => [monthStart(joinDay(st)), shiftMonth(cur, -3)].sort()[0];
+  const startOf = st => [monthStart(joinDay(st)), shiftMonth(cur, -3)].sort().pop();
   const list = students.filter(st => st.active || pays.some(p => p.student_id === st.id));
   const amountOf = p => +(ent[p.finance_entry_id]?.amount ?? p.amount);
 
