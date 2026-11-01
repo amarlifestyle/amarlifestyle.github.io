@@ -392,7 +392,7 @@ details.fold > .fold-body { padding: 0 14px 14px; }
   .nav::before { content: "Amar Lifestyle"; display: block; font-weight: 700; font-size: 17px; padding: 4px 14px 18px; color: var(--text); }
   .fab { right: 28px; bottom: 28px; }
   #toast { bottom: 28px; }
-  .week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .week { grid-template-columns: repeat(7, minmax(118px, 1fr)); }
   .week-scroll { margin: 0; padding: 0 0 6px; }
   .sheet { border-radius: 22px; margin-bottom: 4vh; border-bottom: 1px solid var(--line2); }
   .backdrop { align-items: center; }
@@ -423,3 +423,7 @@ svg.chev { width: 18px; height: 18px; flex-shrink: 0; }
 .fab { transition: transform .25s ease, opacity .25s ease; }
 body.fab-away .fab { transform: translateY(160%); opacity: 0; pointer-events: none; }
 .page { padding-bottom: 96px; }
+
+/* week grid: smooth sideways swipe on phone/iPad */
+.week-scroll { scroll-snap-type: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; touch-action: pan-x pan-y; scrollbar-width: thin; }
+.week-scroll .cell { touch-action: pan-x pan-y; }

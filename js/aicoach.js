@@ -1,6 +1,6 @@
 // Amar Lifestyle — AI Coach: daily advice, alerts, ask a question, build a routine by voice
 import * as api from "./api.js";
-import { h, icon, toast, sheet, busy, todayStr, addDays, DAYS, PALETTE, dhakaIso, durLabel, fmtHM } from "./ui.js";
+import { h, icon, toast, sheet, busy, todayStr, addDays, DAYS, PALETTE, dhakaIso, durLabel, fmtHM, fmtTime, fmtDate } from "./ui.js";
 import { store, catNames, rerender } from "./app.js";
 import { voiceRecorder } from "./voice.js";
 
@@ -45,23 +45,59 @@ export function coachCard() {
   return box;
 }
 
+// upcoming tasks the AI may change when you ask ("remove Leon today", "move C.P to 6 pm")
+async function upcomingTasks() {
+  const today = todayStr();
+  try {
+    const list = await api.select("tasks", `select=id,title,category,day,start_at,end_at,status,routine_id,student_id,color&day=gte.${today}&day=lte.${addDays(today, 6)}&status=eq.pending&order=start_at`);
+    return list;
+  } catch { return []; }
+}
+async function runAction(a, tasks) {
+  const tk = tasks.find(x => x.id === a.task_id);
+  if (!tk) throw new Error("That task isn't there any more.");
+  if (new Date(tk.end_at) < new Date()) throw new Error("That task is already over.");
+  if (tk.routine_id) { try { await api.insert("routine_skips", { routine_id: tk.routine_id, day: tk.day, user_id: api.userId() }); } catch { /* already skipped */ } }
+  await api.remove("tasks", `id=eq.${tk.id}&status=eq.pending`);
+  if (a.type === "move" && /^\d{2}:\d{2}$/.test(a.new_start || "")) {
+    const len = Number(a.minutes) || Math.round((new Date(tk.end_at) - new Date(tk.start_at)) / 60000);
+    const s = dhakaIso(a.new_day && /^\d{4}-\d{2}-\d{2}$/.test(a.new_day) ? a.new_day : tk.day, a.new_start);
+    const id = await api.rpc("add_task", { p_title: tk.title, p_category: tk.category, p_start: s, p_end: new Date(new Date(s).getTime() + len * 60000).toISOString(), p_student: tk.student_id || null });
+    const routines = await api.select("routines", `select=color&id=eq.${tk.routine_id}`).catch(() => []);
+    const color = tk.color || routines[0]?.color;
+    if (color && id) await api.update("tasks", `id=eq.${id}`, { color });
+  }
+}
+
 export function askSheet() {
-  const q = h("textarea.input", { placeholder: "লিখে প্রশ্ন করুন… e.g. এই মাসে কোথায় টাকা বাঁচাতে পারি?", maxlength: "600" });
+  const q = h("textarea.input", { placeholder: "লিখে বলুন… e.g. আজকে Leon নাই, রিমুভ করো / C.P আজ ৬টায় সরাও / এই মাসে কোথায় টাকা বাঁচাতে পারি?", maxlength: "600" });
   const out = h("div");
-  const show = r => out.replaceChildren(h("div.card", { style: { marginTop: "10px", whiteSpace: "pre-wrap" } }, r.answer || "No answer. Try again."));
+  let tasks = [];
+  const show = r => {
+    const acts = (r.actions || []).filter(a => a && a.task_id && ["remove", "move"].includes(a.type));
+    out.replaceChildren(h("div.card", { style: { marginTop: "10px", whiteSpace: "pre-wrap" } }, r.answer || (acts.length ? "" : "No answer. Try again.")),
+      acts.length ? h("div.list.mt", acts.map(a => {
+        const tk = tasks.find(x => x.id === a.task_id);
+        const label = a.label || (tk ? `${a.type === "move" ? "Move" : "Remove"}: ${tk.title} · ${fmtDate(tk.day, { weekday: "short" })} ${fmtTime(tk.start_at)}${a.type === "move" ? " → " + fmtHM(a.new_start) : ""}` : a.type);
+        const btn = h("button.btn.small.primary", a.type === "move" ? "Move" : "Remove");
+        btn.onclick = busy(btn, async () => { await runAction(a, tasks); btn.replaceWith(h("span.badge.ok", "Done ✓")); toast("Done ✓", "ok"); rerender(); });
+        return h("div.li", h("div.grow.small", a.type === "move" ? "🕒 " : "🗑️ ", label), btn);
+      }), acts.length > 1 ? h("button.btn.small.mt", { onclick: async e => { const b = e.currentTarget; b.disabled = true; for (const x of out.querySelectorAll(".li .btn.primary")) x.click(); } }, "Do all") : null) : null);
+  };
+  const load = async () => { tasks = await upcomingTasks(); return tasks.map(t => ({ id: t.id, title: t.title, day: t.day, weekday: fmtDate(t.day, { weekday: "short" }), start: fmtTime(t.start_at), end: fmtTime(t.end_at), repeats: !!t.routine_id })); };
   const voice = voiceRecorder(async audio => {
     out.replaceChildren(h("p.small.muted", "Thinking…"));
-    const r = await api.ai("ask", { audio });
+    const r = await api.ai("ask", { audio, tasks: await load(), today: todayStr() });
     if (r.heard) q.value = r.heard;
     show(r);
-  }, { label: "বলে প্রশ্ন করুন" });
+  }, { label: "বলে প্রশ্ন করুন / কাজ বলুন" });
   return sheet("Ask AI", [voice, h("div.small.faint", { style: { textAlign: "center", margin: "10px 0 6px" } }, "— অথবা লিখুন —"), q, out], {
     actions: close => {
       const go = h("button.btn.primary", "Ask");
       go.onclick = busy(go, async () => {
         if (!q.value.trim()) throw new Error("প্রশ্ন লিখুন বা মাইকে বলুন।");
         out.replaceChildren(h("p.small.muted", "Thinking…"));
-        show(await api.ai("ask", { question: q.value }));
+        show(await api.ai("ask", { question: q.value, tasks: await load(), today: todayStr() }));
       });
       return [h("button.btn", { onclick: () => close() }, "Close"), go];
     },
