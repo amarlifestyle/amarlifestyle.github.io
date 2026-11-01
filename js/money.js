@@ -197,15 +197,20 @@ async function fixedCosts() {
 async function tuition(body, m) {
   const today = todayStr();
   const me = monthEnd(m);
-  const [students, pays, att] = await Promise.all([
+  const [students, pays, att, allPays] = await Promise.all([
     api.select("students", "select=*&active=eq.true&order=name"),
     api.select("tuition_payments", `select=*&month=eq.${m}`),
     api.select("attendance", `select=*&date=gte.${m}&date=lte.${me}`),
+    api.select("tuition_payments", "select=student_id,month"),
   ]);
   const paidSet = Object.fromEntries(pays.map(p => [p.student_id, p]));
-  const due = students.filter(s => !paidSet[s.id]).reduce((a, s) => a + +s.monthly_fee, 0);
+  // a month becomes due only after it ends: during November, October and before are due
+  const cur = monthStart(today);
+  const paidAll = new Set(allPays.map(p => p.student_id + p.month.slice(0, 7)));
+  const dueMonths = st => { const out = []; for (let mo = [monthStart((st.created_at || today).slice(0, 10)), shiftMonth(cur, -3)].sort()[0]; mo < cur; mo = shiftMonth(mo, 1)) if (!paidAll.has(st.id + mo.slice(0, 7))) out.push(mo); return out; };
+  const due = students.reduce((a, st) => a + dueMonths(st).length * +st.monthly_fee, 0);
   const got = pays.reduce((a, p) => a + +p.amount, 0);
-  body.append(h("div.grid2", h("div.stat", h("div.k", "Fees for this month received"), h("div.v.ok", tk(got))), h("div.stat", h("div.k", "Still due"), h("div.v.warn", tk(due)))));
+  body.append(h("div.grid2", h("div.stat", h("div.k", `Fees for ${monthLabel(m).split(" ")[0]} received`), h("div.v.ok", tk(got))), h("div.stat", h("div.k", "Due (past months)"), h("div.v.bad", tk(due)))));
   body.append(h("a.btn.block.mt", { href: `#/payments/${m.slice(0, 4)}` }, icon("report"), "All payments — sheet view"));
   body.append(h("div.section-title", h("h2", "Students"), h("button.btn.small", { onclick: () => addStudent() }, icon("plus"), "Add student")));
   if (!students.length) { body.append(h("div.card.empty", icon("student"), h("p", "No students yet."), h("p.small", "Add students to track fees and attendance."))); return; }
@@ -224,7 +229,8 @@ async function tuition(body, m) {
     });
     body.append(h("div.task", { style: { "--c": s.color, cursor: "pointer" }, onclick: e => { if (!e.target.closest("button")) location.hash = `#/student/${s.id}`; } }, h("div.grow",
       h("div.row.between", h("div.t", s.name, h("span.small.muted", "  · see graph ›")), h("span.dp", tk(s.monthly_fee) + "/mo")),
-      h("div.meta", `Attendance this month: ${present} day${present === 1 ? "" : "s"}`, p ? h("span.ok", ` · paid ${tk(p.amount)}`) : h("span.warn", " · not paid yet")),
+      h("div.meta", `Attendance this month: ${present} day${present === 1 ? "" : "s"}`, p ? h("span.ok", ` · paid ${tk(p.amount)}`) : m < cur ? h("span.bad", " · due") : m === cur ? h("span.muted", " · this month (not due yet)") : h("span.muted", " · advance"),
+        dueMonths(s).length ? h("div.bad", `Due: ${dueMonths(s).map(x => monthLabel(x).split(" ")[0]).join(", ")}`) : null),
       h("div.acts", m === monthStart(today) ? attBtn : null, payBtn, h("button.btn.small.ghost", { onclick: () => addStudent(s) }, icon("edit"))))));
   });
 }
@@ -321,7 +327,7 @@ export async function receivePayment(s, preMonth) {
       return h("div.row.between", { style: { padding: "6px 0", borderBottom: "1px solid var(--line)" } },
         h("label.check", { style: { margin: 0, alignItems: "center" } },
           h("input", { type: "checkbox", checked: on, onchange: e => { e.target.checked ? pick.add(mo) : pick.delete(mo); draw(); } }),
-          h("span", monthLabel(mo), mo < cur ? h("span.small.warn", " · due") : mo === cur ? h("span.small.muted", " · this month") : h("span.small.muted", " · advance"))),
+          h("span", monthLabel(mo), mo < cur ? h("span.small.bad", " · due") : mo === cur ? h("span.small.muted", " · this month, not due yet") : h("span.small.muted", " · advance"))),
         on ? inp : h("span.small.faint", "—"));
     }));
     sum();
@@ -382,7 +388,7 @@ route("student", async (page, id) => {
     const k = m.slice(0, 7), p = pays.find(x => x.month.slice(0, 7) === k);
     return h("div.li", h("div.grow", h("b", new Date(m + "T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" })),
       h("div.small.muted", `${days[k] || 0} day${days[k] === 1 ? "" : "s"} taught`, p ? ` · paid on ${fmtDate(p.paid_on)}` : "")),
-      p ? h("b.ok", tk(p.amount)) : h("span.badge" + (k < thisM ? ".bad" : ".warn"), k < thisM ? "Not paid" : "Due"));
+      p ? h("b.ok", tk(p.amount)) : k < thisM ? h("span.badge.bad", "Due") : h("span.badge", "This month"));
   })));
 }, { tab: "money" });
 
@@ -414,7 +420,7 @@ route("payments", async (page, yr) => {
     h("div.stat", h("div.k", `Total in ${year}`), h("div.v", tk(yearIncome))),
     h("div.stat", h("div.k", `Due (${dueCount} month${dueCount === 1 ? "" : "s"})`), h("div.v.bad", tk(dueTotal)))));
   page.append(h("p.small.muted", { style: { margin: "8px 2px" } }, "Income counts in the month you enter it. Each box shows which month's fee is paid. ",
-    h("span", { style: { color: "var(--green)" } }, "■ paid"), "  ", h("span", { style: { color: "var(--red)" } }, "■ due"), "  ", h("span.warn", "■ this month"), " · tap a box."));
+    h("span", { style: { color: "var(--green)" } }, "■ paid"), "  ", h("span", { style: { color: "var(--red)" } }, "■ due"), "  ", h("span.muted", "■ this month (not due yet)"), " · tap a box."));
 
   if (!list.length) { page.append(h("div.card.empty", icon("student"), h("p", "No students yet."))); return; }
   const cell = (st, mo) => {
@@ -427,8 +433,10 @@ route("payments", async (page, yr) => {
     }
     if (!st.active || mo < startOf(st) || mo > cur) return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, cursor: "default", color: "var(--faint)", borderColor: "transparent" } }, "·"));
     const isDue = mo < cur;
-    return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, color: isDue ? "var(--red)" : "var(--amber)", borderColor: `color-mix(in srgb, ${isDue ? "var(--red)" : "var(--amber)"} 60%, transparent)`, background: `color-mix(in srgb, ${isDue ? "var(--red)" : "var(--amber)"} 13%, transparent)` },
-      onclick: () => receivePayment(st, mo) }, isDue ? "Due" : "Pending"));
+    return h("td", { style: { padding: "0 3px" } }, h("div", { style: isDue
+        ? { ...base, color: "var(--red)", borderColor: "color-mix(in srgb, var(--red) 60%, transparent)", background: "color-mix(in srgb, var(--red) 13%, transparent)" }
+        : { ...base, color: "var(--muted)", borderColor: "var(--line2)", borderStyle: "dashed" },
+      onclick: () => receivePayment(st, mo) }, isDue ? "Due" : "Running"));
   };
   const lbl = mo => new Date(mo + "T00:00:00").toLocaleDateString("en-GB", { month: "short" });
   const colTotal = mo => pays.filter(p => p.month === mo).reduce((a, p) => a + amountOf(p), 0);
