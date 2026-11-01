@@ -1,7 +1,7 @@
 // Amar Lifestyle — Today page, tasks, timer, Pomodoro
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate } from "./ui.js";
-import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation } from "./app.js";
+import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation, myRoles } from "./app.js";
 import { prayerNow, prayerCount, religionPicker, saveReligion } from "./prayer.js";
 import { askSheet } from "./aicoach.js";
 import { showTour } from "./tour.js";
@@ -87,10 +87,11 @@ route("today", async page => {
   const lv = stats.level;
   const toNext = lv.next ? `${lv.next_min - stats.month_dp} DP to ${lv.next}` : "Top level this month!";
   // ask once what they do, so categories fit them
-  if (!store.profile?.occupation) {
+  let pickedRoles = [];
+  if (!myRoles().length) {
     const card = h("div.card", { style: { borderColor: "color-mix(in srgb, var(--brand) 45%, transparent)" } },
       h("b", "আপনি কী করেন?"), h("p.small.muted", { style: { margin: "4px 0 8px" } }, "এটা বেছে নিলে আপনার কাজের ধরন অনুযায়ী ক্যাটাগরি দেখাবে (পরে Settings → Profile থেকে বদলানো যাবে)।"),
-      occupationPicker(null, async k => { try { await saveOccupation(k); toast("Saved ✓", "ok"); rerender(); } catch (e) { toast(e.message, "bad"); } }));
+      occupationPicker([], k => pickedRoles = k), (() => { const b = h("button.btn.primary.small", { style: { marginTop: "8px" } }, "Save"); b.onclick = busy(b, async () => { if (!pickedRoles.length) throw new Error("Pick at least one."); await saveOccupation(pickedRoles); toast("Saved ✓", "ok"); rerender(); }); return b; })());
     body.append(card);
   } else if (!store.profile?.religion) {
     body.append(h("div.card", { style: { borderColor: "color-mix(in srgb, var(--brand) 45%, transparent)" } },

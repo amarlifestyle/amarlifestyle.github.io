@@ -16,20 +16,34 @@ export const ROLES = {
   job: { label: "Job holder", bn: "চাকরিজীবী", icon: "🏢", cats: ["Office work", "Meeting", "Skill learning", "Side work", "Gym / Running", "Work / Personal"], tuition: false, income: ["Salary", "Bonus", "Side income", "Other income"] },
   homemaker: { label: "Homemaker", bn: "গৃহিণী", icon: "🏠", cats: ["Cooking", "Housework", "Children care", "Bazar / Shopping", "Learning / Reading", "Gym / Running", "Work / Personal"], tuition: false, income: ["Family", "Gift", "Side income", "Other income"] },
 };
-// chips: pick what you do
+// chips: pick what you do — one or two (e.g. Job holder + University student)
+export const myRoles = (p = store.profile) => { const r = (p?.roles || []).filter(k => ROLES[k]); return r.length ? r : (p?.occupation && ROLES[p.occupation] ? [p.occupation] : []); };
 export function occupationPicker(current, onPick) {
-  const box = h("div.row.wrap", { style: { gap: "6px" } });
-  const draw = cur => box.replaceChildren(...Object.entries(ROLES).map(([k, r]) =>
-    h("button.btn.small" + (k === cur ? ".primary" : ""), { type: "button", onclick: () => { draw(k); onPick(k); } }, r.icon, " ", r.label)));
-  draw(current);
+  let sel = Array.isArray(current) ? [...current] : current ? [current] : [];
+  const box = h("div");
+  const chips = h("div.row.wrap", { style: { gap: "6px" } });
+  const draw = () => chips.replaceChildren(...Object.entries(ROLES).map(([k, r]) =>
+    h("button.btn.small" + (sel.includes(k) ? ".primary" : ""), { type: "button", onclick: () => {
+      sel = sel.includes(k) ? sel.filter(x => x !== k) : [...sel, k].slice(-2); // at most two
+      draw(); onPick([...sel]);
+    } }, sel.includes(k) ? "✓ " : "", r.icon, " ", r.label)));
+  draw();
+  box.append(chips, h("div.small.muted", { style: { marginTop: "6px" } }, "চাইলে দুটো বেছে নিতে পারেন — যেমন Job holder + University student। দুটোর সব ফিচারই পাবেন।"));
   return box;
 }
-export async function saveOccupation(k) {
-  await api.update("profiles", `id=eq.${store.profile.id}`, { occupation: k });
-  store.profile.occupation = k;
+export async function saveOccupation(list) {
+  const roles = (Array.isArray(list) ? list : [list]).filter(k => ROLES[k]).slice(0, 2);
+  await api.update("profiles", `id=eq.${store.profile.id}`, { occupation: roles[0] || null, roles });
+  store.profile.occupation = roles[0] || null; store.profile.roles = roles;
   api.LS.set("al_basics", { ...(api.LS.get("al_basics") || {}), profile: store.profile });
 }
-export const role = () => ROLES[store.profile?.occupation] || null;
+// everything a person's roles add up to (categories, tuition, income types)
+export const role = () => {
+  const rs = myRoles().map(k => ROLES[k]);
+  if (!rs.length) return null;
+  const uniq = a => [...new Set(a)];
+  return { label: rs.map(r => r.label).join(" + "), icon: rs.map(r => r.icon).join(""), cats: uniq(rs.flatMap(r => r.cats)), tuition: rs.some(r => r.tuition), income: uniq(rs.flatMap(r => r.income)) };
+};
 export const showTuition = () => !role() || role().tuition;
 export function catNames() {
   const r = role();

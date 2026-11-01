@@ -1,7 +1,7 @@
 // Amar Lifestyle — Exams: class tests, lab reports, assignments. Reminders get more frequent as the day comes.
 import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, confirmBox, todayStr, addDays, fmtDate, pad } from "./ui.js";
-import { route, rerender, store } from "./app.js";
+import { route, rerender, store, myRoles } from "./app.js";
 
 export const EXAM_KINDS = {
   ct: ["📝", "CT"], lab: ["🧪", "Lab report"], assignment: ["📄", "Assignment"], exam: ["🎓", "Exam"],
@@ -20,7 +20,13 @@ const ROLE_DEADLINES = {
   job: { tab: "📌 Deadlines", sub: "Reports, meetings & presentations", add: "Add deadline", kinds: ["report", "meeting", "presentation", "exam", "other"], eg: "e.g. Monthly sales report" },
   homemaker: { tab: "🗓️ Reminders", sub: "Appointments, fees & occasions", add: "Add reminder", kinds: ["appointment", "fee", "payment", "shopping", "occasion", "other"], eg: "e.g. Doctor appointment — Ammu" },
 };
-export const deadlines = () => ROLE_DEADLINES[store.profile?.occupation] || ROLE_DEADLINES.student;
+export const deadlines = () => {
+  const rs = myRoles().map(k => ROLE_DEADLINES[k]).filter(Boolean);
+  if (!rs.length) return ROLE_DEADLINES.student;
+  if (rs.length === 1) return rs[0];
+  return { tab: "📌 Deadlines", sub: rs.map(r => r.sub).join(" · "), add: "Add deadline", kinds: [...new Set(rs.flatMap(r => r.kinds.filter(k => k !== "other")))].concat("other"), eg: rs[0].eg };
+};
+const isStudy = () => myRoles().some(k => ["student", "school", "teacher"].includes(k)) || !myRoles().length;
 const when = iso => new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Dhaka" });
 export function leftLabel(iso) {
   const ms = new Date(iso) - Date.now();
@@ -75,9 +81,9 @@ function examSheet(e) {
   const course = h("input.input", { value: e?.course || "", placeholder: "optional", maxlength: "60" });
   const date = h("input.input", { type: "date", value: d0 ? d0.toISOString().slice(0, 10) : addDays(todayStr(), 3) });
   const time = h("input.input", { type: "time", value: d0 ? `${pad(d0.getUTCHours())}:${pad(d0.getUTCMinutes())}` : "10:00" });
-  const note = h("textarea.input", { placeholder: ["student", "school"].includes(store.profile?.occupation) ? "Syllabus, chapters… (optional)" : "Details (optional)", style: { minHeight: "56px" } }, e?.note || "");
+  const note = h("textarea.input", { placeholder: myRoles().some(k => ["student", "school"].includes(k)) ? "Syllabus, chapters… (optional)" : "Details (optional)", style: { minHeight: "56px" } }, e?.note || "");
   sheet(e ? "Edit" : R.add, [
-    h("label.f", h("span", "Type"), seg), h("label.f", h("span", "Title"), title), (["student", "school", "teacher"].includes(store.profile?.occupation) || !store.profile?.occupation) ? h("label.f", h("span", store.profile?.occupation === "teacher" ? "Class / subject" : "Course"), course) : h("label.f", h("span", "With / where (optional)"), course),
+    h("label.f", h("span", "Type"), seg), h("label.f", h("span", "Title"), title), isStudy() ? h("label.f", h("span", myRoles()[0] === "teacher" ? "Class / subject" : "Course"), course) : h("label.f", h("span", "With / where (optional)"), course),
     h("div.grid2", h("label.f", h("span", "Due date"), date), h("label.f", h("span", "Time"), time)),
     h("label.f", h("span", "Notes"), note)], {
     actions: close => {

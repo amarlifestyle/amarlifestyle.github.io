@@ -2,7 +2,7 @@
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";
 import { RELIGIONS, religionPicker } from "./prayer.js";
-import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go, ROLES, occupationPicker } from "./app.js";
+import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go, ROLES, occupationPicker, myRoles, role } from "./app.js";
 import { codeResetForm } from "./auth.js";
 
 const li = (href, ic, title, sub) => h("a.li", { href }, h("div.ic", icon(ic)), h("div.grow", h("b", title), sub ? h("div.small.muted", sub) : null), icon("chev", "chev"));
@@ -232,12 +232,12 @@ route("settings", async (page, open) => {
   const name = h("input.input", { value: p.name });
   const sleep = h("input.input", { type: "time", value: p.sleep_time.slice(0, 5) });
   const sv = h("button.btn.primary.block", t("Save"));
-  sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value, occupation: occ, religion: rel }); await loadBasics(); api.LS.del?.("al_tt_tabs"); toast("Profile saved ✓", "ok"); rerender(); });
-  let occ = p.occupation || null;
+  sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value, occupation: occ[0] || null, roles: occ.slice(0, 2), religion: rel }); await loadBasics(); api.LS.del?.("al_tt_tabs"); toast("Profile saved ✓", "ok"); rerender(); });
+  let occ = myRoles(p);
   const occBox = occupationPicker(occ, k => occ = k);
   let rel = p.religion || null;
   const relBox = religionPicker(rel, k => rel = k);
-  page.append(fold("me", "Profile", p.name + (ROLES[p.occupation] ? " · " + ROLES[p.occupation].label : "") + (RELIGIONS[p.religion] ? " · " + RELIGIONS[p.religion].split(" · ")[0] : ""), [h("label.f", h("span", "Name"), name),
+  page.append(fold("me", "Profile", p.name + (role() ? " · " + role().label : "") + (RELIGIONS[p.religion] ? " · " + RELIGIONS[p.religion].split(" · ")[0] : ""), [h("label.f", h("span", "Name"), name),
     h("label.f", h("span", "What do you do? (change any time)"), occBox),
     h("label.f", h("span", "Religion (change any time · Muslim → prayer times)"), relBox),
     h("label.f", h("span", "Bedtime (night report comes 30 min before)"), sleep),
