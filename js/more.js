@@ -226,22 +226,23 @@ function addGoal(parent) {
 function fold(ic, title, sub, body) {
   return h("details.fold", h("summary", h("span.ic", icon(ic)), h("span.grow", h("div", title), sub ? h("div.small.muted", { style: { fontWeight: 400 } }, sub) : null), icon("chev", "chev")), h("div.fold-body", body));
 }
-route("settings", async page => {
+route("settings", async (page, open) => {
   page.append(backbar(t("Settings")));
   const p = store.profile;
   const name = h("input.input", { value: p.name });
   const sleep = h("input.input", { type: "time", value: p.sleep_time.slice(0, 5) });
   const sv = h("button.btn.primary.block", t("Save"));
-  sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value, occupation: occ, religion: rel }); await loadBasics(); toast("Saved ✓", "ok"); });
+  sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value, occupation: occ, religion: rel }); await loadBasics(); api.LS.del?.("al_tt_tabs"); toast("Profile saved ✓", "ok"); rerender(); });
   let occ = p.occupation || null;
   const occBox = occupationPicker(occ, k => occ = k);
   let rel = p.religion || null;
   const relBox = religionPicker(rel, k => rel = k);
   page.append(fold("me", "Profile", p.name + (ROLES[p.occupation] ? " · " + ROLES[p.occupation].label : "") + (RELIGIONS[p.religion] ? " · " + RELIGIONS[p.religion].split(" · ")[0] : ""), [h("label.f", h("span", "Name"), name),
-    h("label.f", h("span", "What do you do? (the app shows matching task categories)"), occBox),
-    h("label.f", h("span", "Religion (Muslim → prayer times under Routine)"), relBox),
+    h("label.f", h("span", "What do you do? (change any time)"), occBox),
+    h("label.f", h("span", "Religion (change any time · Muslim → prayer times)"), relBox),
     h("label.f", h("span", "Bedtime (night report comes 30 min before)"), sleep),
     h("p.small.muted", `Phone: ${p.phone} · Email: ${p.email}`), sv]));
+  if (open === "profile") { const f = page.querySelector("details.fold"); if (f) { f.open = true; setTimeout(() => f.scrollIntoView({ block: "start", behavior: "smooth" }), 50); } }
 
   const seg = (opts, cur, on) => { const s = h("div.seg", opts.map(([v, l]) => h("button" + (v === cur ? ".on" : ""), { type: "button", onclick: async e => { s.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); await on(v); } }, l))); return s; };
   page.append(fold("sun", "Look", "Theme and language", [

@@ -193,17 +193,6 @@ function taskCard(tk, queued) {
       if (late) acts.append(h("div.lockline", icon("info"), "Late now: marking Completed gives 0 DP, but counts as done."));
       else if (nowD > new Date(tk.end_at)) acts.append(h("div.lockline", icon("info"), `Full DP until ${fmtTime(le.toISOString())} (half coins).`));
     }
-  } else if (tk.status === "completed" && tk.dp_awarded > 0 && !tk.photo_path) {
-    const inp = h("input", { type: "file", accept: "image/*", capture: "environment", hidden: true });
-    const b = h("button.btn.small", icon("camera"), `Add photo (+${store.cfg.photo_bonus_dp ?? 2} DP)`);
-    inp.onchange = busy(b, async () => {
-      if (!inp.files[0]) return;
-      const path = await api.uploadProof(inp.files[0], tk.id);
-      const bonus = await api.rpc("add_photo", { p_task: tk.id, p_path: path });
-      toast(bonus ? `Photo saved · +${bonus} DP 📷` : "Photo saved", "ok"); rerender();
-    });
-    b.onclick = () => inp.click();
-    acts.append(b, inp);
   } else if (tk.photo_path) {
     const b = h("button.btn.small.ghost", icon("camera"), "View photo");
     b.onclick = busy(b, async () => { const u = await api.signedUrl(tk.photo_path); sheet(tk.title, h("img", { src: u, alt: "Proof photo", style: { borderRadius: "14px" } })); });
