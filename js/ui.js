@@ -233,6 +233,9 @@ export function pickColor(title, known = []) {
   const n = x => String(x || "").toLowerCase().replace(/[.\s]/g, "");
   const same = known.find(r => r.color && n(r.title) === n(title));
   if (same) return same.color;
+  // coaching codes (C.P, C.B, CH, CS, CCP, CCB, CSP, CSB …) all share the coaching colour
+  const coach = x => /^c(c|s|h)?(p|b|c|m)?$/.test(n(x)) && n(x).length >= 2;
+  if (coach(title)) { const g = known.find(r => r.color && coach(r.title)); if (g) return g.color; }
   const used = new Set(known.filter(r => r.color).map(r => r.color.toUpperCase()));
   return DISTINCT.find(c => !used.has(c.toUpperCase())) || DISTINCT[Math.floor(Math.random() * DISTINCT.length)];
 }
