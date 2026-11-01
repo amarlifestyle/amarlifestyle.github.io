@@ -3,7 +3,7 @@ import * as api from "./api.js";
 import { pickColor } from "./ui.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, todayStr, addDays, fmtTime, mins, durLabel, fmtDate, DAYS, dhakaIso, colorPicker, pad } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender } from "./app.js";
-import { addTask } from "./today.js";
+import { addTask, editChoice } from "./today.js";
 import { editRoutine } from "./more.js";
 import { aiPlanSheet } from "./aicoach.js";
 import { routineTabsAsync } from "./timetable.js";
@@ -116,7 +116,7 @@ export function planSheet(ctx, pre = {}) {
   const dur = h("input.input", { type: "number", min: "5", max: "720", value: 60, inputmode: "numeric", "aria-label": "Minutes" });
   let color = "";
   const colors = colorPicker("", c => color = c, { allowNone: true });
-  let repeat = "perm";
+  let repeat = pre.repeat || "week"; // a task added on a day is for this week only, unless you choose Every week
   const rep = h("div.seg", [["week", "Only this week"], ["perm", "Every week"]].map(([k, l]) => h("button" + (k === repeat ? ".on" : ""), { type: "button", "data-k": k, onclick: () => setRepeat(k) }, l)));
   const setRepeat = k => { repeat = k; rep.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === k)); };
   const showStu = () => { stuRow.style.display = cat.value === "Tuition" && students.length ? "" : "none"; };
@@ -179,8 +179,8 @@ function detail(tk, ctx, dayList = []) {
     h("p.mb0", st)), {
     actions: close => {
       if (!canChange) return [h("button.btn", { onclick: () => close() }, "Close")];
-      const editB = h("button.btn.small", icon("edit"), routine ? "Edit (every week)" : "Edit");
-      editB.onclick = () => { close(); routine ? editRoutine(routine) : addTask(tk); };
+      const editB = h("button.btn.small", icon("edit"), "Edit");
+      editB.onclick = () => { close(); setTimeout(() => routine ? editChoice(tk, ctx.routines) : addTask(tk), 230); };
       const rmWeek = h("button.btn.small", icon("trash"), routine ? "Remove this week" : "Remove");
       rmWeek.onclick = busy(rmWeek, async () => {
         if (routine) await api.insert("routine_skips", { routine_id: routine.id, day: tk.day, user_id: api.userId() });

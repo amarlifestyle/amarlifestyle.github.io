@@ -1,8 +1,8 @@
 // Amar Lifestyle — offline support: app files are cached, data always comes fresh from the server.
-const CACHE = "amarlifestyle-v48";
+const CACHE = "amarlifestyle-v49";
 const FILES = [
   "./", "index.html", "manifest.json", "css/app.css",
-  "js/main.js", "js/app.js", "js/api.js", "js/ui.js", "js/auth.js", "js/today.js", "js/week.js", "js/money.js", "js/me.js", "js/more.js", "js/voice.js", "js/aicoach.js", "js/quotes.js", "js/assistant.js", "js/timetable.js", "js/prayer.js", "js/tour.js",
+  "js/main.js", "js/app.js", "js/api.js", "js/ui.js", "js/auth.js", "js/today.js", "js/week.js", "js/money.js", "js/me.js", "js/more.js", "js/voice.js", "js/aicoach.js", "js/quotes.js", "js/assistant.js", "js/timetable.js", "js/prayer.js", "js/tour.js", "js/exams.js",
   "assets/icon-64.png", "assets/icon-180.png", "assets/icon-192.png", "assets/icon-512.png", "assets/logo-dark.png", "assets/logo-light.png", "assets/founder.jpg",
 ];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: "reload" })))).then(() => self.skipWaiting())); });
@@ -22,7 +22,9 @@ self.addEventListener("fetch", e => {
 self.addEventListener("push", e => {
   let d = {}; try { d = e.data.json(); } catch { d = { title: "Amar Lifestyle", body: e.data ? e.data.text() : "" }; }
   e.waitUntil(self.registration.showNotification(d.title || "Amar Lifestyle", {
-    body: d.body || "", icon: "assets/icon-192.png", badge: "assets/icon-64.png", tag: d.tag || d.title, renotify: true, data: { url: d.url || "#/today" }, vibrate: [120, 60, 120],
+    body: d.body || "", icon: "assets/icon-192.png", badge: "assets/icon-64.png", tag: d.tag || d.title, renotify: true, data: { url: d.url || "#/today" },
+    // urgent (15 min before, start, emergency, CT/lab report in the last 24 h): long buzz and it stays until you tap it
+    vibrate: d.level === "urgent" ? [400, 150, 400, 150, 800] : [120, 60, 120], requireInteraction: d.level === "urgent", silent: false,
   }));
 });
 self.addEventListener("notificationclick", e => {

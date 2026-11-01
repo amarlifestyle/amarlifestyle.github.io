@@ -5,6 +5,7 @@ import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker
 import { prayerNow, prayerCount, religionPicker, saveReligion } from "./prayer.js";
 import { askSheet } from "./aicoach.js";
 import { showTour } from "./tour.js";
+import { examsCard } from "./exams.js";
 import { quoteFor } from "./quotes.js";
 import { mealNow, classesBetween, classCard } from "./timetable.js";
 
@@ -143,6 +144,7 @@ route("today", async page => {
   // university classes from the timetable sit in the list by time (no DP)
   let classes = [];
   try { classes = await classesBetween(today, today); } catch { /* offline */ }
+  try { const ex = await examsCard(); if (ex) body.append(ex); } catch { /* offline */ }
   try { const pn = await prayerNow(); if (pn) body.append(pn); } catch { /* offline */ }
   body.append(h("div.section-title", h("h2", "Today's tasks"), h("div.row", { style: { gap: "10px", alignItems: "center" } }, h("button.btn.small.emg", { onclick: () => emergencySheet(tasks) }, "🚨 Emergency"), h("a.small", { href: "#/routine" }, "Set routine"))));
   if (!realTasks.length && !running && !classes.length) {
@@ -212,7 +214,7 @@ function taskCard(tk, queued) {
     h("div.meta", h("span", `${fmtTime(tk.start_at)} – ${fmtTime(tk.end_at)}`), h("span", "·"), h("span", tk.category), tk.is_timer ? h("span", "· timer") : null),
     acts));
   if (tk.offlineNew) el.querySelector(".meta")?.append(h("span.warn", "· saved offline"));
-  if (tk.status === "pending" && !queued && !tk.offlineNew) el.addEventListener("click", e => { if (!e.target.closest("button,input")) addTask(tk); });
+  if (tk.status === "pending" && !queued && !tk.offlineNew) el.addEventListener("click", e => { if (!e.target.closest("button,input")) editChoice(tk); });
   return el;
 }
 
@@ -276,6 +278,7 @@ export async function addTask(tk = null, preset = {}) {
         const s = dhakaIso(day.value, start.value); const e = new Date(new Date(s).getTime() + m * 60000).toISOString();
         const student = cat.value === "Tuition" ? stu.value || null : null;
         const row = { title: title.value.trim(), category: cat.value, start_at: s, end_at: e, day: day.value, pinned: pin.checked, student_id: student };
+        if (tk?.routine_id) await api.insert("routine_skips", { routine_id: tk.routine_id, day: tk.day, user_id: api.userId() }).catch(() => {}); // only this day changes; the routine won't add it again
         if (tk) await api.update("tasks", `id=eq.${tk.id}`, row);
         else {
           const r = await api.offlineSafe({ kind: "task", title: row.title, category: row.category, start: s, end: e, pinned: row.pinned, studentId: student });
@@ -288,7 +291,7 @@ export async function addTask(tk = null, preset = {}) {
       const btns = [h("button.btn", { onclick: () => close(null) }, t("Cancel")), save];
       if (tk) {
         const del = h("button.btn.danger", { "aria-label": t("Delete") }, icon("trash"));
-        del.onclick = busy(del, async () => { if (await confirmBox("Delete this task?", "This cannot be undone.", t("Delete"), true)) { await api.remove("tasks", `id=eq.${tk.id}`); toast("Deleted"); close(true); rerender(); } });
+        del.onclick = busy(del, async () => { if (await confirmBox("Delete this task?", tk.routine_id ? "Only this day. The weekly routine stays." : "This cannot be undone.", t("Delete"), true)) { if (tk.routine_id) await api.insert("routine_skips", { routine_id: tk.routine_id, day: tk.day, user_id: api.userId() }).catch(() => {}); await api.remove("tasks", `id=eq.${tk.id}`); toast("Deleted"); close(true); rerender(); } });
         btns.unshift(del);
       }
       return btns;
@@ -466,4 +469,17 @@ function tipTicker(today) {
   // refresh today's advice in the background (once a day it is new)
   if (navigator.onLine) api.ai("coach", {}).then(r => { api.LS.set("al_coach", r); }).catch(() => {});
   return box;
+}
+
+// a task from the weekly routine: change only this day, or every week?
+export async function editChoice(tk, routines) {
+  if (!tk.routine_id) return addTask(tk);
+  const r = (routines || await api.select("routines", `select=*&id=eq.${tk.routine_id}`).catch(() => []))
+    .find?.(x => x.id === tk.routine_id);
+  if (!r) return addTask(tk);
+  const opt = (ic, title, sub, fn) => { const b = h("button.li", { style: { textAlign: "left" } }, h("div.ic", ic), h("div.grow", h("b", title), h("div.small.muted", sub))); b.onclick = () => { document.querySelector(".backdrop")?.click(); setTimeout(fn, 230); }; return b; };
+  sheet("Edit “" + tk.title + "”", [h("div.list",
+    opt("1️⃣", "Only this week", `Change just ${fmtDate(tk.day, { weekday: "long", day: "numeric", month: "short" })}. Other weeks stay the same.`, () => addTask(tk)),
+    opt("🔁", "Every week", "Change the routine itself — all coming weeks.", () => import("./more.js").then(m => m.editRoutine(r))))],
+    { actions: close => [h("button.btn", { onclick: () => close(null) }, t("Cancel"))] });
 }

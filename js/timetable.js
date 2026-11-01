@@ -52,7 +52,7 @@ const DEMO = {
 // tab bar shown on top of Routine (Weekly) and every timetable tab
 export async function routineTabsAsync(active) { await loadTabs(); return routineTabs(active); }
 export function routineTabs(active) {
-  const tabs = [["week", "📅 Weekly", "#/week"], ...(isMuslim() ? [["prayer", "🕌 Prayer", "#/prayer"]] : []), ...TABS.map(t => [tabKey(t), `${t.icon} ${t.name}`, `#/schedule/${tabKey(t)}`])];
+  const tabs = [["week", "📅 Weekly", "#/week"], ["exams", "📝 Exams", "#/exams"], ...(isMuslim() ? [["prayer", "🕌 Prayer", "#/prayer"]] : []), ...TABS.map(t => [tabKey(t), `${t.icon} ${t.name}`, `#/schedule/${tabKey(t)}`])];
   return h("div.seg", { style: { marginBottom: "12px", overflowX: "auto" } },
     tabs.map(([k, l, href]) => h("button" + (k === active ? ".on" : ""), { onclick: () => { location.hash = href; }, style: { whiteSpace: "nowrap" } }, l)),
     h("button", { onclick: addTabSheet, style: { whiteSpace: "nowrap" }, "aria-label": "Add a tab" }, "＋"));

@@ -562,3 +562,6 @@ h1, h2, h3, .big, .t, b { letter-spacing: -0.01em; }
 .tour-dots i.on { width: 18px; background: var(--brand); }
 .upnext.emg { border-color: color-mix(in srgb, var(--red) 55%, transparent); background: color-mix(in srgb, var(--red) 8%, var(--card)); }
 .upnext.emg .what span { color: var(--red); font-weight: 600; }
+
+.chip.on { background: color-mix(in srgb, var(--brand) 18%, var(--card2)); border-color: color-mix(in srgb, var(--brand) 55%, transparent); color: var(--text); font-weight: 600; }
+.exams-card { display: block; color: var(--text); padding: 10px 14px; border-color: color-mix(in srgb, var(--amber) 45%, transparent); }

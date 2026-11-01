@@ -65,8 +65,13 @@ export async function editRoutine(r, templates, activeT) {
   const students = await api.select("students", "select=id,name,color&active=eq.true&order=name").catch(() => []);
   const title = h("input.input", { value: r?.title || "", placeholder: "e.g. Tuition — Leon", maxlength: "80" });
   const cat = h("select.input", catNames().map(n => h("option", { value: n, selected: r?.category === n }, `${n} · ${catDp(n)} DP/hour`)));
-  const stu = h("select.input", h("option", { value: "" }, "— none —"), students.map(s => h("option", { value: s.id, selected: r?.student_id === s.id }, s.name)));
-  const stuRow = h("label.f", h("span", "Student (attendance is added when marked Completed)"), stu);
+  // connect this routine to one or more students (name in the routine can be anything)
+  let linked = [r?.student_id, ...(r?.student_ids || [])].filter(Boolean);
+  const stuBox = h("div.row.wrap", { style: { gap: "6px" } });
+  const drawStu = () => stuBox.replaceChildren(...students.map(s => h("button.chip" + (linked.includes(s.id) ? ".on" : ""), { type: "button", onclick: () => { linked = linked.includes(s.id) ? linked.filter(x => x !== s.id) : [...linked, s.id]; drawStu(); } }, linked.includes(s.id) ? "✓ " : "", s.name)));
+  drawStu();
+  const stu = { get value() { return linked[0] || ""; } };
+  const stuRow = h("label.f", h("span", "Connected students (attendance & fees)"), stuBox);
   const showStu = () => { stuRow.style.display = cat.value === "Tuition" && students.length ? "" : "none"; };
   cat.onchange = showStu; showStu();
   const start = h("input.input", { type: "time", value: r?.start_time?.slice(0, 5) || "20:00" });
@@ -88,7 +93,7 @@ export async function editRoutine(r, templates, activeT) {
         if (!title.value.trim()) throw new Error("Write the task name.");
         if (!days.length) throw new Error("Pick at least one day.");
         const m = Number(dur.value); if (!(m >= 5 && m <= 720)) throw new Error("Minutes must be 5 to 720.");
-        const row = { title: title.value.trim(), category: cat.value, start_time: start.value, duration_min: m, days, color: color || null, template: tmpl.value, student_id: cat.value === "Tuition" ? stu.value || null : null };
+        const row = { title: title.value.trim(), category: cat.value, start_time: start.value, duration_min: m, days, color: color || null, template: tmpl.value, student_id: cat.value === "Tuition" ? linked[0] || null : null, student_ids: cat.value === "Tuition" ? linked.slice(1) : [] };
         if (r) {
           await api.update("routines", `id=eq.${r.id}`, row);
           await api.remove("tasks", `routine_id=eq.${r.id}&status=eq.pending&day=gt.${todayStr()}`);
