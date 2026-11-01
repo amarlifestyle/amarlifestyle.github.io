@@ -439,3 +439,12 @@ body.fab-away .fab { transform: translateY(160%); opacity: 0; pointer-events: no
 .nav { background: var(--bg); }
 .week-scroll .cell { box-shadow: none; }
 .week-scroll .wday .h { box-shadow: none; }
+
+/* week grid on phones: bigger columns (about 2 on screen), swipe sideways */
+@media (max-width: 759px) {
+  .week { grid-template-columns: repeat(7, minmax(150px, 44vw)); gap: 8px; }
+  .week-scroll .cell { font-size: 14px; min-height: 58px; padding: 8px 9px; }
+  .week-scroll .cell small { font-size: 12px; }
+  .week-scroll { scroll-snap-type: x proximity; scroll-padding-left: 16px; }
+  .week-scroll .wday { scroll-snap-align: start; }
+}

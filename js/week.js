@@ -45,7 +45,9 @@ route("week", async (page, offset = "0") => {
   page.append(h("div.row.wrap", { style: { gap: "8px", marginBottom: "10px" } },
     h("button.btn.primary.small", { onclick: () => planSheet(ctx, {}) }, icon("plus"), "Add to week"),
     h("button.btn.small", { onclick: () => aiPlanSheet(ctx) }, icon("mic"), "Build with AI") ));
-  page.append(h("div.week-scroll", grid));
+  const scroller = h("div.week-scroll", grid);
+  page.append(scroller);
+  setTimeout(() => { const t = scroller.querySelector(".wday .h.today")?.parentElement; if (t && scroller.scrollWidth > scroller.clientWidth) scroller.scrollLeft = Math.max(0, t.offsetLeft - 16); }, 0);
   page.append(h("p.small.faint", "↻ = repeats every week. Tap a box to edit or remove. ✓ = done, faded = missed."));
 
   const done = tasks.filter(x => ["completed", "late_completed"].includes(x.status));
@@ -161,37 +163,59 @@ function detail(tk, ctx) {
 
 // draws the neon week chart on a canvas and downloads it as PNG
 async function saveImage(days, tasks, colorOf, today) {
-  const colW = 230, rowH = 92, pad = 24, head = 90;
+  try { await document.fonts?.ready; } catch { /* fine */ }
+  const S = 2; // draw at 2x so it stays sharp
+  const FONT = '-apple-system, "SF Pro Text", "Segoe UI", Roboto, "Noto Sans Bengali", "Hind Siliguri", sans-serif';
+  const colW = 250, rowH = 110, gap = 16, pad = 32, head = 110;
   const lists = days.map(d => tasks.filter(x => x.day === d && x.status !== "running"));
   const rows = Math.max(3, ...lists.map(l => l.length));
-  const W = pad * 2 + colW * 7 + 14 * 6, H = head + pad + 70 + rows * (rowH + 14) + 60;
-  const c = document.createElement("canvas"); c.width = W; c.height = H;
-  const g = c.getContext("2d");
+  const W = pad * 2 + colW * 7 + gap * 6, H = head + 80 + rows * (rowH + gap) + pad;
+  const c = document.createElement("canvas"); c.width = W * S; c.height = H * S;
+  const g = c.getContext("2d"); g.scale(S, S); g.textBaseline = "middle";
   g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
-  g.font = "700 34px Inter, sans-serif"; g.fillStyle = "#fff"; g.fillText("Amar Lifestyle · Week", pad, 52);
-  g.font = "400 18px Inter, sans-serif"; g.fillStyle = "#9AA3B5"; g.fillText(`${fmtDate(days[0])} – ${fmtDate(days[6])} · ${store.profile?.name || ""}`, pad, 78);
+  g.textAlign = "left";
+  g.font = `700 36px ${FONT}`; g.fillStyle = "#fff"; g.fillText("Amar Lifestyle · Week", pad, 48);
+  g.font = `400 20px ${FONT}`; g.fillStyle = "#9AA3B5"; g.fillText(`${fmtDate(days[0])} – ${fmtDate(days[6])} · ${store.profile?.name || ""}`, pad, 84);
   const box = (x, y, w, hh, col, fill) => {
-    g.save(); g.shadowColor = col; g.shadowBlur = 16; g.strokeStyle = col; g.lineWidth = 3;
-    g.beginPath(); g.roundRect(x, y, w, hh, 14); if (fill) { g.fillStyle = fill; g.fill(); } g.stroke(); g.restore();
+    g.save(); g.shadowColor = col; g.shadowBlur = 14; g.strokeStyle = col; g.lineWidth = 3;
+    g.beginPath(); (g.roundRect ? g.roundRect(x, y, w, hh, 14) : g.rect(x, y, w, hh)); if (fill) { g.fillStyle = fill; g.fill(); } g.stroke(); g.restore();
   };
+  // biggest font (max..min) that fits the width; still too long → cut with …
+  const fit = (text, maxW, weight, max, min) => {
+    let size = max; g.font = `${weight} ${size}px ${FONT}`;
+    while (size > min && g.measureText(text).width > maxW) { size--; g.font = `${weight} ${size}px ${FONT}`; }
+    let t = text; while (g.measureText(t).width > maxW && t.length > 2) t = t.slice(0, -2) + "…";
+    return t;
+  };
+  g.textAlign = "center";
   days.forEach((d, i) => {
-    const x = pad + i * (colW + 14);
-    box(x, head + 10, colW, 60, d === today ? "#2DD4BF" : "#EF4444", "#140608");
-    g.fillStyle = d === today ? "#2DD4BF" : "#F87171"; g.font = "700 30px Inter, sans-serif"; g.textAlign = "center";
-    g.fillText(DAYS[new Date(d + "T00:00:00").getDay()], x + colW / 2, head + 52);
+    const x = pad + i * (colW + gap), cx = x + colW / 2, isToday = d === today;
+    box(x, head, colW, 64, isToday ? "#2DD4BF" : "#EF4444", "#140608");
+    g.fillStyle = isToday ? "#2DD4BF" : "#F87171";
+    g.fillText(fit(DAYS[new Date(d + "T00:00:00").getDay()], colW - 24, 700, 32, 18), cx, head + 32);
     for (let r = 0; r < rows; r++) {
-      const y = head + 90 + r * (rowH + 14), tk = lists[i][r];
-      if (!tk) { box(x, y, colW, rowH, "#3A3F4B", "#05060A"); g.fillStyle = "#555"; g.font = "600 26px Inter"; g.fillText("—", x + colW / 2, y + rowH / 2 + 9); continue; }
-      const col = colorOf(tk);
+      const y = head + 80 + r * (rowH + gap), tk = lists[i][r];
+      if (!tk) { box(x, y, colW, rowH, "#3A3F4B", "#05060A"); g.fillStyle = "#555"; g.font = `600 28px ${FONT}`; g.fillText("—", cx, y + rowH / 2); continue; }
+      const col = colorOf(tk), done = ["completed", "late_completed"].includes(tk.status), missed = ["missed", "not_completed"].includes(tk.status);
       box(x, y, colW, rowH, col, "#05070C");
-      g.fillStyle = col; g.font = "700 22px Inter, sans-serif";
-      const line1 = `${fmtTime(tk.start_at).replace(":00", "")} → ${tk.title}`;
-      g.fillText(line1.length > 18 ? line1.slice(0, 17) + "…" : line1, x + colW / 2, y + 42);
-      g.font = "500 16px Inter, sans-serif"; g.fillStyle = "#C9D1DF";
-      g.fillText(["completed", "late_completed"].includes(tk.status) ? "✓ done" : durLabel(mins(tk.start_at, tk.end_at)), x + colW / 2, y + 70);
+      g.globalAlpha = missed ? 0.45 : 1;
+      g.fillStyle = col;
+      g.fillText(fit(fmtTime(tk.start_at).replace(":00", ""), colW - 28, 700, 26, 16), cx, y + 30);
+      g.fillText(fit(tk.title, colW - 28, 700, 26, 15), cx, y + 62);
+      g.fillStyle = "#C9D1DF";
+      g.fillText(fit((done ? "✓ done · " : missed ? "✗ missed · " : "") + durLabel(mins(tk.start_at, tk.end_at)), colW - 28, 500, 17, 12), cx, y + 92);
+      g.globalAlpha = 1;
     }
   });
   g.textAlign = "left";
-  const a = document.createElement("a"); a.download = `amar-lifestyle-week-${days[0]}.png`; a.href = c.toDataURL("image/png"); a.click();
+  const blob = await new Promise(ok => c.toBlob(ok, "image/png"));
+  const name = `amar-lifestyle-week-${days[0]}.png`;
+  const file = new File([blob], name, { type: "image/png" });
+  // on phones/iPad: open the share sheet (Save Image); elsewhere: download
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: "My week" }); return; } catch (e) { if (e?.name === "AbortError") return; }
+  }
+  const a = document.createElement("a"); a.download = name; a.href = URL.createObjectURL(blob); a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   toast("Chart saved ✓", "ok");
 }
