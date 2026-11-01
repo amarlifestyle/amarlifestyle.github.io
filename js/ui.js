@@ -117,7 +117,12 @@ export function toast(msg, kind = "") {
 
 export function sheet(title, body, { actions, hint } = {}) {
   return new Promise(resolve => {
-    const close = v => { bd.remove(); document.removeEventListener("keydown", esc); resolve(v); };
+    let done = false;
+    const close = v => {
+      if (done) return; done = true;
+      document.removeEventListener("keydown", esc); resolve(v);
+      bd.className = "backdrop-out"; setTimeout(() => bd.remove(), 200); // slide down, then remove
+    };
     const esc = e => { if (e.key === "Escape") close(null); };
     const box = h("div.sheet", { role: "dialog", "aria-modal": "true", "aria-label": title },
       h("div.grab"), h("h2", title), hint ? h("p.hint", hint) : null,
@@ -126,6 +131,13 @@ export function sheet(title, body, { actions, hint } = {}) {
     const bd = h("div.backdrop", { onclick: e => { if (e.target === bd) close(null); } }, box);
     document.body.appendChild(bd);
     document.addEventListener("keydown", esc);
+    // drag the handle down to close
+    const grab = box.querySelector(".grab");
+    let y0 = null, dy = 0;
+    grab.addEventListener("pointerdown", e => { y0 = e.clientY; dy = 0; grab.setPointerCapture(e.pointerId); box.style.transition = "none"; });
+    grab.addEventListener("pointermove", e => { if (y0 === null) return; dy = Math.max(0, e.clientY - y0); box.style.transform = `translateY(${dy}px)`; });
+    const end = () => { if (y0 === null) return; y0 = null; box.style.transition = ""; if (dy > 90) close(null); else box.style.transform = ""; };
+    grab.addEventListener("pointerup", end); grab.addEventListener("pointercancel", end);
     setTimeout(() => box.querySelector("input,select,textarea")?.focus(), 250);
   });
 }

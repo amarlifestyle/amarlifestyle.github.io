@@ -109,7 +109,9 @@ route("today", async page => {
   const upNext = realTasks.find(x => x.status === "pending" && new Date(x.start_at) > new Date());
   if (upNext) {
     const m = Math.round((new Date(upNext.start_at) - new Date()) / 60000);
-    body.append(h("div.small.muted", { style: { margin: "-2px 4px 8px" } }, "⏭ Next: ", h("b", { style: { color: upNext.color || catColor(upNext.category) } }, upNext.title), ` at ${fmtTime(upNext.start_at)} · in ${m >= 60 ? Math.floor(m / 60) + "h " : ""}${m % 60}m`));
+    body.append(h("div.upnext", { style: { "--c": upNext.color || catColor(upNext.category) } },
+      h("i.dot"), h("div.what", h("span", "Up next"), h("b", upNext.title)),
+      h("time", fmtTime(upNext.start_at), h("em", `in ${m >= 60 ? Math.floor(m / 60) + "h " : ""}${m % 60}m`))));
   }
   // bills due in the next 3 days (not paid yet)
   try {
