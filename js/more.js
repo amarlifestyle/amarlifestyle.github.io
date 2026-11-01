@@ -1,7 +1,7 @@
 // Amar Lifestyle — More: routine, calendar, goals, reports, settings, about, download
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";
-import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go } from "./app.js";
+import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go, ROLES, occupationPicker } from "./app.js";
 import { codeResetForm } from "./auth.js";
 
 const li = (href, ic, title, sub) => h("a.li", { href }, h("div.ic", icon(ic)), h("div.grow", h("b", title), sub ? h("div.small.muted", sub) : null), icon("chev", "chev"));
@@ -206,8 +206,12 @@ route("settings", async page => {
   const name = h("input.input", { value: p.name });
   const sleep = h("input.input", { type: "time", value: p.sleep_time.slice(0, 5) });
   const sv = h("button.btn.primary.block", t("Save"));
-  sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value }); await loadBasics(); toast("Saved ✓", "ok"); });
-  page.append(fold("me", "Profile", p.name, [h("label.f", h("span", "Name"), name), h("label.f", h("span", "Bedtime (night report comes 30 min before)"), sleep),
+  sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value, occupation: occ }); await loadBasics(); toast("Saved ✓", "ok"); });
+  let occ = p.occupation || null;
+  const occBox = occupationPicker(occ, k => occ = k);
+  page.append(fold("me", "Profile", p.name + (ROLES[p.occupation] ? " · " + ROLES[p.occupation].label : ""), [h("label.f", h("span", "Name"), name),
+    h("label.f", h("span", "What do you do? (the app shows matching task categories)"), occBox),
+    h("label.f", h("span", "Bedtime (night report comes 30 min before)"), sleep),
     h("p.small.muted", `Phone: ${p.phone} · Email: ${p.email}`), sv]));
 
   const seg = (opts, cur, on) => { const s = h("div.seg", opts.map(([v, l]) => h("button" + (v === cur ? ".on" : ""), { type: "button", onclick: async e => { s.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); await on(v); } }, l))); return s; };

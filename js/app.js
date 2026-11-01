@@ -7,8 +7,34 @@ export const store = { profile: null, cfg: {}, userCats: [], announcements: [] }
 export function catColor(name) {
   return store.cfg.categories?.[name]?.color || store.userCats.find(c => c.name === name)?.color || "#94A3B8";
 }
+// what you do decides which categories and sections the app shows
+export const ROLES = {
+  school: { label: "School / college student", bn: "শিক্ষার্থী", icon: "📚", cats: ["Study + Class", "Skill learning", "Gym / Running", "Work / Personal"], tuition: false, income: ["Family", "Gift", "Other income"] },
+  student: { label: "University student", bn: "বিশ্ববিদ্যালয় শিক্ষার্থী", icon: "🎓", cats: ["Study + Class", "Tuition", "Skill learning", "Gym / Running", "Work / Personal"], tuition: true, income: ["Tuition", "Family", "Video work", "Gift", "Other income"] },
+  teacher: { label: "Teacher", bn: "শিক্ষক", icon: "👨‍🏫", cats: ["Class / Teaching", "Lesson prep", "Exam checking", "Tuition", "Skill learning", "Gym / Running", "Work / Personal"], tuition: true, income: ["Salary", "Tuition", "Other income"] },
+  business: { label: "Business", bn: "ব্যবসায়ী", icon: "💼", cats: ["Meeting", "Client work", "Shop / Sales", "Accounts", "Skill learning", "Gym / Running", "Work / Personal"], tuition: false, income: ["Sales", "Client payment", "Other income"] },
+  job: { label: "Job holder", bn: "চাকরিজীবী", icon: "🏢", cats: ["Office work", "Meeting", "Skill learning", "Side work", "Gym / Running", "Work / Personal"], tuition: false, income: ["Salary", "Bonus", "Side income", "Other income"] },
+  homemaker: { label: "Homemaker", bn: "গৃহিণী", icon: "🏠", cats: ["Cooking", "Housework", "Children care", "Bazar / Shopping", "Learning / Reading", "Gym / Running", "Work / Personal"], tuition: false, income: ["Family", "Gift", "Side income", "Other income"] },
+};
+// chips: pick what you do
+export function occupationPicker(current, onPick) {
+  const box = h("div.row.wrap", { style: { gap: "6px" } });
+  const draw = cur => box.replaceChildren(...Object.entries(ROLES).map(([k, r]) =>
+    h("button.btn.small" + (k === cur ? ".primary" : ""), { type: "button", onclick: () => { draw(k); onPick(k); } }, r.icon, " ", r.label)));
+  draw(current);
+  return box;
+}
+export async function saveOccupation(k) {
+  await api.update("profiles", `id=eq.${store.profile.id}`, { occupation: k });
+  store.profile.occupation = k;
+  api.LS.set("al_basics", { ...(api.LS.get("al_basics") || {}), profile: store.profile });
+}
+export const role = () => ROLES[store.profile?.occupation] || null;
+export const showTuition = () => !role() || role().tuition;
 export function catNames() {
-  return [...Object.keys(store.cfg.categories || {}), ...store.userCats.map(c => c.name)];
+  const r = role();
+  const base = (r ? r.cats : ["Study + Class", "Tuition", "Gym / Running", "Work / Personal"]).filter(c => store.cfg.categories?.[c]);
+  return [...base, ...store.userCats.map(c => c.name).filter(n => !base.includes(n))];
 }
 export function catDp(name) {
   return store.cfg.categories?.[name]?.dp ?? store.userCats.find(c => c.name === name)?.dp ?? store.cfg.custom_category_dp ?? 5;

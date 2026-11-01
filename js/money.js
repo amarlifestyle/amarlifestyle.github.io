@@ -1,9 +1,10 @@
 // Amar Lifestyle — money: income, expenses, budgets, history, tuition, dues, savings
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, donut, PALETTE, pad, colorPicker, barChart } from "./ui.js";
-import { route, store, rerender, backbar } from "./app.js";
+import { route, store, rerender, backbar, role, showTuition } from "./app.js";
 
-const INCOME_CATS = ["Tuition", "Salary", "Video work", "Gift", "Other income"];
+const INCOME_DEFAULT = ["Tuition", "Salary", "Video work", "Gift", "Other income"];
+const incomeCats = () => role()?.income || INCOME_DEFAULT;
 const expCats = () => store.cfg.expense_categories || ["Rent + Bills", "Food + Transport", "Study", "Shopping + Fun + Other"];
 const monthStart = s => s.slice(0, 7) + "-01";
 const monthEnd = m => { const [y, mo] = m.split("-").map(Number); return `${y}-${pad(mo)}-${pad(new Date(y, mo, 0).getDate())}`; };
@@ -25,7 +26,7 @@ route("money", async (page, tab = "overview", month) => {
     h("div", h("h1", t("Money")), h("div.sub", monthLabel(m))),
     h("div.row", h("a.icon-btn", { href: `#/money/${tab}/${shiftMonth(m, -1)}`, "aria-label": "Previous month" }, icon("back")),
       h("a.icon-btn", { href: `#/money/${tab}/${shiftMonth(m, 1)}`, "aria-label": "Next month" }, icon("chev")))));
-  const tabs = [["overview", "Overview"], ["entries", "Entries"], ["tuition", "Tuition"], ["plans", "Dues & Goals"]];
+  const tabs = [["overview", "Overview"], ["entries", "Entries"], showTuition() ? ["tuition", "Tuition"] : null, ["plans", "Dues & Goals"]].filter(Boolean);
   page.append(h("div.seg", { style: { marginBottom: "14px" } }, tabs.map(([k, l]) => h("button" + (k === tab ? ".on" : ""), { onclick: () => location.hash = `#/money/${k}/${m}` }, l))));
   const body = h("div"); page.append(body);
   page.append(h("button.fab", { onclick: () => addEntry(), "aria-label": "Add money entry" }, icon("plus")));
@@ -145,7 +146,7 @@ export function addEntry(kind = "expense") {
   let k = kind;
   const amt = h("input.input", { type: "number", inputmode: "decimal", min: "0", step: "0.01", placeholder: "0" });
   const cat = h("select.input");
-  const fill = () => cat.replaceChildren(...(k === "income" ? INCOME_CATS : expCats()).map(c => h("option", c)));
+  const fill = () => cat.replaceChildren(...(k === "income" ? incomeCats() : expCats()).map(c => h("option", c)));
   fill();
   const seg = h("div.seg", [["expense", t("Expense")], ["income", t("Income")]].map(([v, l]) => h("button" + (v === k ? ".on" : ""), { type: "button", onclick: e => { k = v; fill(); seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); } }, l)));
   const date = h("input.input", { type: "date", value: todayStr(), max: todayStr(), min: firstOpenDate() });

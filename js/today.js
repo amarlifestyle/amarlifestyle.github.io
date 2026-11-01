@@ -1,8 +1,9 @@
 // Amar Lifestyle — Today page, tasks, timer, Pomodoro
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate } from "./ui.js";
-import { route, store, catColor, catNames, catDp, rerender, go } from "./app.js";
+import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation } from "./app.js";
 import { coachCard } from "./aicoach.js";
+import { quoteFor } from "./quotes.js";
 
 const unlockAt = tk => new Date(new Date(tk.start_at).getTime() + (new Date(tk.end_at) - new Date(tk.start_at)) * Number(store.cfg.unlock_fraction ?? 0.75));
 const lateEnd = tk => new Date(new Date(tk.end_at).getTime() + Number(store.cfg.late_window_min ?? 30) * 60000);
@@ -75,6 +76,14 @@ route("today", async page => {
   // hero
   const lv = stats.level;
   const toNext = lv.next ? `${lv.next_min - stats.month_dp} DP to ${lv.next}` : "Top level this month!";
+  // ask once what they do, so categories fit them
+  if (!store.profile?.occupation) {
+    const card = h("div.card", { style: { borderColor: "color-mix(in srgb, var(--brand) 45%, transparent)" } },
+      h("b", "আপনি কী করেন?"), h("p.small.muted", { style: { margin: "4px 0 8px" } }, "এটা বেছে নিলে আপনার কাজের ধরন অনুযায়ী ক্যাটাগরি দেখাবে (পরে Settings → Profile থেকে বদলানো যাবে)।"),
+      occupationPicker(null, async k => { try { await saveOccupation(k); toast("Saved ✓", "ok"); rerender(); } catch (e) { toast(e.message, "bad"); } }));
+    body.append(card);
+  }
+
   // compact summary strip (tasks get the space)
   body.append(h("div.hero.mini",
     ring(pct, `${Math.round(pct * 100)}%`, ""),
@@ -84,7 +93,19 @@ route("today", async page => {
     h("div.col-end",
       h("a.level-pill", { href: "#/me" }, icon("medal"), lv.name),
       h("span.small.muted", "🔥 ", stats.streak, "d"))));
+  // up next — a reason to come back
+  const upNext = realTasks.find(x => x.status === "pending" && new Date(x.start_at) > new Date());
+  if (upNext) {
+    const m = Math.round((new Date(upNext.start_at) - new Date()) / 60000);
+    body.append(h("div.small.muted", { style: { margin: "-2px 4px 8px" } }, "⏭ Next: ", h("b", { style: { color: catColor(upNext.category) } }, upNext.title), ` at ${fmtTime(upNext.start_at)} · in ${m >= 60 ? Math.floor(m / 60) + "h " : ""}${m % 60}m`));
+  }
   if (navigator.onLine) body.append(coachCard());
+  // quote of the day (tap for another)
+  let qShift = 0;
+  const qBox = h("div.quote", { role: "button", tabindex: "0", title: "Tap for another" });
+  const drawQ = () => { const [q, by] = quoteFor(store.profile?.occupation, today, qShift); qBox.replaceChildren(h("span", "“", q, "”"), h("span.by", " — ", by)); };
+  qBox.onclick = () => { qShift++; drawQ(); };
+  drawQ(); body.append(qBox);
 
   // today's events + countdowns
   const evToday = events.filter(e => e.kind !== "countdown" && (e.date === today || (e.yearly && e.date.slice(5) === today.slice(5))));
