@@ -24,12 +24,12 @@ async function boot() {
 }
 
 function render() {
-  const tabs = [["overview", "Overview"], ["users", "Users"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
+  const tabs = [["overview", "Overview"], ["requests", "Edit requests"], ["users", "Users"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
   const body = h("div");
   app.replaceChildren(
     h("header.topbar", h("div.brandmark", h("img", { src: "../assets/icon-64.png", width: 30, alt: "", style: { borderRadius: "8px" } }), h("span", "Amar ", h("b", "Lifestyle"), h("span.muted", " · Control"))), h("a.btn.small", { href: "../" }, "Open app")),
     h("div.tabs", tabs.map(([k, l]) => h("button" + (k === tab ? ".on" : ""), { onclick: () => { tab = k; render(); } }, l))), body);
-  ({ overview, users, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
+  ({ overview, requests, users, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
 }
 
 async function overview(b) {
@@ -38,6 +38,26 @@ async function overview(b) {
   b.append(h("div.grid3", tile("Users", o.users), tile("New (7 days)", o.new_7d), tile("Blocked", o.blocked)),
     h("div.grid3.mt", tile("Tasks today", o.tasks_today), tile("Done today", o.done_today), tile("Reports", o.reports)),
     h("p.hint.mt", "Money entries in total: " + o.entries));
+}
+
+async function requests(b) {
+  const list = await api.rpc("admin_requests");
+  if (!list.length) { b.append(h("div.card.small.muted", "No special edit requests yet. Users can ask for one when a money entry is locked.")); return; }
+  list.forEach(r => {
+    const note = h("input.input", { placeholder: "Note to the user (optional)" });
+    const doDecide = async ok => {
+      if (!(await confirmBox(ok ? "Approve this edit?" : "Reject this request?", ok ? `${tk(r.old_amount)} → ${tk(r.new_amount)}. It will show as “Special edit” in history and reports.` : "Nothing will change.", ok ? "Approve" : "Reject", !ok))) return;
+      await api.rpc("admin_decide_request", { p_id: r.id, p_approve: ok, p_note: note.value || null }); toast(ok ? "Approved ✓" : "Rejected", ok ? "ok" : ""); render();
+    };
+    const a = h("button.btn.small.primary", "Approve"), rj = h("button.btn.small.danger", "Reject");
+    a.onclick = busy(a, () => doDecide(true)); rj.onclick = busy(rj, () => doDecide(false));
+    b.append(h("div.card",
+      h("div.row.between", h("b", r.user), h("span.badge" + (r.status === "approved" ? ".ok" : r.status === "rejected" ? ".bad" : ".warn"), r.status)),
+      h("div.small.muted", `${r.phone} · ${r.kind} · ${r.category} · ${r.entry_date}${r.note ? " · " + r.note : ""}`),
+      h("p", { style: { margin: "8px 0" } }, h("b", `${tk(r.old_amount)} → ${tk(r.new_amount)}`)),
+      h("p.small", { style: { margin: "0 0 8px" } }, "Reason: ", r.reason),
+      r.status === "pending" ? [note, h("div.row.mt", { style: { gap: "8px" } }, a, rj)] : h("div.small.faint", `Decided ${new Date(r.decided_at).toLocaleString("en-GB")}${r.admin_note ? " · " + r.admin_note : ""}`)));
+  });
 }
 
 async function users(b) {
@@ -70,10 +90,10 @@ async function dataCheck(u) {
 async function adminEdit(f, u) {
   const amt = h("input.input", { type: "number", inputmode: "decimal", value: f.amount });
   const note = h("input.input", { value: f.note || "" });
-  const ok = await sheet("Admin edit", [h("p.hint", "Works even on locked entries. It will show as “Edited by Admin” in history and reports."), h("label.f", h("span", "Amount (৳)"), amt), h("label.f", h("span", "Note"), note)], {
+  const ok = await sheet("Admin edit", [h("p.hint", "Works even on locked entries. It will show as “Special edit (approved by Admin)” in history and reports."), h("label.f", h("span", "Amount (৳)"), amt), h("label.f", h("span", "Note"), note)], {
     actions: close => [h("button.btn", { onclick: () => close(null) }, "Cancel"), h("button.btn.primary", { onclick: () => close(true) }, "Save")] });
   if (!ok) return;
-  try { await api.rpc("admin_edit_finance", { p_entry: f.id, p_amount: Number(amt.value), p_note: note.value }); toast("Edited by Admin ✓", "ok"); document.querySelector(".backdrop")?.remove(); dataCheck(u); }
+  try { await api.rpc("admin_edit_finance", { p_entry: f.id, p_amount: Number(amt.value), p_note: note.value }); toast("Special edit saved ✓", "ok"); document.querySelector(".backdrop")?.remove(); dataCheck(u); }
   catch (e) { toast(e.message, "bad"); }
 }
 

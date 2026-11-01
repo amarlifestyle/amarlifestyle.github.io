@@ -91,19 +91,40 @@ async function entries(body, m, me) {
 }
 
 async function entryDetail(r) {
-  const hist = await api.select("finance_history", `select=*&entry_id=eq.${r.id}&order=edited_at`);
+  const [hist, reqs] = await Promise.all([
+    api.select("finance_history", `select=*&entry_id=eq.${r.id}&order=edited_at`),
+    api.select("edit_requests", `select=*&entry_id=eq.${r.id}&order=created_at.desc`).catch(() => []),
+  ]);
   const locked = isLocked(r.entry_date);
+  const pending = reqs.find(x => x.status === "pending");
   sheet(r.note || r.category, h("div",
     h("div.big" + (r.kind === "income" ? ".ok" : ""), (r.kind === "income" ? "+" : "−") + tk(r.amount)),
     h("p.muted", `${r.kind === "income" ? "Income" : "Expense"} · ${r.category} · ${fmtDate(r.entry_date, { day: "numeric", month: "long", year: "numeric" })}`),
-    h("p.small", locked ? "🔒 Locked — can't be edited any more." : `✏️ Can be edited until ${lockAt(r.entry_date).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}.`),
+    h("p.small", locked ? "🔒 Locked — only a special edit approved by the Admin can change it." : `✏️ Can be edited until ${lockAt(r.entry_date).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}.`),
     h("h3", { style: { fontSize: "15px", margin: "14px 0 6px" } }, "History"),
     h("div.small", h("div", `Created: ${tk(r.original_amount)} · ${new Date(r.created_at).toLocaleString("en-GB")}`),
-      hist.map((x, i) => h("div", { style: { padding: "4px 0" } }, `Edit ${i + 1}: ${tk(x.old_amount)} → ${tk(x.new_amount)} · ${new Date(x.edited_at).toLocaleString("en-GB")}${x.by_admin ? " · by Admin" : ""}`)),
-      !hist.length ? h("div.faint", "Never edited.") : null)), {
+      hist.map((x, i) => h("div", { style: { padding: "4px 0" } }, `${x.by_admin ? "Special edit" : "Edit " + (i + 1)}: ${tk(x.old_amount)} → ${tk(x.new_amount)} · ${new Date(x.edited_at).toLocaleString("en-GB")}${x.by_admin ? " · approved by Admin" : ""}`)),
+      !hist.length ? h("div.faint", "Never edited.") : null),
+    reqs.length ? [h("h3", { style: { fontSize: "15px", margin: "14px 0 6px" } }, "Special edit requests"),
+      h("div.small", reqs.map(q => h("div", { style: { padding: "4px 0" } },
+        h("span.badge" + (q.status === "approved" ? ".ok" : q.status === "rejected" ? ".bad" : ".warn"), q.status), ` ${tk(q.old_amount)} → ${tk(q.new_amount)} · “${q.reason}”`, q.admin_note ? ` · Admin: ${q.admin_note}` : "")))] : null), {
     actions: close => [h("button.btn", { onclick: () => close() }, "Close"),
-      !locked ? h("button.btn.primary", { onclick: () => { close(); editEntry(r); } }, icon("edit"), "Edit") : null].filter(Boolean),
+      !locked ? h("button.btn.primary", { onclick: () => { close(); editEntry(r); } }, icon("edit"), "Edit")
+        : !pending ? h("button.btn.primary", { onclick: () => { close(); requestEdit(r); } }, icon("edit"), "Request special edit") : null].filter(Boolean),
   });
+}
+
+async function requestEdit(r) {
+  const amt = h("input.input", { type: "number", inputmode: "decimal", min: "0", step: "0.01", value: r.amount });
+  const note = h("input.input", { value: r.note || "", maxlength: "120" });
+  const why = h("textarea.input", { placeholder: "What went wrong, and why does it need to change?", maxlength: "500" });
+  const ok = await sheet("Request special edit", [h("p.hint", "This entry is locked. Your request goes to the Admin. If approved, it's changed and marked “Special edit” in history and reports."),
+    h("label.f", h("span", "Correct amount (৳)"), amt), h("label.f", h("span", "Note"), note), h("label.f", h("span", "Reason"), why)], {
+    actions: close => [h("button.btn", { onclick: () => close(null) }, t("Cancel")), h("button.btn.primary", { onclick: () => close(true) }, "Send request")],
+  });
+  if (!ok) return;
+  try { await api.rpc("request_edit", { p_entry: r.id, p_amount: Number(amt.value), p_note: note.value, p_reason: why.value }); toast("Request sent to the Admin ✓", "ok"); }
+  catch (e) { toast(e.message, "bad"); }
 }
 
 async function editEntry(r) {
@@ -184,7 +205,8 @@ async function tuition(body, m) {
   const paidSet = Object.fromEntries(pays.map(p => [p.student_id, p]));
   const due = students.filter(s => !paidSet[s.id]).reduce((a, s) => a + +s.monthly_fee, 0);
   const got = pays.reduce((a, p) => a + +p.amount, 0);
-  body.append(h("div.grid2", h("div.stat", h("div.k", "Received this month"), h("div.v.ok", tk(got))), h("div.stat", h("div.k", "Still due"), h("div.v.warn", tk(due)))));
+  body.append(h("div.grid2", h("div.stat", h("div.k", "Fees for this month received"), h("div.v.ok", tk(got))), h("div.stat", h("div.k", "Still due"), h("div.v.warn", tk(due)))));
+  body.append(h("a.btn.block.mt", { href: `#/payments/${m.slice(0, 4)}` }, icon("report"), "All payments — sheet view"));
   body.append(h("div.section-title", h("h2", "Students"), h("button.btn.small", { onclick: () => addStudent() }, icon("plus"), "Add student")));
   if (!students.length) { body.append(h("div.card.empty", icon("student"), h("p", "No students yet."), h("p.small", "Add students to track fees and attendance."))); return; }
   students.forEach(s => {
@@ -362,4 +384,63 @@ route("student", async (page, id) => {
       h("div.small.muted", `${days[k] || 0} day${days[k] === 1 ? "" : "s"} taught`, p ? ` · paid on ${fmtDate(p.paid_on)}` : "")),
       p ? h("b.ok", tk(p.amount)) : h("span.badge" + (k < thisM ? ".bad" : ".warn"), k < thisM ? "Not paid" : "Due"));
   })));
+}, { tab: "money" });
+
+// ---------- all tuition payments as a sheet: students × months
+route("payments", async (page, yr) => {
+  const today = todayStr(), cur = monthStart(today);
+  const year = Number(yr) || Number(today.slice(0, 4));
+  page.append(backbar("All payments", "#/money/tuition", h("div.row",
+    h("a.icon-btn", { href: `#/payments/${year - 1}`, "aria-label": "Previous year" }, icon("back")), h("b", year),
+    h("a.icon-btn", { href: `#/payments/${year + 1}`, "aria-label": "Next year" }, icon("chev")))));
+  const [students, pays, entries] = await Promise.all([
+    api.select("students", "select=*&order=name"),
+    api.select("tuition_payments", `select=*&month=gte.${year}-01-01&month=lte.${year}-12-01`),
+    api.select("finance_entries", `select=id,amount,original_amount,edit_count,admin_edited,entry_date,created_at,note,kind,category&source=eq.tuition&entry_date=gte.${year - 1}-12-01&entry_date=lte.${year + 1}-01-31`),
+  ]);
+  const ent = Object.fromEntries(entries.map(e => [e.id, e]));
+  const months = [...Array(12)].map((_, i) => `${year}-${pad(i + 1)}-01`);
+  const startOf = st => [monthStart((st.created_at || today).slice(0, 10)), shiftMonth(cur, -3)].sort()[0];
+  const list = students.filter(st => st.active || pays.some(p => p.student_id === st.id));
+  const amountOf = p => +(ent[p.finance_entry_id]?.amount ?? p.amount);
+
+  // money that came in (by the day it was entered)
+  const thisMonthIncome = entries.filter(e => e.entry_date.slice(0, 7) === today.slice(0, 7)).reduce((a, e) => a + +e.amount, 0);
+  const yearIncome = entries.filter(e => e.entry_date.slice(0, 4) === String(year)).reduce((a, e) => a + +e.amount, 0);
+  let dueTotal = 0, dueCount = 0;
+  list.forEach(st => months.forEach(mo => { if (st.active && mo < cur && mo >= startOf(st) && !pays.some(p => p.student_id === st.id && p.month === mo)) { dueTotal += +st.monthly_fee; dueCount++; } }));
+  page.append(h("div.grid3",
+    h("div.stat", h("div.k", "Tuition income · " + new Date(cur + "T00:00:00").toLocaleDateString("en-GB", { month: "long" })), h("div.v.ok", tk(thisMonthIncome))),
+    h("div.stat", h("div.k", `Total in ${year}`), h("div.v", tk(yearIncome))),
+    h("div.stat", h("div.k", `Due (${dueCount} month${dueCount === 1 ? "" : "s"})`), h("div.v.bad", tk(dueTotal)))));
+  page.append(h("p.small.muted", { style: { margin: "8px 2px" } }, "Income counts in the month you enter it. Each box shows which month's fee is paid. ",
+    h("span", { style: { color: "var(--green)" } }, "■ paid"), "  ", h("span", { style: { color: "var(--red)" } }, "■ due"), "  ", h("span.warn", "■ this month"), " · tap a box."));
+
+  if (!list.length) { page.append(h("div.card.empty", icon("student"), h("p", "No students yet."))); return; }
+  const cell = (st, mo) => {
+    const p = pays.find(x => x.student_id === st.id && x.month === mo);
+    const base = { padding: "6px 4px", borderRadius: "8px", textAlign: "center", fontSize: "12px", fontWeight: 600, minWidth: "64px", cursor: "pointer", border: "1px solid" };
+    if (p) {
+      const e = ent[p.finance_entry_id];
+      return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, color: "var(--green)", borderColor: "color-mix(in srgb, var(--green) 55%, transparent)", background: "color-mix(in srgb, var(--green) 12%, transparent)" },
+        title: `Paid on ${fmtDate(p.paid_on)}`, onclick: () => e ? entryDetail(e) : null }, tk(amountOf(p)).replace("৳", "৳ "), e?.edit_count ? " ✎" : ""));
+    }
+    if (!st.active || mo < startOf(st) || mo > cur) return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, cursor: "default", color: "var(--faint)", borderColor: "transparent" } }, "·"));
+    const isDue = mo < cur;
+    return h("td", { style: { padding: "0 3px" } }, h("div", { style: { ...base, color: isDue ? "var(--red)" : "var(--amber)", borderColor: `color-mix(in srgb, ${isDue ? "var(--red)" : "var(--amber)"} 60%, transparent)`, background: `color-mix(in srgb, ${isDue ? "var(--red)" : "var(--amber)"} 13%, transparent)` },
+      onclick: () => receivePayment(st, mo) }, isDue ? "Due" : "Pending"));
+  };
+  const lbl = mo => new Date(mo + "T00:00:00").toLocaleDateString("en-GB", { month: "short" });
+  const colTotal = mo => pays.filter(p => p.month === mo).reduce((a, p) => a + amountOf(p), 0);
+  const th = { position: "sticky", left: 0, background: "var(--card)", zIndex: 1, textAlign: "left", padding: "6px 10px 6px 6px", whiteSpace: "nowrap", boxShadow: "6px 0 8px -6px rgba(0,0,0,.5)" };
+  const table = h("table", { style: { borderCollapse: "separate", borderSpacing: "0 4px", fontSize: "13px" } },
+    h("thead", h("tr", h("th", { style: th }, "Student"), months.map(mo => h("th", { style: { color: mo === cur ? "var(--brand)" : "var(--muted)", fontWeight: 600, fontSize: "12px" } }, lbl(mo))))),
+    h("tbody",
+      list.map(st => h("tr", h("th", { style: th }, h("a", { href: `#/student/${st.id}`, style: { color: "var(--text)" } }, h("i", { style: { display: "inline-block", width: "9px", height: "9px", borderRadius: "3px", background: st.color, marginRight: "6px" } }), st.name),
+        h("div.small.faint", { style: { fontWeight: 400 } }, tk(st.monthly_fee) + "/mo", st.active ? "" : " · left")), months.map(mo => cell(st, mo)))),
+      h("tr", h("th", { style: { ...th, paddingTop: "10px" } }, "Received"), months.map(mo => h("td", { style: { textAlign: "center", fontSize: "12px", fontWeight: 700, paddingTop: "10px" } }, colTotal(mo) ? tk(colTotal(mo)) : "—")))));
+  const wrap = h("div.card", { style: { padding: "4px 8px 4px 0", overflowX: "auto" } }, table);
+  page.append(wrap);
+  setTimeout(() => { const i = Number(today.slice(5, 7)) - 1; if (String(year) === today.slice(0, 4)) wrap.scrollLeft = Math.max(0, i * 70 - 160); }, 50);
+  page.append(h("p.hint", "“Received” row = fees for that month, whenever they were paid. Edit a paid box within the edit window (until the 5th of the next month); after that it's locked and the history stays."));
 }, { tab: "money" });

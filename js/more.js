@@ -343,7 +343,7 @@ export function reportView(rep, verifyMode = false) {
       h("tbody", s.entries.length ? s.entries.map(e => h("tr",
         h("td", fmtDate(e.date, { day: "numeric", month: "short" })), h("td", e.kind === "income" ? "Income" : "Expense"),
         h("td", e.category, e.note ? ` — ${e.note}` : "",
-          e.edits > 0 ? h("div.edited", `Edited${e.admin_edited ? " by Admin" : ""}: originally ${tk(e.original)}, ${e.edits} edit${e.edits > 1 ? "s" : ""}${e.last_edit ? ", last on " + new Date(e.last_edit).toLocaleDateString("en-GB") : ""}`) : null),
+          e.edits > 0 ? h("div.edited", `${e.admin_edited ? "Special edit (approved by Admin)" : "Edited"}: originally ${tk(e.original)}, ${e.edits} edit${e.edits > 1 ? "s" : ""}${e.last_edit ? ", last on " + new Date(e.last_edit).toLocaleDateString("en-GB") : ""}`) : null),
         h("td", { style: { textAlign: "right", whiteSpace: "nowrap" } }, (e.kind === "income" ? "+" : "−") + tk(e.amount), e.edits > 0 ? " *" : ""))) : h("tr", h("td", { colspan: "4" }, "No entries in this period.")))),
     edited.length ? h("div", { style: { fontSize: "11px", color: "#555" } }, "* Edited after it was first entered. Full edit history is kept in Amar Lifestyle and cannot be changed.") : null,
     Object.keys(s.hours || {}).length ? [h("div", { style: { fontWeight: 700, marginTop: "14px" } }, "Time spent (completed tasks)"),
