@@ -904,3 +904,6 @@ body { background: var(--bg); }
 .note-add .input { flex: 1; min-height: 40px; }
 .note.swiping { background: linear-gradient(270deg, color-mix(in srgb, var(--red) 22%, var(--card)), var(--card) 60%); }
 .revise .li { background: transparent; }
+.top-notes { position: relative; }
+.top-notes .nav-badge, .nav-badge.soft { background: var(--brand); color: #04211d; top: -4px; left: auto; right: -4px; }
+.btn.grow { flex: 1; justify-content: center; }

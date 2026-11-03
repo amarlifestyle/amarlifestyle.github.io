@@ -2,6 +2,11 @@
 import { LS } from "./api.js";
 
 // ---------- tiny DOM builder: h("div.card", {onclick}, child, ...)
+// DOM helpers that silently skip null / false (so "null" never shows up as text)
+for (const P of [Element.prototype, DocumentFragment.prototype]) for (const m of ["append", "prepend", "replaceChildren", "after", "before", "replaceWith"]) {
+  const o = P[m]; if (!o || o.__clean) continue;
+  const f = function (...a) { return o.apply(this, a.flat(Infinity).filter(x => x != null && x !== false)); }; f.__clean = true; P[m] = f;
+}
 export function h(sel, props, ...kids) {
   if (props == null || typeof props !== "object" || props instanceof Node || Array.isArray(props)) { if (props != null && props !== false) kids.unshift(props); props = {}; }
   const [tag, ...cls] = sel.split(".");
@@ -118,8 +123,15 @@ const EMO = {
   "💪": "fire", "👋": "", "😟": "chat", "🐞": "warn", "📁": "box", "🗂️": "box", "📚️": "book", "🎨": "edit", "🔄": "repeat", "1️⃣": "cal", "🧩": "info", "👎": "warn", "💤": "sleep", "😴": "sleep", "💧": "water",
 };
 const EMO_RE = new RegExp([...Object.keys(EMO)].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + "|\\p{Extended_Pictographic}\\uFE0F?", "gu");
+const BADTXT = /(^|[\s·(:])(null|undefined|NaN)(?=$|[\s·),.])/g;
+function cleanText(root) { // last safety net: never show "null" / "undefined" from empty data
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => { const p = n.parentElement; if (!p || p.closest("input,textarea,script,style")) return NodeFilter.FILTER_REJECT; BADTXT.lastIndex = 0; return BADTXT.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; } });
+  const ns = []; while (w.nextNode()) ns.push(w.currentNode);
+  for (const n of ns) { const v = n.nodeValue.replace(BADTXT, "$1—"); n.nodeValue = v.trim() === "—" ? "" : v; }
+}
 export function iconize(root) {
   if (!root || root.nodeType !== 1) return;
+  cleanText(root);
   const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => {
     const p = n.parentElement; if (!p || p.closest("input,textarea,select,option,script,style,.no-ico,.doc-print-keep")) return NodeFilter.FILTER_REJECT;
     for (const m of n.nodeValue.matchAll(EMO_RE)) if (!KEEP.has(m[0].replace(/\uFE0F/g, ""))) return NodeFilter.FILTER_ACCEPT; // arrows we keep never loop

@@ -161,7 +161,9 @@ function navBar(active) {
 function topActions(active) {
   const bell = h("a.icon-btn.top-bell" + (active === "alerts" ? ".on" : ""), { href: "#/notifications", "aria-label": "Alerts" }, icon("bell"), unread > 0 ? h("i.nav-badge", unread > 9 ? "9+" : String(unread)) : null);
   const more = h("a.icon-btn" + (active === "more" ? ".on" : ""), { href: "#/more", "aria-label": "More" }, icon("more"));
-  return h("div.top-actions", bell, more);
+  const notes = h("button.icon-btn.top-notes", { type: "button", "aria-label": "Notes", onclick: () => import("./notes.js").then(m => m.openNotes()) }, icon("edit"));
+  setTimeout(() => import("./notes.js").then(m => m.refreshNotesBadge()), 0);
+  return h("div.top-actions", notes, bell, more);
 }
 // unread count on the 🔔 Alerts tab
 let unread = 0, unreadAt = 0;

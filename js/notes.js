@@ -32,6 +32,32 @@ function adder(day, after) {
   return wrap;
 }
 
+// the 📝 button at the top opens this: today's notes, add by typing / voice / AI, and the history
+export async function openNotes() {
+  const { sheet } = await import("./ui.js");
+  const day = todayStr();
+  const list = h("div.note-list");
+  const draw = async () => {
+    let rows = [];
+    try { rows = await api.select("notes", `select=*&day=eq.${day}&order=sort,created_at`); } catch { /* offline */ }
+    list.replaceChildren(rows.length ? rows.map(n => row(n, draw)) : h("p.small.muted", { style: { margin: "6px 2px" } }, "Nothing noted today."));
+    refreshNotesBadge();
+  };
+  await draw();
+  sheet("📝 Notes", [list, adder(day, draw),
+    h("div.row", { style: { gap: "8px", marginTop: "12px" } },
+      h("a.btn.small.grow", { href: "#/notes", onclick: () => document.querySelector(".backdrop")?.click() }, icon("history"), "History"),
+      h("button.btn.small.grow", { type: "button", onclick: () => { document.querySelector(".backdrop")?.click(); setTimeout(() => import("./assistant.js").then(m => m.askSheet({ text: "নোট করে রাখো: " })), 260); } }, "✨ Note with AI"))],
+    { actions: close => [h("button.btn.block", { onclick: () => close() }, "Done")] });
+}
+// open notes count on the 📝 button
+export async function refreshNotesBadge() {
+  try {
+    const n = (await api.select("notes", `select=id&day=eq.${todayStr()}&done=eq.false&limit=20`)).length;
+    document.querySelectorAll(".top-notes").forEach(b => { b.querySelector(".nav-badge")?.remove(); if (n) b.append(h("i.nav-badge.soft", String(n))); });
+  } catch { /* offline */ }
+}
+
 // Today: today's notes, always open for a quick add
 export async function notesCard() {
   const day = todayStr();

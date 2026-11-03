@@ -2,7 +2,7 @@
 // The AI only proposes. The user sees exactly what will change, and nothing happens until they tap "Yes".
 import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, todayStr, addDays, dhakaIso, fmtDate, fmtHM, durLabel, PALETTE, tk as money, askPin, pickPhoto } from "./ui.js";
-import { store, catNames, catDp, rerender, loadBasics, role } from "./app.js";
+import { store, catNames, catDp, rerender, loadBasics, role, myRoles, showTuition } from "./app.js";
 import { dictation } from "./voice.js";
 import { waqts, isMuslim } from "./prayer.js";
 import { pickColor } from "./ui.js";
@@ -318,6 +318,10 @@ export function askSheet(opts = {}) {
   const CAN = [["✅", "Tasks", "আজ Leon-এর টিউশন নেই, টাস্কটা বাদ দাও"], ["🗓️", "Routine", "প্রতি শনি ও সোমবার বিকাল ৫টা থেকে ৬টা Physics পড়াব"], ["📷", "Photo", "এই ছবি দেখে আমার সাপ্তাহিক রুটিন বানাও"],
     ["💳", "Money", "আজ রিকশা ভাড়ায় ২০০ টাকা খরচ হয়েছে"], ["🎓", "Fees", "Leon নভেম্বর মাসের টিউশন ফি দিয়েছে"], ["📝", "Exams", "রবিবার সকাল ১০টায় Physics CT আছে"],
     ["🚭", "Habits", "আজ ৩টা সিগারেট খেয়েছি, প্রতিটা ১৫ টাকা"], ["💬", "Ask", "এই সপ্তাহে কোন কাজে সবচেয়ে পিছিয়ে আছি?"]];
+  // fit the examples to the person: no tuition → a bill; not a student → their own kind of deadline
+  const roles = myRoles();
+  if (!showTuition()) CAN[4] = ["🧾", "Bills", "প্রতি মাসের ১০ তারিখে ইন্টারনেট বিল ৮০০ টাকা দিতে হবে"];
+  if (roles.length && !roles.some(r => ["student", "school", "teacher"].includes(r))) CAN[5] = ["📌", "Deadline", roles.includes("business") ? "শুক্রবার বিকাল ৪টায় Rahim Traders-কে ৫০ পিস ডেলিভারি" : roles.includes("homemaker") ? "রবিবার সকাল ১০টায় ডাক্তারের অ্যাপয়েন্টমেন্ট" : "বৃহস্পতিবার সকাল ১১টায় মাসিক রিপোর্ট জমা"];
   const grid = h("div.ai-can", CAN.map(([ic, t, ex]) => h("button", { type: "button", onclick: () => { q.value = ex; q.focus(); } }, h("span", ic), h("b", t))));
   const guide = h("div", h("div.row.between", { style: { margin: "0 0 6px" } }, h("b.small", "What AI can do"), h("span.small.faint", "tap for an example")), grid,
     h("p.small.muted", { style: { margin: "6px 0 10px" } }, "Type, speak (Bangla or English) or add a photo. Nothing changes until you confirm."));

@@ -120,8 +120,6 @@ route("today", async page => {
   } catch { /* offline: skip */ }
   // meal reminder (from your meal plan)
   try { const meal = await mealNow(true); if (meal) stack.append(srow("🍽️", meal.title, meal.when, null, "#/schedule/meal")); } catch { /* offline */ }
-  // notes for today (quick add, reminded until done)
-  try { const { notesCard } = await import("./notes.js"); body.append(await notesCard()); } catch { /* offline */ }
   // one line that changes every few seconds: today's AI advice + a quote (tap → AI)
   body.append(tipTicker(today));
 

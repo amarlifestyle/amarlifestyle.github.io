@@ -1,6 +1,6 @@
 // Amar Lifestyle — Admin panel (hidden link). Every action is checked again on the server.
 import * as api from "../js/api.js";
-import { h, icon, toast, sheet, confirmBox, busy, askPin, tk, fmtDate, barChart } from "../js/ui.js";
+import { h, icon, toast, sheet, confirmBox, busy, askPin, tk, fmtDate, barChart, autoIconize } from "../js/ui.js";
 
 const app = document.getElementById("app");
 
@@ -349,4 +349,5 @@ async function logs(b) {
     : h("div.card.small.muted", "No admin actions yet."));
 }
 
+autoIconize();
 boot();
