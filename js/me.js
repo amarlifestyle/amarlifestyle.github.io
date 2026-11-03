@@ -55,17 +55,17 @@ route("me", async page => {
   page.append(h("header.topbar", h("div", h("h1", p.name), h("div.sub", [myRoles(p).map(k => ROLES[k].icon + " " + ROLES[k].label).join(" + ") || null, RELIGIONS[p.religion] && p.religion !== "other" ? RELIGIONS[p.religion].split(" · ")[0] : null].filter(Boolean).map(x => x + " · ").join(""), "Member since " + fmtDate(p.created_at.slice(0, 10), { month: "long", year: "numeric" }), " · ", h("a", { href: "#/settings/profile" }, "Edit profile"))),
     h("a.icon-btn", { href: "#/settings", "aria-label": t("Settings") }, icon("gear"))));
   page.append(h("div.hero", { style: { flexDirection: "column", alignItems: "stretch" } },
-    h("div.row.between", h("span.level-pill", icon("medal"), `${lv.name} · এই মাস`), h("span.small.muted", new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" }))),
+    h("div.row.between", h("span.level-pill", icon("medal"), `${lv.name} · this month`), h("span.small.muted", new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" }))),
     h("div", h("span.big", s.month_dp), h("span.muted", " DP points")),
     h("div.bar", h("i", { style: { width: Math.max(0, Math.min(1, prog)) * 100 + "%" } })),
-    h("div.small.muted", lv.next ? `${lv.next} পর্যন্ত আর ${lv.next_min - s.month_dp} DP · প্রতি মাসের ১ তারিখে নতুন করে শুরু` : "Diamond — সর্বোচ্চ লেভেল! 💎"),
+    h("div.small.muted", lv.next ? `${lv.next_min - s.month_dp} DP to ${lv.next} · resets on the 1st` : "Diamond — top level! 💎"),
     levelLadder(s.month_dp)));
   page.append(h("div.grid3",
     h("div.stat", h("div.k", "🔥 " + t("Streak")), h("div.v", s.streak + "d")),
-    h("div.stat", h("div.k", "আজ"), h("div.v", (s.today.dp >= 0 ? "+" : "") + s.today.dp)),
+    h("div.stat", h("div.k", "Today"), h("div.v", (s.today.dp >= 0 ? "+" : "") + s.today.dp)),
     h("div.stat", h("div.k", "Tasks today"), h("div.v", `${s.today.done}/${s.today.total}`))));
   // this year: which level each month reached
-  if (s.months?.length) page.append(h("div.card", h("h3", "এই বছর — প্রতি মাসের লেভেল"), h("div.year-lv", s.months.map(m => {
+  if (s.months?.length) page.append(h("div.card", h("h3", "This year — level by month"), h("div.year-lv", s.months.map(m => {
     const L = levelOf(m.dp);
     return h("div", h("span.small.muted", new Date(m.month + "-01").toLocaleDateString("en-GB", { month: "short" })), h("b", { "data-l": L }, L), h("span.small", m.dp + " DP"));
   }))));
@@ -83,7 +83,7 @@ route("life", async page => {
   page.append(backbar("Daily life", "#/me"));
   // habits and diary are private: PIN first (if a PIN is set)
   const { pinGate, lockedCard } = await import("./pin.js");
-  if (!(await pinGate("life", "অভ্যাস আর ডায়েরি দেখতে PIN দিন"))) { page.append(lockedCard(() => rerender())); return; }
+  if (!(await pinGate("life", "Enter PIN"))) { page.append(lockedCard(() => rerender())); return; }
   const [logs, habits, hlogs] = await Promise.all([
     api.select("life_logs", `select=*&day=gte.${addDays(today, -13)}&order=day.desc`),
     api.select("bad_habits", "select=*&archived=eq.false&order=created_at"),

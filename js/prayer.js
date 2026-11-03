@@ -5,7 +5,7 @@ import { h, toast, sheet, busy, todayStr, addDays, fmtHM, barChart } from "./ui.
 import { route, store, rerender, loadBasics } from "./app.js";
 
 export const RELIGIONS = {
-  muslim: "☪️ Muslim · মুসলিম", hindu: "🕉️ Hindu · হিন্দু", buddhist: "☸️ Buddhist · বৌদ্ধ", christian: "✝️ Christian · খ্রিস্টান", other: "Other / বলতে চাই না",
+  muslim: "☪️ Muslim", hindu: "🕉️ Hindu", buddhist: "☸️ Buddhist", christian: "✝️ Christian", other: "Other / prefer not to say",
 };
 export const isMuslim = () => store.profile?.religion === "muslim";
 export function religionPicker(current, onPick) {
@@ -119,8 +119,9 @@ export async function prayerNow() {
   const st = (await prayerLogs(day, day)).find(r => r.prayer === w.key)?.status;
   // one small row; once answered it shrinks to a single line
   const ic = h("span.s-ic", "🕌");
-  if (st === "prayed") return h("a.srow", { href: "#/prayer" }, ic, h("div.s-main", h("div.ell", w.bn, " ", h("span", { style: { color: "var(--green)" } }, "✓ Prayed"))), h("span.s-tag", left(w.end - now)));
-  if (st === "not_prayed") return h("a.srow", { href: "#/prayer" }, ic, h("div.s-main", h("div.ell", w.bn, " ", h("span", { style: { color: "var(--red)" } }, "✕ Not prayed")), h("div.s-sub.ell", { style: { color: "var(--amber)" } }, `সময় আছে আর ${left(w.end - now)} — এখনো পড়ে নিতে পারেন`)));
+  // answered: just a small chip at the top (still in sight, takes no room)
+  if (st === "prayed") return h("a.pchip.ok", { href: "#/prayer", title: "Prayed" }, "🕌 ", w.bn, " ✓");
+  if (st === "not_prayed") return h("a.pchip.bad", { href: "#/prayer", title: `${left(w.end - now)} left` }, "🕌 ", w.bn, " ✕ · ", left(w.end - now));
   return h("div.srow.prayer", ic, h("a.s-main", { href: "#/prayer", style: { color: "inherit" } }, h("div.ell", h("b", w.bn), " time now"), h("div.s-sub", `${left(w.end - now)} left`)), answerBtns(day, w, st, rerender, true));
 }
 // one line for the night report

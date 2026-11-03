@@ -19,7 +19,7 @@ export function timePicker({ start = nowHM(), minutes = 60 } = {}) {
   const drawChips = () => chips.replaceChildren(...DURS.map(m => h("button.chip" + (m === dur ? ".on" : ""), { type: "button", onclick: () => { dur = m; custom.value = m; e.value = toHM(toMin(s.value) + m); drawChips(); show(); } }, durLabel(m))));
   const show = () => {
     const m = len();
-    info.textContent = m >= 5 ? `${fmt(s.value)} → ${fmt(toHM(toMin(s.value) + m))} · ${durLabel(m)}` : "শেষের সময় শুরুর পরে দিন";
+    info.textContent = m >= 5 ? `${fmt(s.value)} → ${fmt(toHM(toMin(s.value) + m))} · ${durLabel(m)}` : "End must be after start";
     info.classList.toggle("bad", !(m >= 5 && m <= 720));
   };
   const fmt = t => { const [H, M] = t.split(":").map(Number); return `${H % 12 || 12}:${pad(M)} ${H >= 12 ? "PM" : "AM"}`; };
@@ -27,13 +27,13 @@ export function timePicker({ start = nowHM(), minutes = 60 } = {}) {
   s.oninput = () => { if (mode === "range") e.value = toHM(toMin(s.value) + dur); show(); };
   e.oninput = () => { dur = len(); drawChips(); show(); };
   custom.oninput = () => { dur = Number(custom.value) || 0; drawChips(); show(); };
-  const rangeBox = h("div.tp-grid", h("label.f.mb0", h("span", "শুরু"), s), h("span.tp-arrow", "→"), h("label.f.mb0", h("span", "শেষ"), e));
-  const durBox = h("div", h("label.f.mb0", h("span", "শুরু"), s.cloneNode()), chips, h("label.f.mb0", { style: { marginTop: "8px" } }, h("span", "অথবা মিনিট লিখুন"), custom));
+  const rangeBox = h("div.tp-grid", h("label.f.mb0", h("span", "Start"), s), h("span.tp-arrow", "→"), h("label.f.mb0", h("span", "End"), e));
+  const durBox = h("div", h("label.f.mb0", h("span", "Start"), s.cloneNode()), chips, h("label.f.mb0", { style: { marginTop: "8px" } }, h("span", "Or minutes"), custom));
   // one start field is shared: keep the copy in sync
   const s2 = durBox.querySelector("input[type=time]"); s2.value = s.value;
   s2.oninput = () => { s.value = s2.value; show(); };
   const body = h("div");
-  const seg = h("div.seg.tp-seg", [["range", "⏰ কয়টা থেকে কয়টা"], ["dur", "⏳ কতক্ষণ"]].map(([k, l]) => h("button" + (k === mode ? ".on" : ""), { type: "button", "data-k": k, onclick: () => setMode(k) }, l)));
+  const seg = h("div.seg.tp-seg", [["range", "From – to"], ["dur", "Duration"]].map(([k, l]) => h("button" + (k === mode ? ".on" : ""), { type: "button", "data-k": k, onclick: () => setMode(k) }, l)));
   const setMode = k => {
     if (k === "dur") { custom.value = len() || dur; dur = Number(custom.value); s2.value = s.value; drawChips(); }
     else { e.value = toHM(toMin(s.value) + (Number(custom.value) || dur)); }

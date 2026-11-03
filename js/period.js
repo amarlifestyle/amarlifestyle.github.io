@@ -65,30 +65,30 @@ async function render(page, { from, to, title, sub, aiKey, aiAsk, back = "#/repo
     h("button.btn.small.primary", { onclick: () => window.print() }, icon("download"), "Save PDF")));
   // money and habits are inside: PIN first (if one is set)
   const { pinGate, lockedCard } = await import("./pin.js");
-  if (!(await pinGate("summary", "রিপোর্ট দেখতে PIN দিন"))) { page.append(lockedCard(() => import("./app.js").then(m => m.rerender()))); return; }
+  if (!(await pinGate("summary", "Enter PIN"))) { page.append(lockedCard(() => import("./app.js").then(m => m.rerender()))); return; }
   if (nav) page.append(nav);
-  page.append(h("p.hint.noprint", "যে অংশ PDF-এ চান না, তার টিক তুলে দিন। তারপর Save PDF → “Save as PDF”।"));
+  page.append(h("p.hint.noprint", "Untick parts you don't want, then Save PDF."));
   const D = await load(from, to);
   const doc = h("div.doc");
   page.append(doc);
   const p = store.profile;
   doc.append(h("div.doc-head",
     h("div", h("img", { src: "assets/logo-light.png", alt: "Amar Lifestyle", style: { width: "160px" } }), h("div.doc-title", title), h("div.doc-sub", `${p?.name || ""} · ${fmtDate(from, { day: "numeric", month: "short", year: "numeric" })} – ${fmtDate(to, { day: "numeric", month: "short", year: "numeric" })}`)),
-    h("div.doc-big", h("b", pctTxt(D.pct)), h("span", "কাজ শেষ"))));
+    h("div.doc-big", h("b", pctTxt(D.pct)), h("span", "done"))));
   const part = (key, name, kids) => {
     const tick = h("input", { type: "checkbox", checked: true, onchange: e => box.classList.toggle("skip-print", !e.target.checked) });
-    const box = h("section.doc-sec", h("div.doc-sec-h", h("h3", name), h("label.noprint.small", tick, " PDF-এ রাখুন")), kids);
+    const box = h("section.doc-sec", h("div.doc-sec-h", h("h3", name), h("label.noprint.small", tick, " PDF")), kids);
     doc.append(box); return box;
   };
   const kv = (k, v, cls = "") => h("div.doc-kv" + cls, h("span", k), h("b", v));
-  part("sum", "সারাংশ", h("div.doc-grid",
-    kv("টাস্ক", `${D.done.length}/${D.real.length}`), kv("কাজের সময়", durLabel(Math.round(D.workMin))), kv("DP", (D.dp >= 0 ? "+" : "") + D.dp),
-    kv("সক্রিয় দিন", `${D.activeDays}/${D.nDays}`), kv("আয়", money(D.inc), ".ok"), kv("খরচ", money(D.exp), ".bad"),
-    D.prayed !== null ? kv("নামাজ", `${D.prayed}/${D.nDays * 5}`) : null, D.sleepAvg ? kv("গড় ঘুম", D.sleepAvg.toFixed(1) + " ঘণ্টা") : null,
-    D.nDays >= 28 ? kv("লেভেল", levelOf(D.dp)) : null));
+  part("sum", "Summary", h("div.doc-grid",
+    kv("Tasks", `${D.done.length}/${D.real.length}`), kv("Work time", durLabel(Math.round(D.workMin))), kv("DP", (D.dp >= 0 ? "+" : "") + D.dp),
+    kv("Active days", `${D.activeDays}/${D.nDays}`), kv("Income", money(D.inc), ".ok"), kv("Spent", money(D.exp), ".bad"),
+    D.prayed !== null ? kv("Prayers", `${D.prayed}/${D.nDays * 5}`) : null, D.sleepAvg ? kv("Avg sleep", D.sleepAvg.toFixed(1) + " h") : null,
+    D.nDays >= 28 ? kv("Level", levelOf(D.dp)) : null));
   // AI review
-  const aiBox = h("div.doc-ai", h("p.small.muted", "✨ AI রিভিউ তৈরি হচ্ছে…"));
-  part("ai", "✨ AI রিভিউ", aiBox);
+  const aiBox = h("div.doc-ai", h("p.small.muted", "✨ Writing AI review…"));
+  part("ai", "✨ AI review", aiBox);
   const F = facts(D);
   const runAi = async force => {
     const c = api.LS.get(aiKey);
@@ -96,37 +96,37 @@ async function render(page, { from, to, title, sub, aiKey, aiAsk, back = "#/repo
     try {
       const r = await api.ai("ask", { question: `${aiAsk} (কোনো action দিও না, actions: []). সত্যি আর ন্যায্য থাকো — ভালো হলে প্রশংসা, খারাপ হলে পরিষ্কার বলো। DATA: ${F}`, ctx: {}, history: [], today: todayStr() });
       const text = (r.answer || "").trim() || "—"; api.LS.set(aiKey, { facts: F, text }); drawAi(text);
-    } catch (e) { aiBox.replaceChildren(h("p.small.muted", e.offline ? "AI-র জন্য ইন্টারনেট লাগবে।" : e.message)); }
+    } catch (e) { aiBox.replaceChildren(h("p.small.muted", e.offline ? "AI needs internet." : e.message)); }
   };
-  const drawAi = txt => aiBox.replaceChildren(h("div", { style: { whiteSpace: "pre-wrap", lineHeight: 1.7 } }, txt), (() => { const b = h("button.linkbtn.small.noprint", "↻ আবার লিখুন"); b.onclick = busy(b, () => runAi(true)); return b; })());
-  if (D.real.length || D.fin.length) runAi(false); else aiBox.replaceChildren(h("p.small.muted", "এই সময়ে কোনো টাস্ক বা টাকার হিসাব নেই।"));
+  const drawAi = txt => aiBox.replaceChildren(h("div", { style: { whiteSpace: "pre-wrap", lineHeight: 1.7 } }, txt), (() => { const b = h("button.linkbtn.small.noprint", "↻ Rewrite"); b.onclick = busy(b, () => runAi(true)); return b; })());
+  if (D.real.length || D.fin.length) runAi(false); else aiBox.replaceChildren(h("p.small.muted", "No tasks or money in this period."));
   // day by day
   const dl = Object.entries(D.days);
-  if (dl.length <= 62) part("days", "দিন অনুযায়ী", barChart(dl.map(([d, x]) => ({ l: dl.length > 10 ? d.slice(8) : fmtDate(d, { weekday: "short" }), v: x.total ? Math.round(100 * x.done / x.total) : 0 })), { fmt: v => v + "%" }));
+  if (dl.length <= 62) part("days", "By day", barChart(dl.map(([d, x]) => ({ l: dl.length > 10 ? d.slice(8) : fmtDate(d, { weekday: "short" }), v: x.total ? Math.round(100 * x.done / x.total) : 0 })), { fmt: v => v + "%" }));
   else { // long history: month by month
     const byM = {}; dl.forEach(([d, x]) => { const m = d.slice(0, 7); byM[m] = byM[m] || { total: 0, done: 0, dp: 0 }; byM[m].total += x.total; byM[m].done += x.done; byM[m].dp += x.dp; });
-    part("months", "মাস অনুযায়ী", h("table.doc-t", h("thead", h("tr", h("th", "মাস"), h("th", "কাজ শেষ"), h("th", "DP"), h("th", "লেভেল"))),
+    part("months", "By month", h("table.doc-t", h("thead", h("tr", h("th", "Month"), h("th", "done"), h("th", "DP"), h("th", "Level"))),
       h("tbody", Object.entries(byM).map(([m, x]) => h("tr", h("td", new Date(m + "-01").toLocaleDateString("en-GB", { month: "short", year: "numeric" })), h("td", x.total ? pctTxt(x.done / x.total) : "—"), h("td", x.dp), h("td", levelOf(x.dp)))))));
   }
-  if (Object.keys(D.byCat).length) part("work", "কোথায় সময় গেল", h("div", Object.entries(D.byCat).sort((a, b) => b[1] - a[1]).map(([c, m]) => h("div.doc-bar", h("span", h("i", { style: { background: catColor(c) } }), c), h("div", h("em", { style: { width: Math.round(100 * m / D.workMin) + "%", background: catColor(c) } })), h("b", durLabel(Math.round(m)))))));
+  if (Object.keys(D.byCat).length) part("work", "Where time went", h("div", Object.entries(D.byCat).sort((a, b) => b[1] - a[1]).map(([c, m]) => h("div.doc-bar", h("span", h("i", { style: { background: catColor(c) } }), c), h("div", h("em", { style: { width: Math.round(100 * m / D.workMin) + "%", background: catColor(c) } })), h("b", durLabel(Math.round(m)))))));
   const missed = Object.entries(D.missedBy).sort((a, b) => b[1] - a[1]).slice(0, 8);
-  if (missed.length) part("missed", "যেগুলো বেশি বাদ গেছে", h("div", missed.map(([t, n]) => kv(t, `${n} বার`, ".bad"))));
-  if (D.fin.length) part("money", "টাকা", h("div",
-    h("div.doc-grid", kv("আয়", money(D.inc), ".ok"), kv("খরচ", money(D.exp), ".bad"), kv("বাকি", money(D.inc - D.exp), D.inc - D.exp >= 0 ? ".ok" : ".bad")),
+  if (missed.length) part("missed", "Most missed", h("div", missed.map(([t, n]) => kv(t, `${n}×`, ".bad"))));
+  if (D.fin.length) part("money", "Money", h("div",
+    h("div.doc-grid", kv("Income", money(D.inc), ".ok"), kv("Spent", money(D.exp), ".bad"), kv("Left", money(D.inc - D.exp), D.inc - D.exp >= 0 ? ".ok" : ".bad")),
     Object.keys(D.expCat).length ? h("div", { style: { marginTop: "10px" } }, Object.entries(D.expCat).sort((a, b) => b[1] - a[1]).map(([c, v]) => kv(c, money(v)))) : null,
-    D.fin.length <= 120 ? h("table.doc-t", { style: { marginTop: "10px" } }, h("thead", h("tr", h("th", "তারিখ"), h("th", "বিবরণ"), h("th", { style: { textAlign: "right" } }, "টাকা"))),
-      h("tbody", D.fin.map(r => h("tr", h("td", fmtDate(r.entry_date)), h("td", r.category, r.note ? " — " + r.note : "", r.edit_count ? " *" : ""), h("td", { style: { textAlign: "right" } }, (r.kind === "income" ? "+" : "−") + money(+r.amount)))))) : h("p.small.muted", `${D.fin.length}টা এন্ট্রি — বিস্তারিত Money পেজে।`)));
-  if (D.pays.length) part("tuition", "টিউশন ফি", h("div", D.students.filter(s => D.pays.some(p => p.student_id === s.id)).map(s => kv(s.name, money(D.pays.filter(p => p.student_id === s.id && !p.cleared).reduce((a, p) => a + +p.amount, 0))))));
-  if (D.exams.length) part("exams", "পরীক্ষা ও ডেডলাইন", h("div", D.exams.map(e => kv(e.title + (e.course ? " · " + e.course : ""), e.done ? "✓ শেষ" : "বাকি", e.done ? ".ok" : ".bad"))));
-  if (D.prayers) part("prayer", "🕌 নামাজ", h("div.doc-grid", ["fajr", "dhuhr", "asr", "maghrib", "isha"].map(k => kv(k[0].toUpperCase() + k.slice(1), `${D.prayers.filter(p => p.prayer === k && p.status === "prayed").length}/${D.nDays}`))));
-  if (D.habitLines.length) part("habits", "অভ্যাস", h("div", D.habitLines.map(x => kv(x.name, `${x.n} বার${x.cost ? " · " + money(x.cost) : ""}`, ".bad"))));
-  doc.append(h("div.doc-foot", `Amar Lifestyle · তৈরি ${new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })} · amarlifestyle.github.io`));
+    D.fin.length <= 120 ? h("table.doc-t", { style: { marginTop: "10px" } }, h("thead", h("tr", h("th", "Date"), h("th", "Details"), h("th", { style: { textAlign: "right" } }, "Money"))),
+      h("tbody", D.fin.map(r => h("tr", h("td", fmtDate(r.entry_date)), h("td", r.category, r.note ? " — " + r.note : "", r.edit_count ? " *" : ""), h("td", { style: { textAlign: "right" } }, (r.kind === "income" ? "+" : "−") + money(+r.amount)))))) : h("p.small.muted", `${D.fin.length} entries — see Money.`)));
+  if (D.pays.length) part("tuition", "Tuition fees", h("div", D.students.filter(s => D.pays.some(p => p.student_id === s.id)).map(s => kv(s.name, money(D.pays.filter(p => p.student_id === s.id && !p.cleared).reduce((a, p) => a + +p.amount, 0))))));
+  if (D.exams.length) part("exams", "Exams & deadlines", h("div", D.exams.map(e => kv(e.title + (e.course ? " · " + e.course : ""), e.done ? "✓ Done" : "Open", e.done ? ".ok" : ".bad"))));
+  if (D.prayers) part("prayer", "🕌 Prayers", h("div.doc-grid", ["fajr", "dhuhr", "asr", "maghrib", "isha"].map(k => kv(k[0].toUpperCase() + k.slice(1), `${D.prayers.filter(p => p.prayer === k && p.status === "prayed").length}/${D.nDays}`))));
+  if (D.habitLines.length) part("habits", "Habits", h("div", D.habitLines.map(x => kv(x.name, `${x.n}×${x.cost ? " · " + money(x.cost) : ""}`, ".bad"))));
+  doc.append(h("div.doc-foot", `Amar Lifestyle · made ${new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })} · amarlifestyle.github.io`));
 }
 
 // Friday report: the last 7 days
 route("weekreport", async page => {
   const to = todayStr(), from = addDays(to, -6);
-  await render(page, { from, to, title: "সাপ্তাহিক রিপোর্ট", sub: `${fmtDate(from)} – ${fmtDate(to)}`, back: "#/today", aiKey: "al_weekai_" + to,
+  await render(page, { from, to, title: "Weekly report", sub: `${fmtDate(from)} – ${fmtDate(to)}`, back: "#/today", aiKey: "al_weekai_" + to,
     aiAsk: `আমার গত ৭ দিনের রিপোর্ট দেখে বাংলায় সাপ্তাহিক রিভিউ দাও। ফরম্যাট: প্রথম লাইনে সপ্তাহটা এক কথায় (দারুণ / ভালো / মোটামুটি / খারাপ) আর কেন। তারপর "✅ এই সপ্তাহে ভালো:" ৩টা, "⚠️ যেখানে পিছিয়ে:" ২-৩টা, "🎯 পরের সপ্তাহের পরিকল্পনা:" ৩টা নির্দিষ্ট কাজ (দিন/সময় সহ), শেষে এক লাইনের অনুপ্রেরণা।` });
 }, { tab: "today" });
 
@@ -135,15 +135,15 @@ route("summary", async (page, which) => {
   const today = todayStr(), p = store.profile;
   const first = (p?.created_at || today).slice(0, 10);
   if (which === "all") {
-    await render(page, { from: first, to: today, title: "আমার পুরো ইতিহাস", sub: "শুরু থেকে আজ পর্যন্ত", back: "#/settings", aiKey: "al_allai",
+    await render(page, { from: first, to: today, title: "Full history", sub: "Since you started", back: "#/settings", aiKey: "al_allai",
       aiAsk: `আমি এই অ্যাপ শুরু করার দিন থেকে আজ পর্যন্ত পুরো ইতিহাস দেখে বাংলায় একটা সৎ মূল্যায়ন দাও: সামগ্রিক রায়, সবচেয়ে বড় ৩টা উন্নতি, ৩টা দুর্বলতা, টাকার অভ্যাস নিয়ে ২টা কথা, আর সামনে ৩টা পরামর্শ।` });
     return;
   }
   const m = /^\d{4}-\d{2}$/.test(which || "") ? which : (() => { const d = new Date(today.slice(0, 7) + "-01T00:00:00"); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
   const months = []; for (let d = new Date(first.slice(0, 7) + "-01T00:00:00"); d.toISOString().slice(0, 7) <= today.slice(0, 7); d.setMonth(d.getMonth() + 1)) months.push(d.toISOString().slice(0, 7));
   const pick = h("select.input.noprint", { style: { marginBottom: "10px" }, onchange: e => location.hash = `#/summary/${e.target.value}` },
-    months.reverse().map(x => h("option", { value: x, selected: x === m }, new Date(x + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) + (x === today.slice(0, 7) ? " (চলতি)" : ""))));
+    months.reverse().map(x => h("option", { value: x, selected: x === m }, new Date(x + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) + (x === today.slice(0, 7) ? " (current)" : ""))));
   const to = m === today.slice(0, 7) ? today : monthEnd(m);
-  await render(page, { from: m + "-01", to, title: "মাসের সারাংশ", sub: new Date(m + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" }), aiKey: "al_monthai_" + m, nav: pick,
+  await render(page, { from: m + "-01", to, title: "Month summary", sub: new Date(m + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" }), aiKey: "al_monthai_" + m, nav: pick,
     aiAsk: `আমার এই মাসের পুরো হিসাব দেখে বাংলায় সৎ মাসিক মূল্যায়ন দাও। ফরম্যাট: প্রথম লাইনে মাসটা এক কথায় আর কেন। তারপর "✅ ভালো যা হয়েছে:" ৩টা, "⚠️ সমস্যা:" ৩টা (কোথায়, কত বার), "💰 টাকা:" ২টা কথা, "🎯 পরের মাসে:" ৩টা নির্দিষ্ট লক্ষ্য।` });
 }, { tab: "more" });

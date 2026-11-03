@@ -226,10 +226,10 @@ async function capacity(b) {
     h("div.small.muted", sub)); };
   const stat = (k, v, sub) => h("div.stat", h("div.k", k), h("div.v", v), sub ? h("div.small.muted", sub) : null);
   b.append(h("div.card", { style: { borderColor: "color-mix(in srgb, var(--brand) 45%, transparent)" } },
-    h("div.small.muted", "আরও কতজন ব্যবহার করতে পারবে (আনুমানিক)"),
-    h("div", { style: { fontSize: "28px", fontWeight: 700, margin: "4px 0" } }, `${Math.max(0, lo - active).toLocaleString()} – ${Math.max(0, hi - active).toLocaleString()} জন`),
-    h("div.small.muted", `মোট ${lo.toLocaleString()}–${hi.toLocaleString()} জন active user পর্যন্ত চলবে। প্রথমে শেষ হবে: `, h("b", NAME[neck]), "।"),
-    h("p.small.faint.mb0", { style: { marginTop: "6px" } }, "এখনকার ব্যবহারের হার দেখে হিসাব — ইউজার যত বাড়বে, হিসাব তত ঠিক হবে।")));
+    h("div.small.muted", "More users the app can take (estimate)"),
+    h("div", { style: { fontSize: "28px", fontWeight: 700, margin: "4px 0" } }, `${Math.max(0, lo - active).toLocaleString()} – ${Math.max(0, hi - active).toLocaleString()} people`),
+    h("div.small.muted", `Up to ${lo.toLocaleString()}–${hi.toLocaleString()} active users. First limit: `, h("b", NAME[neck]), "।"),
+    h("p.small.faint.mb0", { style: { marginTop: "6px" } }, "Based on current use; gets more accurate with more users.")));
   b.append(h("div.grid3", stat("Users", c.users, `${c.mau} active (30d)`), stat("Today", c.dau, `${c.wau} this week`), stat("AI today", c.ai_today, `${c.ai_users_today} people`)));
   b.append(h("div.section-title", h("h2", "Free limits used")), h("div.list",
     meter("✨ AI — today", c.ai_today, aiCap, `${c.ai_today} / ${aiCap} requests today · avg ${aiAvg.toFixed(1)} per person per day`),

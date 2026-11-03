@@ -1,6 +1,6 @@
 // Amar Lifestyle — Today page, tasks, timer, Pomodoro
 import * as api from "./api.js";
-import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate, chime } from "./ui.js";
+import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate, chime, swipeAway } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker, saveOccupation, myRoles } from "./app.js";
 import { prayerNow, prayerCount, religionPicker, saveReligion } from "./prayer.js";
 import { askSheet } from "./aicoach.js";
@@ -8,6 +8,7 @@ import { showTour } from "./tour.js";
 import { timePicker, nowHM } from "./timepick.js";
 import { installFirst, isStandalone, showInstall } from "./install.js";
 import { examRows, examSheet, markExamDone, doneWord } from "./exams.js";
+const hideExam = (id, on) => { const l = new Set(api.LS.get("al_hide_ex", [])); on ? l.add(id) : l.delete(id); api.LS.set("al_hide_ex", [...l].slice(-100)); };
 import { quoteFor } from "./quotes.js";
 import { mealNow, classesBetween, classCard } from "./timetable.js";
 
@@ -69,11 +70,6 @@ route("today", async page => {
   // a task done 50% counts as half
   const doneW = realTasks.reduce((s, x) => s + (["completed", "late_completed"].includes(x.status) ? (x.done_pct || 100) / 100 : queued.has(x.id) ? 1 : 0), 0);
   const pct = realTasks.length ? doneW / realTasks.length : 0;
-  let nightRow = null;
-  if (realTasks.length && (nowMin >= sleepMin - 30 || nowMin < 240)) {
-    const pc = await prayerCount(nowMin < 240 ? addDays(today, -1) : today).catch(() => null);
-    nightRow = ["🌙", h("span", h("b", "Today's report"), ` · ${Math.round(pct * 100)}% done`), pc !== null ? `🕌 নামাজ ${pc}/5 · ` + (pct >= 0.8 ? "দারুণ দিন 🔥" : "বাকিগুলো ১২টার আগে মার্ক করুন") : (pct >= 0.8 ? "Great day 🔥" : "Mark the rest before 12 AM"), h("span.s-tag", { style: { color: "var(--brand)" } }, "AI review →"), "#/day"];
-  }
 
   // running timer
   const running = tasks.find(x => x.status === "running") || (localTimer && { ...localTimer, id: "local", status: "running", start_at: localTimer.start, local: true });
@@ -95,26 +91,18 @@ route("today", async page => {
       religionPicker(null, async k => { try { await saveReligion(k); toast("Saved ✓", "ok"); rerender(); } catch (e) { toast(e.message, "bad"); } })));
   }
 
-  // compact summary strip (tasks get the space)
-  body.append(h("a.hero.mini", { href: "#/day", style: { color: "inherit" }, title: "Today's full report" },
-    ring(pct, `${Math.round(pct * 100)}%`, ""),
-    h("div.grow", { style: { minWidth: 0 } },
-      h("div", h("b.mid", (stats.today.dp >= 0 ? "+" : "") + stats.today.dp, " DP"), h("span.small.muted", ` · ${doneN}/${realTasks.length} tasks`)),
-      h("div.small.muted.ell", toNext)),
-    h("div.col-end",
-      h("a.level-pill", { href: "#/me" }, icon("medal"), lv.name),
-      h("span.small.muted", "🔥 ", stats.streak, "d"))));
+  // one compact card on top: progress + DP + level on the left, the AI report on the right
+  const pslot = h("span.pslot");
+  body.append(h("div.hero.top",
+    h("a.hero-l", { href: "#/day", style: { color: "inherit" } }, ring(pct, `${Math.round(pct * 100)}%`, ""),
+      h("div", { style: { minWidth: 0 } },
+        h("div.hero-dp", h("b", (stats.today.dp >= 0 ? "+" : "") + stats.today.dp), " DP", h("span.muted", ` · ${doneN}/${realTasks.length}`)),
+        h("div.hero-meta", h("span.lvl", { "data-l": lv.name }, lv.name), h("span.muted", "🔥", stats.streak, "d"), pslot))),
+    h("a.ai-rep", { href: "#/day" }, h("span.ai-rep-ic", "✨"), h("span", "AI report"))));
   // up next — a reason to come back
   const isEmg = x => (x.title || "").startsWith("🚨");
   const emg = realTasks.find(x => isEmg(x) && x.status === "pending" && new Date(x.end_at) > new Date());
   const upNext = emg || realTasks.find(x => x.status === "pending" && new Date(x.start_at) > new Date());
-  if (upNext) {
-    const m = Math.max(0, Math.round((new Date(upNext.start_at) - new Date()) / 60000));
-    const now0 = new Date(), live = emg && new Date(emg.start_at) <= now0;
-    body.append(h("div.upnext" + (emg ? ".emg" : ""), { style: { "--c": emg ? "var(--red)" : upNext.color || catColor(upNext.category) } },
-      h("i.dot"), h("div.what", h("span", emg ? (live ? "Emergency — now" : "Emergency — next") : "Up next"), h("b", upNext.title)),
-      h("time", live ? `until ${fmtTime(upNext.end_at)}` : fmtTime(upNext.start_at), h("em", live ? `${durLabel(Math.max(1, Math.round((new Date(upNext.end_at) - now0) / 60000)))} left` : `in ${m >= 60 ? Math.floor(m / 60) + "h " : ""}${m % 60}m`))));
-  }
   // everything extra (prayer, exams, bills, events, meal, setup) sits in ONE small box — tasks keep the space
   const stack = h("div.stack");
   body.append(stack);
@@ -122,7 +110,7 @@ route("today", async page => {
     const inner = [h("span.s-ic", ic), h("div.s-main", h("div.ell", main), sub ? h("div.s-sub.ell", sub) : null), right || null];
     return href ? h("a.srow" + cls, { href }, inner) : h("div.srow" + cls, inner);
   };
-  const dismiss = (key, row, val = 1) => h("button.s-x", { type: "button", "aria-label": "Hide", onclick: e => { e.preventDefault(); api.LS.set(key, val); row().remove(); } }, "✕");
+  const dismiss = (key, row, val = 1) => { setTimeout(() => { const r = row(); if (r) swipeAway(r, () => api.LS.set(key, val)); }, 0); return h("button.s-x", { type: "button", "aria-label": "Hide", onclick: e => { e.preventDefault(); api.LS.set(key, val); row().remove(); } }, "✕"); };
   // bills due in the next 3 days (not paid yet)
   try {
     const mo = today.slice(0, 8) + "01", dnum = Number(today.slice(8));
@@ -146,18 +134,19 @@ route("today", async page => {
   let classes = [];
   try { classes = await classesBetween(today, today); } catch { /* offline */ }
   try {
-    (await examRows()).forEach(x => {
+    const hidden = new Set(api.LS.get("al_hide_ex", []));
+    (await examRows()).filter(x => !hidden.has(x.e.id)).forEach(x => {
       const ok = h("button.btn.small", { type: "button", title: doneWord(x.e.kind) }, "✓");
       ok.onclick = busy(ok, async ev => { ev?.stopPropagation?.(); await markExamDone(x.e, true); });
       const r = srow(x.ic, x.title, x.sub, [h("span.s-tag", { style: { color: x.color } }, x.left), ok], null);
-      r.style.cursor = "pointer"; r.onclick = ev => { if (!ok.contains(ev.target)) examSheet(x.e); };
+      r.style.cursor = "pointer"; r.onclick = ev => { if (!ok.contains(ev.target) && !r.dataset.swiped) examSheet(x.e); };
+      swipeAway(r, () => { hideExam(x.e.id, true); import("./undo.js").then(U => U.record(`“${x.title}” hidden`, async () => hideExam(x.e.id, false), async () => hideExam(x.e.id, true))); });
       stack.append(r);
     });
   } catch { /* offline */ }
-  try { const pn = await prayerNow(); if (pn) stack.prepend(pn); } catch { /* offline */ }
-  if (nightRow) stack.prepend(srow(...nightRow));
+  try { const pn = await prayerNow(); if (pn) (pn.classList.contains("pchip") ? pslot.append(pn) : stack.prepend(pn)); } catch { /* offline */ }
   if (!isStandalone() && Date.now() - (api.LS.get("al_inst_strip") || 0) > 864e5) {
-    const r = srow("📱", "Home Screen-এ অ্যাপটা রাখুন", "নোটিফিকেশন ঠিকমতো আসবে", [h("button.btn.small.primary", { onclick: () => showInstall() }, "Add"), dismiss("al_inst_strip", () => r, Date.now())], null, ".setup");
+    const r = srow("📱", "Add to Home Screen", "for reliable reminders", [h("button.btn.small.primary", { onclick: () => showInstall() }, "Add"), dismiss("al_inst_strip", () => r, Date.now())], null, ".setup");
     stack.append(r);
   }
   // notifications off on this phone? ask once in a while (they are the heart of the reminders)
@@ -165,13 +154,13 @@ route("today", async page => {
     if (st === "on" || st === "unsupported" && (!isStandalone() || !/iPhone|iPad|Android/.test(navigator.userAgent))) return; // the Home Screen row covers it
     const on = h("button.btn.small.primary", "Turn on");
     on.onclick = busy(on, async () => { if (st === "unsupported") { location.hash = "#/notifications"; return; } await api.enablePush(); toast("Notifications on ✓", "ok"); await api.pushTest().catch(() => {}); c.remove(); });
-    const c = srow("🔔", st === "blocked" ? "নোটিফিকেশন ব্লক করা" : st === "unsupported" ? "নোটিফিকেশন পেতে Home Screen-এ রাখুন" : "নোটিফিকেশন বন্ধ", st === "blocked" ? "ফোনের Settings থেকে চালু করুন" : "রিমাইন্ডার পাবেন না",
+    const c = srow("🔔", st === "blocked" ? "Notifications blocked" : st === "unsupported" ? "Add to Home Screen for alerts" : "Notifications off", st === "blocked" ? "Allow them in phone Settings" : "you'll miss reminders",
       [st === "off" ? on : null, dismiss("al_push_nudge", () => c, Date.now())], null, ".setup");
     stack.append(c);
   }).catch(() => {});
   if (!api.LS.get("al_tg_nudge") && navigator.onLine) {
     api.rpc("has_telegram").then(has => { if (has) { api.LS.set("al_tg_nudge", 1); return; }
-      const c = srow("✈️", "Telegram কানেক্ট করুন", "পাসওয়ার্ড রিসেট + সাউন্ডসহ রিমাইন্ডার", [h("span.s-tag", "Connect"), dismiss("al_tg_nudge", () => c)], "#/notifications", ".setup");
+      const c = srow("✈️", "Connect Telegram", "password reset + loud reminders", [h("span.s-tag", "Connect"), dismiss("al_tg_nudge", () => c)], "#/notifications", ".setup");
       stack.append(c);
     }).catch(() => {});
   }
@@ -186,9 +175,9 @@ route("today", async page => {
     const pinned = [...emgFirst, ...list.filter(x => x.pinned && !emgFirst.includes(x))], rest = [...list.filter(x => !x.pinned && !emgFirst.includes(x)), ...classes].sort((a, b) => a.start_at.localeCompare(b.start_at));
     const isDone = x => !x.isClass && (x.status !== "pending" || queued.has(x.id));
     const all = [...pinned, ...rest], open = all.filter(x => !isDone(x)), finished = all.filter(isDone).sort((a, b) => a.start_at.localeCompare(b.start_at));
-    open.forEach(tk => body.append(tk.isClass ? classCard(tk) : taskCard(tk, false)));
+    open.forEach((tk, n) => body.append(tk.isClass ? classCard(tk) : taskCard(tk, false, n === 0)));
     if (finished.length) {
-      if (open.length) body.append(h("div.done-sep", h("span", `শেষ হয়েছে · ${finished.length}`)));
+      if (open.length) body.append(h("div.done-sep", h("span", `Done · ${finished.length}`)));
       finished.forEach(tk => body.append(taskCard(tk, queued.has(tk.id))));
     }
   }
@@ -198,7 +187,7 @@ route("today", async page => {
 }, { tab: "today" });
 
 // ---------- task card
-function taskCard(tk, queued) {
+function taskCard(tk, queued, first = false) {
   const c = tk.color || catColor(tk.category);
   const nowD = new Date();
   const ul = unlockAt(tk), le = lateEnd(tk);
@@ -225,8 +214,8 @@ function taskCard(tk, queued) {
     }
   } else if (["completed", "late_completed", "not_completed"].includes(tk.status) && tk.day === todayStr()) {
     // changed your mind? take the mark back (same day only)
-    const u = h("button.linkbtn.small", { type: "button" }, "↺ মার্ক তুলে দিন");
-    u.onclick = busy(u, async () => { if (!(await confirmBox("মার্ক তুলে দেবেন?", "টাস্কটা আবার খোলা হবে, পাওয়া DP ফেরত যাবে। আবার ঠিকমতো মার্ক করতে পারবেন।", "হ্যাঁ, তুলে দিন"))) return; await api.rpc("unmark_task", { p_task: tk.id }); toast("মার্ক তুলে দেওয়া হলো — এখন আবার মার্ক করুন", "ok"); rerender(); });
+    const u = h("button.linkbtn.small", { type: "button" }, "↺ Undo mark");
+    u.onclick = busy(u, async () => { if (!(await confirmBox("Undo this mark?", "The task opens again and its DP is reversed.", "Undo"))) return; await api.rpc("unmark_task", { p_task: tk.id }); toast("Mark removed", "ok"); rerender(); });
     acts.append(u);
   }
   if (tk.status !== "pending" && tk.photo_path) {
@@ -239,6 +228,20 @@ function taskCard(tk, queued) {
     h("div.meta", h("span", `${fmtTime(tk.start_at)} – ${fmtTime(tk.end_at)}`), h("span", "·"), h("span", tk.category), tk.is_timer ? h("span", "· timer") : null),
     acts));
   if (tk.offlineNew) el.querySelector(".meta")?.append(h("span.warn", "· saved offline"));
+  // the first open task counts down: "starts in 25m" → "40m left"
+  if (first && tk.status === "pending") {
+    const cd = h("div.countdown");
+    const tickCd = () => {
+      if (!cd.isConnected && cd.dataset.on) return clearInterval(cdT);
+      const now = Date.now(), s0 = new Date(tk.start_at).getTime(), e0 = new Date(tk.end_at).getTime();
+      const fmt = ms => { const m = Math.max(1, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
+      cd.replaceChildren(now < s0 ? h("span", "Starts in ", h("b", fmt(s0 - now))) : now < e0 ? h("span.live", h("i"), h("b", fmt(e0 - now)), " left") : h("span", "Time's up — mark it"));
+      cd.dataset.on = 1;
+    };
+    const cdT = setInterval(tickCd, 30000); tickCd();
+    el.querySelector(".grow")?.prepend(cd);
+    el.classList.add("first");
+  }
   if (tk.status === "pending" && !queued && !tk.offlineNew) el.addEventListener("click", e => { if (!e.target.closest("button,input")) editChoice(tk); });
   return el;
 }
@@ -246,7 +249,7 @@ function taskCard(tk, queued) {
 // how much of the task was done → DP and coins in the same share
 function pctSheet(tk, late) {
   const full = late ? 0 : tk.dp_value;
-  sheet("কতটুকু শেষ হয়েছে?", [h("p.hint", `“${tk.title}” — যতটুকু করেছেন সেটা বেছে নিন। DP সেই অনুযায়ী পাবেন।`),
+  sheet("How much did you finish?", [h("p.hint", `“${tk.title}”`),
     h("div.grid2", { style: { gap: "8px" } }, [25, 50, 75, 100].map(p => {
       const b = h("button.btn" + (p === 100 ? ".primary" : ""), { style: { flexDirection: "column", padding: "12px 6px", height: "auto" } }, h("b", { style: { fontSize: "20px" } }, p + "%"), h("span.small", late ? "0 DP (late)" : `+${Math.round(full * p / 100)} DP`));
       b.onclick = busy(b, async () => { document.querySelector(".backdrop")?.click(); await mark(tk, "completed", p); });
@@ -296,7 +299,7 @@ export async function addTask(tk = null, preset = {}) {
       const save = h("button.btn.primary", t("Save"));
       save.onclick = busy(save, async () => {
         if (!title.value.trim()) throw new Error("Please write what you will do.");
-        const { start: st0, minutes: m } = tp.get(); if (!(m >= 5 && m <= 720)) throw new Error("সময় ৫ মিনিট থেকে ১২ ঘণ্টার মধ্যে দিন।");
+        const { start: st0, minutes: m } = tp.get(); if (!(m >= 5 && m <= 720)) throw new Error("Pick 5 minutes to 12 hours.");
         const s = dhakaIso(day.value, st0); const e = new Date(new Date(s).getTime() + m * 60000).toISOString();
         const student = cat.value === "Tuition" ? stu.value || null : null;
         const row = { title: title.value.trim(), category: cat.value, start_at: s, end_at: e, day: day.value, pinned: pin.checked, student_id: student };
@@ -336,7 +339,7 @@ function runningBar(tk) {
       const W = (pom.work || 25) * 60, B = (pom.brk || 5) * 60, cyc = sec % (W + B), inFocus = cyc < W;
       const left = inFocus ? W - cyc : W + B - cyc;
       phase.textContent = `${inFocus ? "🎯 Focus" : "☕ Break"} · ${pad(Math.floor(left / 60))}:${pad(left % 60)} left · round ${Math.floor(sec / (W + B)) + 1}`;
-      if (sec > 0 && (cyc === 0 || cyc === W)) notify(cyc === W ? `${pom.brk || 5} মিনিট বিরতি ☕` : `আবার ফোকাস — ${pom.work || 25} মিনিট 🎯`);
+      if (sec > 0 && (cyc === 0 || cyc === W)) notify(cyc === W ? `Break — ${pom.brk || 5} min ☕` : `Focus — ${pom.work || 25} min 🎯`);
     }
   };
   clearInterval(tick); tick = setInterval(upd, 1000); upd();
@@ -357,7 +360,7 @@ function runningBar(tk) {
 }
 
 export function openTimer() {
-  const title = h("input.input", { placeholder: "কী করছেন? যেমন: Self study", maxlength: "80" });
+  const title = h("input.input", { placeholder: "e.g. Self study", maxlength: "80" });
   const cats = catNames();
   const cat = h("select.input", cats.map(n => h("option", { value: n, selected: n === "Study + Class" }, n)));
   let mode = "free", work = 25, brk = 5;
@@ -370,12 +373,12 @@ export function openTimer() {
   const chips = h("div.row.wrap", { style: { gap: "6px" } });
   const drawP = () => chips.replaceChildren(...presets.map(([w, b]) => h("button.chip" + (w === work && b === brk ? ".on" : ""), { type: "button", onclick: () => { work = w; brk = b; wIn.value = w; bIn.value = b; drawP(); } }, `${w} + ${b}`)));
   drawP();
-  pBox.append(chips, h("div.grid2", { style: { marginTop: "8px" } }, h("label.f.mb0", h("span", "ফোকাস (মিনিট)"), wIn), h("label.f.mb0", h("span", "বিরতি (মিনিট)"), bIn)));
+  pBox.append(chips, h("div.grid2", { style: { marginTop: "8px" } }, h("label.f.mb0", h("span", "Focus (min)"), wIn), h("label.f.mb0", h("span", "Break (min)"), bIn)));
   pBox.style.display = "none";
   const seg = h("div.seg", [["free", "⏱️ Free timer"], ["pomo", "🍅 Pomodoro"]].map(([k, l]) => h("button" + (k === mode ? ".on" : ""), { type: "button", onclick: e => { mode = k; seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.currentTarget)); pBox.style.display = k === "pomo" ? "" : "none"; } }, l)));
   return sheet("⏱️ Timer", [
-    h("label.f", h("span", "কী করছেন?"), title), seg, h("div", { style: { height: "10px" } }), pBox,
-    h("details.ai-fold", h("summary", "ধরন (category)"), h("div", { style: { marginTop: "8px" } }, cat)),
+    h("label.f", h("span", "What are you doing?"), title), seg, h("div", { style: { height: "10px" } }), pBox,
+    h("details.ai-fold", h("summary", "Category"), h("div", { style: { marginTop: "8px" } }, cat)),
   ], {
     actions: close => {
       const go_ = h("button.btn.primary", icon("play"), "Start");

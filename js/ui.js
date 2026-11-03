@@ -361,3 +361,30 @@ export function chime(level = "normal") {
     if (level === "urgent") navigator.vibrate?.([300, 120, 300]);
   } catch { /* no sound on this device */ }
 }
+
+// swipe a row to the left to send it away (with a red "remove" strip behind)
+export function swipeAway(el, onGone) {
+  let x0 = null, y0 = 0, dx = 0, lock = null;
+  el.style.touchAction = "pan-y";
+  el.addEventListener("pointerdown", e => { if (e.button) return; x0 = e.clientX; y0 = e.clientY; dx = 0; lock = null; });
+  el.addEventListener("pointermove", e => {
+    if (x0 === null) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (lock === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) lock = Math.abs(mx) > Math.abs(my) ? "x" : "y";
+    if (lock !== "x") return;
+    dx = Math.min(0, mx); el.style.transition = "none"; el.style.transform = `translateX(${dx}px)`; el.style.opacity = String(1 + dx / 400);
+    el.classList.add("swiping");
+  });
+  const end = () => {
+    if (x0 === null) return; x0 = null;
+    el.style.transition = "transform .28s cubic-bezier(.22,1,.36,1), opacity .28s, max-height .3s .2s, padding .3s .2s";
+    if (lock === "x" && dx < -90) {
+      el.dataset.swiped = "1";
+      el.style.transform = "translateX(-110%)"; el.style.opacity = "0";
+      el.style.maxHeight = el.offsetHeight + "px"; requestAnimationFrame(() => { el.style.maxHeight = "0"; el.style.paddingTop = "0"; el.style.paddingBottom = "0"; });
+      setTimeout(() => { el.remove(); onGone?.(); }, 520);
+    } else { el.style.transform = ""; el.style.opacity = ""; setTimeout(() => el.classList.remove("swiping"), 300); if (lock === "x") { el.dataset.swiped = "1"; setTimeout(() => delete el.dataset.swiped, 50); } }
+    lock = null;
+  };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+}

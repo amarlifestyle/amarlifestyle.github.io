@@ -213,7 +213,7 @@ async function requestEdit(r) {
 
 async function editEntry(r) {
   // money edits always need the PIN — set one first if there is none
-  if (!(await api.rpc("has_pin").catch(() => true))) { const { setPinFlow } = await import("./pin.js"); toast("আগে একটা PIN সেট করুন — টাকার এডিট PIN দিয়ে সুরক্ষিত থাকে"); if (!(await setPinFlow().catch(e => { toast(e.message, "bad"); return false; }))) return; }
+  if (!(await api.rpc("has_pin").catch(() => true))) { const { setPinFlow } = await import("./pin.js"); toast("Set a PIN first"); if (!(await setPinFlow().catch(e => { toast(e.message, "bad"); return false; }))) return; }
   const amt = h("input.input", { type: "number", inputmode: "decimal", min: "0", step: "0.01", value: r.amount });
   const note = h("input.input", { value: r.note || "", maxlength: "120" });
   const ok = await sheet("Edit entry", [h("p.hint", "The old amount stays in history and every report will show “Edited”."),

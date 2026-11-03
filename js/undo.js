@@ -30,12 +30,12 @@ async function run(op, fn, msg) {
 }
 export async function undo() {
   const op = done.pop(); if (!op) return toast("Nothing to undo");
-  if (await run(op, op.undo, "ফেরত আনা হলো: " + op.label)) undone.push(op); else done.push(op);
+  if (await run(op, op.undo, "Restored: " + op.label)) undone.push(op); else done.push(op);
   changed();
 }
 export async function redo() {
   const op = undone.pop(); if (!op) return toast("Nothing to redo");
-  if (await run(op, op.redo, "আবার করা হলো: " + op.label)) done.push(op); else undone.push(op);
+  if (await run(op, op.redo, "Redone: " + op.label)) done.push(op); else undone.push(op);
   changed();
 }
 const todayIso = () => { const d = new Date(Date.now() + 6 * 3600e3); return d.toISOString().slice(0, 10); };
@@ -53,7 +53,7 @@ export function undoButtons() {
 // ready-made undo for the common changes
 const skipDel = (rid, day) => api.remove("routine_skips", `routine_id=eq.${rid}&day=eq.${day}`);
 export function removedTask(tk) { // a task removed from one day
-  record(`“${tk.title}” সরানো হয়েছে`,
+  record(`“${tk.title}” removed`,
     async () => {
       if (tk.routine_id) { await skipDel(tk.routine_id, tk.day); return; } // the routine makes it again
       await api.rpc("add_task", { p_title: tk.title, p_category: tk.category, p_start: tk.start_at, p_end: tk.end_at, p_student: tk.student_id || null });

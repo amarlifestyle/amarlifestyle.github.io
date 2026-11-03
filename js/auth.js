@@ -18,7 +18,7 @@ route("login", page => {
   const btn = h("button.btn.primary.block", { type: "submit" }, t("Log in"));
   const form = h("form.card", pf, wf, btn, help,
     h("div.row.between.mt", h("button.linkbtn", { type: "button", onclick: () => go("#/forgot") }, "Forgot password?"),
-      h("button.linkbtn", { type: "button", onclick: () => go("#/register") }, t("Create account"))), h("div.tg-hint", h("span", "✈️"), h("span", "পাসওয়ার্ড ভুলে গেলে Telegram-এ কোড পেয়ে সহজে নতুন পাসওয়ার্ড দেওয়া যায় — লগইনের পর ", h("b", "নিচের 🔔 Alerts → Telegram"), " কানেক্ট করে রাখুন।")));
+      h("button.linkbtn", { type: "button", onclick: () => go("#/register") }, t("Create account"))), h("div.tg-hint", h("span", "✈️"), h("span", "Connect Telegram after login (", h("b", "🔔 Alerts → Telegram"), ") to reset a forgotten password easily.")));
   form.addEventListener("submit", e => { e.preventDefault(); login(); });
   let wrong = 0;
   const login = async () => {
@@ -50,9 +50,9 @@ route("register", page => {
   const occf = h("label.f", h("span", "What do you do?"), occupationPicker([], k => occ = k));
   let rel = null, gen = null;
   const relf = h("label.f", h("span", "Religion (Muslim → prayer times & tracking)"), religionPicker(null, k => rel = k));
-  const genf = h("label.f", h("span", "আপনি"), genderPicker(null, k => gen = k));
+  const genf = h("label.f", h("span", "Gender (optional)"), genderPicker(null, k => gen = k));
   const form = h("form.card", nf, pf, ef, wf, genf, occf, relf,
-    h("p.hint", "Your data will be safely stored in backup files."), h("div.tg-hint", h("span", "✈️"), h("span", "পাসওয়ার্ড ভুলে গেলে Telegram-এ কোড পেয়ে সহজে নতুন পাসওয়ার্ড দেওয়া যায় — লগইনের পর ", h("b", "নিচের 🔔 Alerts → Telegram"), " কানেক্ট করে রাখুন।")),
+    h("p.hint", "Your data will be safely stored in backup files."), h("div.tg-hint", h("span", "✈️"), h("span", "Connect Telegram after login (", h("b", "🔔 Alerts → Telegram"), ") to reset a forgotten password easily.")),
     h("label.check", { for: "agree" }, agree, h("span", "I agree to the ", h("a", { href: "#/privacy", target: "_blank" }, "Privacy Policy and Terms of Use"), ".")),
     btn,
     h("div.center.mt", h("button.linkbtn", { type: "button", onclick: () => go("#/login") }, "I already have an account")));

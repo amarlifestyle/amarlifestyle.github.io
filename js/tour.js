@@ -6,15 +6,15 @@ import { showTuition } from "./app.js";
 import { deadlines } from "./exams.js";
 
 const steps = () => [
-  ["👋", "স্বাগতম!", ["⏳ মাত্র ৫ মিনিট সময় দিয়ে গাইডটা দেখে নিন — তাহলে অ্যাপের সব সুবিধা পুরোপুরি কাজে লাগাতে পারবেন।"]],
-  ["✅", "Today", ["আজকের সব কাজ সময় ধরে।", "কাজের শেষের দিকে Completed / Not Completed দিন — DP পাবেন।", "মার্ক না করলে রাত ১২টায় DP কাটে।"]],
-  ["✨", "AI — মাঝের বাটন", ["লিখে, বাংলায় বলে বা ছবি দিয়ে বলুন: “আজ Leon-এর টিউশন নেই, বাদ দাও”।", "আগে দেখাবে কী করবে, “হ্যাঁ” চাপলেই হয়ে যাবে।"]],
-  ["📅", "Routine", ["একবার রুটিন দিলে প্রতি সপ্তাহে নিজে আসে।", "ভার্সিটি ক্লাস, পরীক্ষা, Syllabus — উপরের ট্যাবে।", "ভুলে মুছলে ↶ Undo।"]],
-  ...(store.profile?.religion === "muslim" ? [["🕌", "নামাজ", ["চলতি ওয়াক্ত Today-তে দেখায় — Prayed চাপলে DP।"]]] : []),
-  ["💳", "Money", ["আয়-খরচ, Daily spending, বিল" + (showTuition() ? ", টিউশন ফি" : "") + "।", "টাকা এডিট করতে PIN লাগে।"]],
-  ["🏅", "Me", ["এই মাসের লেভেল: Bronze → Diamond।", "অভ্যাস, ঘুম আর ডায়েরি।"]],
-  ["🔔", "নোটিফিকেশন চালু করুন", ["উপরের ডানে 🔔 চাপুন → Turn on।", "Telegram কানেক্ট করলে জরুরি রিমাইন্ডার সাউন্ডসহ আসে।"]],
-  ["🚀", "শুরু করুন", ["প্রথমে Routine-এ রুটিন দিন — নিজে লিখে, AI-কে বলে বা ছবি দিয়ে।", "গাইড আবার দেখতে: ⋯ More → How to use।"]],
+  ["👋", "Welcome!", ["Please take 5 minutes for this guide — it helps you get the most out of the app."]],
+  ["✅", "Today", ["Your tasks for today, in order.", "Near the end of a task, tap Completed or Not Completed.", "Unmarked tasks lose DP at midnight."]],
+  ["✨", "AI — the middle button", ["Type, speak (Bangla or English) or send a photo.", "It shows the changes first; nothing happens until you confirm."]],
+  ["📅", "Routine", ["Set it once, it repeats every week.", "Classes, exams and syllabus are in the tabs on top.", "Deleted by mistake? Tap ↶ Undo."]],
+  ...(store.profile?.religion === "muslim" ? [["🕌", "Prayer", ["The current prayer shows on Today — tap Prayed to earn DP."]]] : []),
+  ["💳", "Money", ["Income, spending and bills" + (showTuition() ? ", tuition fees" : "") + "।", "Editing money needs your PIN."]],
+  ["🏅", "Me", ["This month's level, Bronze → Diamond.", "Habits, sleep and diary."]],
+  ["🔔", "Turn on notifications", ["Tap 🔔 (top right) → Turn on.", "Connect Telegram for loud important reminders."]],
+  ["🚀", "Let's start", ["First set your routine — type it, tell AI, or send a photo.", "Replay: ⋯ More → How to use."]],
 ];
 
 export function showTour(force = false) {

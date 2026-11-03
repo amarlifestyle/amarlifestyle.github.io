@@ -22,7 +22,7 @@ route("week", async (page, offset = "0") => {
       h("a.icon-btn", { href: `#/week/${off - 1}`, "aria-label": "Previous week" }, icon("back")),
       h("a.icon-btn", { href: `#/week/${off + 1}`, "aria-label": "Next week" }, icon("chev")))));
   page.append(await routineTabsAsync("week"));
-  page.append(h("div.row.between", { style: { margin: "-4px 0 8px" } }, h("span.small.muted", off === 0 ? "এই সপ্তাহ" : ""), U.undoButtons()));
+  page.append(h("div.row.between", { style: { margin: "-4px 0 8px" } }, h("span.small.muted", off === 0 ? "This week" : ""), U.undoButtons()));
   if (we >= today) { try { await api.rpc("ensure_tasks", { p_from: ws < today ? today : ws, p_to: we }); } catch {} }
   const [tasks0, routines, students] = await Promise.all([
     api.select("tasks", `select=*&day=gte.${ws}&day=lte.${we}&order=start_at`),
@@ -51,7 +51,7 @@ route("week", async (page, offset = "0") => {
     const list = tasks.filter(x => x.day === d && x.status !== "running");
     const dow = new Date(d + "T00:00:00").getDay();
     return h("div.wday" + (d < today ? ".past" : ""),
-      h("div.h" + (d === today ? ".today" : ""), DAYS[dow], h("small", d < today ? "শেষ" : fmtDate(d))),
+      h("div.h" + (d === today ? ".today" : ""), DAYS[dow], h("small", d < today ? "done" : fmtDate(d))),
       list.map(tk => {
         const st = ["completed", "late_completed"].includes(tk.status) ? ".done" : ["missed", "not_completed"].includes(tk.status) ? ".missed" : "";
         return h("div.cell" + st, { style: { "--c": colorOf(tk) }, role: "button", tabindex: "0", onclick: () => detail(tk, ctx, list) },
@@ -200,7 +200,7 @@ function detail(tk, ctx, dayList = []) {
         if (ids.length) await api.remove("tasks", `id=in.(${ids.join(",")})&status=eq.pending`);
         const after = others.length ? { days: others } : { active: false, template: "_removed" };
         await api.update("routines", `id=eq.${routine.id}`, after);
-        U.changedRoutine(`“${routine.title}” প্রতি ${dayName} থেকে সরানো`, { days: routine.days, active: true, template: routine.template }, after, routine.id);
+        U.changedRoutine(`“${routine.title}” removed from ${dayName}s`, { days: routine.days, active: true, template: routine.template }, after, routine.id);
         close(); rerender();
       });
       const mv = new Date(tk.start_at) > new Date() ? h("button.btn.small", "↕ Move") : null;
@@ -274,8 +274,8 @@ const hhmm = iso => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit",
 async function applyMove(tk, newStart, scope, ctx) {
   const s = new Date(newStart), e = new Date(s.getTime() + (new Date(tk.end_at) - new Date(tk.start_at)));
   const routine = ctx.routines.find(r => r.id === tk.routine_id);
-  if (routine && scope === "every") U.changedRoutine(`“${tk.title}” এর সময় বদল (প্রতি সপ্তাহ)`, { start_time: routine.start_time }, { start_time: hhmm(s.toISOString()) }, routine.id);
-  else U.movedTasks(`“${tk.title}” সরানো হলো`, [{ id: tk.id, from: [tk.start_at, tk.end_at], to: [s.toISOString(), e.toISOString()] }]);
+  if (routine && scope === "every") U.changedRoutine(`“${tk.title}” moved (every week)`, { start_time: routine.start_time }, { start_time: hhmm(s.toISOString()) }, routine.id);
+  else U.movedTasks(`“${tk.title}” moved`, [{ id: tk.id, from: [tk.start_at, tk.end_at], to: [s.toISOString(), e.toISOString()] }]);
   const moveTask = async () => {
     if (routine) await api.insert("routine_skips", { routine_id: routine.id, day: tk.day, user_id: api.userId() }).catch(() => {}); // keep the routine from re-adding it
     await api.update("tasks", `id=eq.${tk.id}&status=eq.pending`, { start_at: s.toISOString(), end_at: e.toISOString() });
@@ -304,28 +304,28 @@ function moveSheet(tk, ctx, dayList) {
   const draw = () => {
     const p = plan();
     preview.replaceChildren(...p.map(([x, s]) => h("div", h("b", x.title), ": ", fmtTime(x.start_at), " → ", h("b", fmtTime(s.toISOString())))));
-    if (!p.some(([x, s]) => s.getTime() !== new Date(x.start_at).getTime())) preview.replaceChildren(h("span.muted", "নিচের বাটন চেপে সময় বদলান।"));
+    if (!p.some(([x, s]) => s.getTime() !== new Date(x.start_at).getTime())) preview.replaceChildren(h("span.muted", "Use the buttons to change the time."));
   };
-  const step = m => h("button.btn.small", { type: "button", onclick: () => { swap = null; shift += m; draw(); } }, m < 0 ? `⬆ ${durLabel(-m)} আগে` : `⬇ ${durLabel(m)} পরে`);
-  const scopeSeg = routine ? h("div.seg", [["day", "শুধু এই দিন"], ["every", "প্রতি সপ্তাহে"]].map(([k, l]) => h("button" + (k === scope ? ".on" : ""), { type: "button", "data-k": k, onclick: e => { scope = k; scopeSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === k)); } }, l))) : null;
+  const step = m => h("button.btn.small", { type: "button", onclick: () => { swap = null; shift += m; draw(); } }, m < 0 ? `⬆ ${durLabel(-m)} earlier` : `⬇ ${durLabel(m)} later`);
+  const scopeSeg = routine ? h("div.seg", [["day", "This day only"], ["every", "Every week"]].map(([k, l]) => h("button" + (k === scope ? ".on" : ""), { type: "button", "data-k": k, onclick: e => { scope = k; scopeSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === k)); } }, l))) : null;
   draw();
   sheet("↕ Move “" + tk.title + "”", [
     h("div.row.wrap", { style: { gap: "6px" } }, step(-60), step(-30), step(-15), step(15), step(30), step(60)),
     prev || next ? h("div.row.wrap", { style: { gap: "6px", marginTop: "8px" } },
-      prev ? h("button.btn.small", { type: "button", onclick: () => { swap = "up"; shift = 0; draw(); } }, `⇅ “${prev.title}”-এর আগে নিন`) : null,
-      next ? h("button.btn.small", { type: "button", onclick: () => { swap = "down"; shift = 0; draw(); } }, `⇅ “${next.title}”-এর পরে নিন`) : null) : null,
+      prev ? h("button.btn.small", { type: "button", onclick: () => { swap = "up"; shift = 0; draw(); } }, `⇅ Before “${prev.title}”`) : null,
+      next ? h("button.btn.small", { type: "button", onclick: () => { swap = "down"; shift = 0; draw(); } }, `⇅ After “${next.title}”`) : null) : null,
     preview,
-    scopeSeg ? h("label.f", h("span", "কোথায় বদলাবে"), scopeSeg) : null,
+    scopeSeg ? h("label.f", h("span", "Apply to"), scopeSeg) : null,
   ], {
     actions: close => {
       const save = h("button.btn.primary", t("Save"));
       save.onclick = busy(save, async () => {
         const p = plan().filter(([x, s]) => s.getTime() !== new Date(x.start_at).getTime());
-        if (!p.length) throw new Error("আগে সময় বদলান।");
+        if (!p.length) throw new Error("Change the time first.");
         for (const [x, s] of p) {
           const e = s.getTime() + (new Date(x.end_at) - new Date(x.start_at));
-          if (s.getTime() < Date.now()) throw new Error(`“${x.title}” — এই সময় পার হয়ে গেছে।`);
-          if (s.getTime() < dayStart || e > dayEnd) throw new Error("একই দিনের মধ্যে রাখুন।");
+          if (s.getTime() < Date.now()) throw new Error(`“${x.title}” — that time has passed.`);
+          if (s.getTime() < dayStart || e > dayEnd) throw new Error("Keep it within the same day.");
         }
         for (const [x, s] of p) await applyMove(x, s, x.routine_id ? scope : "day", ctx);
         toast(scope === "every" && p.some(([x]) => x.routine_id) ? "Moved — every week ✓" : "Moved ✓", "ok"); close(true); rerender();

@@ -8,11 +8,11 @@ import { waqts, isMuslim } from "./prayer.js";
 import { pickColor } from "./ui.js";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const BN_DAYS = { Sat: "শনি", Sun: "রবি", Mon: "সোম", Tue: "মঙ্গল", Wed: "বুধ", Thu: "বৃহস্পতি", Fri: "শুক্র" };
+const BN_DAYS = { Sat: "Sat", Sun: "Sun", Mon: "Mon", Tue: "Tue", Wed: "Wed", Thu: "Thu", Fri: "Fri" };
 const hm = iso => new Date(new Date(iso).getTime() + 6 * 3600e3).toISOString().slice(11, 16);
 const HHMM = /^\d{2}:\d{2}$/, DATE = /^\d{4}-\d{2}-\d{2}$/, MONTH = /^\d{4}-\d{2}$/, HEX = /^#[0-9a-f]{6}$/i;
 const INCOME_DEFAULT = ["Tuition", "Salary", "Video work", "Gift", "Other income"];
-const KIND_BN = { ct: "CT", lab: "ল্যাব রিপোর্ট", assignment: "অ্যাসাইনমেন্ট", exam: "পরীক্ষা", paper: "প্রশ্নপত্র", checking: "খাতা দেখা", result: "রেজাল্ট", delivery: "ডেলিভারি", payment: "পেমেন্ট", meeting: "মিটিং", report: "রিপোর্ট", presentation: "প্রেজেন্টেশন", appointment: "অ্যাপয়েন্টমেন্ট", fee: "ফি", shopping: "বাজার", occasion: "অনুষ্ঠান", other: "অন্যান্য" };
+const KIND_BN = { ct: "CT", lab: "Lab report", assignment: "Assignment", exam: "Exam", paper: "Question paper", checking: "Script checking", result: "Result", delivery: "Delivery", payment: "Payment", meeting: "Meeting", report: "Report", presentation: "Presentation", appointment: "Appointment", fee: "Fee", shopping: "Shopping", occasion: "Occasion", other: "Other" };
 const expCats = () => store.cfg.expense_categories || ["Rent", "Bills", "Food", "Transport", "Study", "Shopping", "Fun", "Other"];
 const incCats = () => role()?.income || INCOME_DEFAULT;
 
@@ -67,55 +67,55 @@ function describe(a, c) {
   const days = ds => (ds || []).map(d => BN_DAYS[d] || d).join(", ");
   switch (a.type) {
     case "add_task": if (!a.title || !DATE.test(a.date || "") || !HHMM.test(a.start || "")) return null;
-      return { ic: "➕", area: "task+", text: `নতুন টাস্ক: ${a.title} · ${when(a.date, a.start)} · ${durLabel(a.minutes || 60)} · ${a.category || "Work / Personal"}${a.student_id && S(a.student_id) ? " · " + S(a.student_id).name : ""}` };
-    case "remove_task": { const t = T(a.task_id); if (!t || t.status !== "pending") return null; return { ic: "🗑️", area: "task-", text: `বাদ: ${tline(t)}` }; }
+      return { ic: "➕", area: "task+", text: `New task: ${a.title} · ${when(a.date, a.start)} · ${durLabel(a.minutes || 60)} · ${a.category || "Work / Personal"}${a.student_id && S(a.student_id) ? " · " + S(a.student_id).name : ""}` };
+    case "remove_task": { const t = T(a.task_id); if (!t || t.status !== "pending") return null; return { ic: "🗑️", area: "task-", text: `Remove: ${tline(t)}` }; }
     case "move_task": { const t = T(a.task_id); if (!t || t.status !== "pending" || !HHMM.test(a.new_start || "")) return null;
-      return { ic: "🕒", area: "task~", text: `সময় বদল: ${tline(t)} → ${when(DATE.test(a.new_date || "") ? a.new_date : t.day, a.new_start)}` }; }
+      return { ic: "🕒", area: "task~", text: `Move: ${tline(t)} → ${when(DATE.test(a.new_date || "") ? a.new_date : t.day, a.new_start)}` }; }
     case "mark_task": { const t = T(a.task_id); if (!t || !["completed", "not_completed"].includes(a.result)) return null;
-      return { ic: a.result === "completed" ? "✅" : "❌", area: "mark", text: `${a.result === "completed" ? "Completed" : "Not completed"} মার্ক: ${tline(t)}` }; }
+      return { ic: a.result === "completed" ? "✅" : "❌", area: "mark", text: `${a.result === "completed" ? "Completed" : "Not completed"}: ${tline(t)}` }; }
     case "add_routine": if (!a.title || !HHMM.test(a.start || "") || !(a.days || []).length) return null;
-      return { ic: "🔁", area: "routine+", text: `প্রতি সপ্তাহে: ${a.title} · ${days(a.days)} · ${fmtHM(a.start)} · ${durLabel(a.minutes || 60)}${a.student_id && S(a.student_id) ? " · " + S(a.student_id).name : ""}` };
+      return { ic: "🔁", area: "routine+", text: `Every week: ${a.title} · ${days(a.days)} · ${fmtHM(a.start)} · ${durLabel(a.minutes || 60)}${a.student_id && S(a.student_id) ? " · " + S(a.student_id).name : ""}` };
     case "edit_routine": { const r = R(a.routine_id); if (!r) return null;
-      const ch = [a.title && `নাম → ${a.title}`, a.start && `সময় → ${fmtHM(a.start)}`, a.minutes && `সময়কাল → ${durLabel(a.minutes)}`, a.days && `দিন → ${days(a.days)}`, a.category && `ক্যাটাগরি → ${a.category}`, a.color && "রঙ বদল", a.student_id !== undefined && `স্টুডেন্ট → ${S(a.student_id)?.name || "কেউ না"}`].filter(Boolean);
-      return ch.length ? { ic: "✏️", area: "routine~", text: `রুটিন বদল: ${r.title} (${r.days.map(d => BN_DAYS[DAYS[d]]).join(", ")} ${fmtHM(r.start_time.slice(0, 5))}) — ${ch.join(", ")}` } : null; }
-    case "remove_routine": { const r = R(a.routine_id); if (!r) return null; return { ic: "🗑️", area: "routine-", text: `রুটিন থেকে পুরো বাদ: ${r.title} (${r.days.map(d => BN_DAYS[DAYS[d]]).join(", ")} ${fmtHM(r.start_time.slice(0, 5))})` }; }
-    case "add_category": if (!a.name) return null; return { ic: "🏷️", area: "cat", text: `নতুন ক্যাটাগরি: ${a.name} · ${Math.min(20, Math.max(1, +a.dp || 5))} DP/ঘণ্টা` };
-    case "add_student": if (!a.name) return null; return { ic: "🎓", area: "student", text: `নতুন স্টুডেন্ট: ${a.name} · মাসিক ${money(+a.monthly_fee || 0)}` };
+      const ch = [a.title && `Name → ${a.title}`, a.start && `Time → ${fmtHM(a.start)}`, a.minutes && `Length → ${durLabel(a.minutes)}`, a.days && `Days → ${days(a.days)}`, a.category && `Category → ${a.category}`, a.color && "Colour", a.student_id !== undefined && `Student → ${S(a.student_id)?.name || "none"}`].filter(Boolean);
+      return ch.length ? { ic: "✏️", area: "routine~", text: `Change routine: ${r.title} (${r.days.map(d => BN_DAYS[DAYS[d]]).join(", ")} ${fmtHM(r.start_time.slice(0, 5))}) — ${ch.join(", ")}` } : null; }
+    case "remove_routine": { const r = R(a.routine_id); if (!r) return null; return { ic: "🗑️", area: "routine-", text: `Remove from routine: ${r.title} (${r.days.map(d => BN_DAYS[DAYS[d]]).join(", ")} ${fmtHM(r.start_time.slice(0, 5))})` }; }
+    case "add_category": if (!a.name) return null; return { ic: "🏷️", area: "cat", text: `New category: ${a.name} · ${Math.min(20, Math.max(1, +a.dp || 5))} DP/hour` };
+    case "add_student": if (!a.name) return null; return { ic: "🎓", area: "student", text: `New student: ${a.name} · monthly ${money(+a.monthly_fee || 0)}` };
     case "edit_student": { const s = S(a.student_id); if (!s) return null;
-      const ch = [a.name && `নাম → ${a.name}`, a.monthly_fee != null && `ফি → ${money(+a.monthly_fee)}`, a.active === false && "পড়ানো বন্ধ", a.active === true && "আবার চালু"].filter(Boolean);
-      return ch.length ? { ic: "✏️", area: "student", text: `স্টুডেন্ট বদল: ${s.name} — ${ch.join(", ")}` } : null; }
+      const ch = [a.name && `Name → ${a.name}`, a.monthly_fee != null && `Fee → ${money(+a.monthly_fee)}`, a.active === false && "Stopped", a.active === true && "Active again"].filter(Boolean);
+      return ch.length ? { ic: "✏️", area: "student", text: `Change student: ${s.name} — ${ch.join(", ")}` } : null; }
     case "record_fee": { const s = S(a.student_id); if (!s || !MONTH.test(a.month || "")) return null;
-      return { ic: "💵", area: "fee", amount: +a.amount || +s.monthly_fee, text: `ফি পাওয়া: ${s.name} · ${fmtDate(a.month + "-01", { month: "long", year: "numeric" })} · ${money(+a.amount || +s.monthly_fee)} (আজকের আয়ে যোগ হবে)` }; }
+      return { ic: "💵", area: "fee", amount: +a.amount || +s.monthly_fee, text: `Fee received: ${s.name} · ${fmtDate(a.month + "-01", { month: "long", year: "numeric" })} · ${money(+a.amount || +s.monthly_fee)} (আজকের আয়ে যোগ হবে)` }; }
     case "add_money": if (!["income", "expense"].includes(a.kind) || !(+a.amount > 0)) return null;
-      return { ic: a.kind === "income" ? "💰" : "💸", area: a.kind, amount: +a.amount, text: `${a.kind === "income" ? "আয়" : "খরচ"}: ${money(+a.amount)} · ${a.category || "Other"}${a.note ? " · " + a.note : ""} · ${fmtDate(DATE.test(a.date || "") ? a.date : todayStr())}` };
+      return { ic: a.kind === "income" ? "💰" : "💸", area: a.kind, amount: +a.amount, text: `${a.kind === "income" ? "Income" : "Expense"}: ${money(+a.amount)} · ${a.category || "Other"}${a.note ? " · " + a.note : ""} · ${fmtDate(DATE.test(a.date || "") ? a.date : todayStr())}` };
     case "add_event": if (!a.title || !DATE.test(a.date || "")) return null;
-      return { ic: { birthday: "🎂", meeting: "🤝", countdown: "⏳" }[a.kind] || "📌", area: "event", text: `ক্যালেন্ডার: ${a.title} · ${fmtDate(a.date)}${a.time && HHMM.test(a.time) ? " " + fmtHM(a.time) : ""}${a.yearly ? " · প্রতি বছর" : ""}` };
-    case "add_goal": if (!a.title) return null; return { ic: "🎯", area: "goal", text: `লক্ষ্য (${{ year: "বছর", month: "মাস", week: "সপ্তাহ" }[a.span] || "বছর"}): ${a.title}` };
+      return { ic: { birthday: "🎂", meeting: "🤝", countdown: "⏳" }[a.kind] || "📌", area: "event", text: `Calendar: ${a.title} · ${fmtDate(a.date)}${a.time && HHMM.test(a.time) ? " " + fmtHM(a.time) : ""}${a.yearly ? " · yearly" : ""}` };
+    case "add_goal": if (!a.title) return null; return { ic: "🎯", area: "goal", text: `Goal (${{ year: "year", month: "month", week: "week" }[a.span] || "year"}): ${a.title}` };
     case "habit": { const name = c.habits.find(x => x.id === a.habit_id)?.name || a.name; if (!name || !(+a.count > 0 || +a.price > 0)) return null;
-      return { ic: "🚫", area: "habit", text: `অভ্যাস: ${name}${+a.count > 0 ? ` · আজ +${+a.count}` : ""}${+a.price > 0 ? ` · দাম ৳${+a.price}/টা` : ""}${c.habits.some(x => x.id === a.habit_id) ? "" : " (নতুন যোগ হবে)"}` }; }
+      return { ic: "🚫", area: "habit", text: `Habit: ${name}${+a.count > 0 ? ` · today +${+a.count}` : ""}${+a.price > 0 ? ` · ৳${+a.price}/each` : ""}${c.habits.some(x => x.id === a.habit_id) ? "" : " (new)"}` }; }
     case "add_bill": if (!a.title || !(+a.amount >= 0)) return null;
-      return { ic: "🧾", area: "bill", text: `বিল লিখে রাখা (এখনো দেওয়া হয়নি): ${a.title} · ${money(+a.amount)}${a.monthly === false ? " · শুধু এই মাস" : " · প্রতি মাসে"}${a.due_day ? ` · ${a.due_day} তারিখের মধ্যে` : ""}` };
+      return { ic: "🧾", area: "bill", text: `Bill to pay: ${a.title} · ${money(+a.amount)}${a.monthly === false ? " · শুধু এই মাস" : " · monthly"}${a.due_day ? ` · ${a.due_day}` : ""}` };
     case "pay_bill": { const b = c.bills.find(x => x.id === a.bill_id); if (!b || c.billPaid.has(b.id)) return null;
-      return { ic: "✅", area: "expense", amount: +a.amount || +b.amount, text: `বিল দেওয়া হয়েছে: ${b.title} · ${money(+a.amount || +b.amount)} (আজকের খরচে যোগ হবে)` }; }
+      return { ic: "✅", area: "expense", amount: +a.amount || +b.amount, text: `Bill paid: ${b.title} · ${money(+a.amount || +b.amount)} (added to today's expenses)` }; }
     case "add_due": if (!a.person || !(+a.amount > 0)) return null;
-      return { ic: "🤝", area: "due", text: `${a.direction === "i_owe" ? "আমি দেব" : "আমি পাব"}: ${a.person} · ${money(+a.amount)}` };
+      return { ic: "🤝", area: "due", text: `${a.direction === "i_owe" ? "I owe" : "They owe me"}: ${a.person} · ${money(+a.amount)}` };
     case "add_deadline": if (!a.title || !DATE.test(a.date || "")) return null;
-      return { ic: "📝", area: "deadline", text: `${KIND_BN[a.kind] || "ডেডলাইন"}: ${a.title}${a.course ? " · " + a.course : ""} · ${fmtDate(a.date, { weekday: "short", day: "numeric", month: "short" })} ${fmtHM(HHMM.test(a.time || "") ? a.time : "10:00")} (রিমাইন্ডার চালু হবে)` };
+      return { ic: "📝", area: "deadline", text: `${KIND_BN[a.kind] || "Deadline"}: ${a.title}${a.course ? " · " + a.course : ""} · ${fmtDate(a.date, { weekday: "short", day: "numeric", month: "short" })} ${fmtHM(HHMM.test(a.time || "") ? a.time : "10:00")}` };
     case "edit_deadline": { const e = c.exams.find(x => x.id === a.deadline_id); if (!e) return null;
-      const ch = [a.title && `নাম → ${a.title}`, DATE.test(a.date || "") && `তারিখ → ${fmtDate(a.date)}`, HHMM.test(a.time || "") && `সময় → ${fmtHM(a.time)}`, a.done === true && "শেষ ✓ (রিমাইন্ডার বন্ধ)", a.done === false && "আবার চালু"].filter(Boolean);
+      const ch = [a.title && `Name → ${a.title}`, DATE.test(a.date || "") && `Date → ${fmtDate(a.date)}`, HHMM.test(a.time || "") && `Time → ${fmtHM(a.time)}`, a.done === true && "শেষ ✓ (রিমাইন্ডার বন্ধ)", a.done === false && "Active again"].filter(Boolean);
       return ch.length ? { ic: "✏️", area: "deadline", text: `${e.title} — ${ch.join(", ")}` } : null; }
-    case "remove_deadline": { const e = c.exams.find(x => x.id === a.deadline_id); return e ? { ic: "🗑️", area: "deadline", text: `ডেডলাইন বাদ: ${e.title}` } : null; }
-    case "remove_event": { const e = c.events.find(x => x.id === a.event_id); return e ? { ic: "🗑️", area: "event", text: `ক্যালেন্ডার থেকে বাদ: ${e.title} · ${fmtDate(e.date)}` } : null; }
-    case "goal_done": case "remove_goal": { const g = c.goals.find(x => x.id === a.goal_id); return g ? { ic: a.type === "goal_done" ? "🎯" : "🗑️", area: "goal", text: `${a.type === "goal_done" ? "লক্ষ্য পূরণ ✓" : "লক্ষ্য বাদ"}: ${g.title}` } : null; }
-    case "settle_due": { const d = c.dues.find(x => x.id === a.due_id); return d ? { ic: "✅", area: "due", text: `মিটে গেছে: ${d.person} · ${money(+d.amount)}` } : null; }
-    case "remove_bill": { const b = c.bills.find(x => x.id === a.bill_id); return b ? { ic: "🗑️", area: "bill", text: `বিল লিস্ট থেকে বাদ: ${b.title}` } : null; }
+    case "remove_deadline": { const e = c.exams.find(x => x.id === a.deadline_id); return e ? { ic: "🗑️", area: "deadline", text: `Remove deadline: ${e.title}` } : null; }
+    case "remove_event": { const e = c.events.find(x => x.id === a.event_id); return e ? { ic: "🗑️", area: "event", text: `Remove event: ${e.title} · ${fmtDate(e.date)}` } : null; }
+    case "goal_done": case "remove_goal": { const g = c.goals.find(x => x.id === a.goal_id); return g ? { ic: a.type === "goal_done" ? "🎯" : "🗑️", area: "goal", text: `${a.type === "goal_done" ? "Goal done" : "Remove goal"}: ${g.title}` } : null; }
+    case "settle_due": { const d = c.dues.find(x => x.id === a.due_id); return d ? { ic: "✅", area: "due", text: `Settled: ${d.person} · ${money(+d.amount)}` } : null; }
+    case "remove_bill": { const b = c.bills.find(x => x.id === a.bill_id); return b ? { ic: "🗑️", area: "bill", text: `Remove bill: ${b.title}` } : null; }
     case "set_budget": if (!a.category || !(+a.amount >= 0)) return null;
-      return { ic: "📊", area: "budget", text: `এই মাসের বাজেট: ${a.category} · ${money(+a.amount)}` };
+      return { ic: "📊", area: "budget", text: `Budget this month: ${a.category} · ${money(+a.amount)}` };
     case "edit_money": { const e = c.entries.find(x => x.id === a.entry_id); if (!e || !(+a.amount >= 0)) return null;
-      return { ic: "✏️", area: "money~", text: `টাকার হিসাব বদল (PIN লাগবে, পুরোনো অঙ্ক ইতিহাসে থাকবে): ${e.category} ${fmtDate(e.entry_date)} · ${money(+e.amount)} → ${money(+a.amount)}${a.note ? " · " + a.note : ""}` }; }
+      return { ic: "✏️", area: "money~", text: `Change amount (PIN; old amount kept): ${e.category} ${fmtDate(e.entry_date)} · ${money(+e.amount)} → ${money(+a.amount)}${a.note ? " · " + a.note : ""}` }; }
     case "mark_prayer": { if (!isMuslim()) return null; const w = waqts(todayStr()).find(x => x.key === a.prayer); if (!w || Date.now() < w.start || !["prayed", "not_prayed"].includes(a.status)) return null;
       return { ic: "🕌", area: "prayer", text: `${w.en}: ${a.status === "prayed" ? "Prayed ✓" : "Not prayed"}` }; }
-    case "set_bedtime": return HHMM.test(a.time || "") ? { ic: "🌙", area: "setting", text: `ঘুমের সময়: ${fmtHM(a.time)} (রাতের রিপোর্ট ৩০ মিনিট আগে)` } : null;
+    case "set_bedtime": return HHMM.test(a.time || "") ? { ic: "🌙", area: "setting", text: `Bedtime: ${fmtHM(a.time)}` } : null;
   }
   return null;
 }
@@ -124,14 +124,14 @@ function summary(items) {
   const n = k => items.filter(x => x.d.area === k).length;
   const sum = k => items.filter(x => x.d.area === k).reduce((s, x) => s + (x.d.amount || 0), 0);
   return [
-    (n("task+") || n("task-") || n("task~") || n("mark")) && `📅 টাস্ক: ${[n("task+") && "+" + n("task+") + " নতুন", n("task-") && "−" + n("task-") + " বাদ", n("task~") && n("task~") + "টা সময় বদল", n("mark") && n("mark") + "টা মার্ক"].filter(Boolean).join(", ")}`,
-    (n("routine+") || n("routine~") || n("routine-")) && `🔁 প্রতি সপ্তাহের রুটিন: ${[n("routine+") && "+" + n("routine+") + " নতুন", n("routine~") && n("routine~") + "টা বদল", n("routine-") && "−" + n("routine-") + " বাদ"].filter(Boolean).join(", ")}`,
-    (sum("income") + sum("fee")) && `💰 আয় বাড়বে: ${money(sum("income") + sum("fee"))}`,
-    sum("expense") && `💸 খরচ বাড়বে: ${money(sum("expense"))}`,
-    (n("student") || n("fee")) && `🎓 টিউশন: ${[n("student") && n("student") + "টা স্টুডেন্ট যোগ/বদল", n("fee") && n("fee") + "টা মাসের ফি"].filter(Boolean).join(", ")}`,
-    n("bill") && `🧾 +${n("bill")} বিল লিস্টে (দেওয়া না হওয়া পর্যন্ত খরচ ধরা হবে না)`,
-    n("deadline") && `📝 ${n("deadline")}টা ডেডলাইন (CT/ল্যাব/পরীক্ষা)`, n("budget") && `📊 ${n("budget")}টা বাজেট`, n("money~") && `✏️ ${n("money~")}টা টাকার হিসাব বদল (PIN)`, n("setting") && "⚙️ সেটিং বদল",
-    n("cat") && `🏷️ +${n("cat")} ক্যাটাগরি`, n("event") && `🗓️ +${n("event")} ক্যালেন্ডারে`, n("goal") && `🎯 +${n("goal")} লক্ষ্য`, n("habit") && `🚫 ${n("habit")}টা অভ্যাসের হিসাব`, n("due") && `🤝 +${n("due")} পাওনা/দেনা`,
+    (n("task+") || n("task-") || n("task~") || n("mark")) && `Tasks: ${[n("task+") && "+" + n("task+") + " new", n("task-") && "−" + n("task-") + " removed", n("task~") && n("task~") + " moved", n("mark") && n("mark") + " marked"].filter(Boolean).join(", ")}`,
+    (n("routine+") || n("routine~") || n("routine-")) && `Weekly routine: ${[n("routine+") && "+" + n("routine+") + " new", n("routine~") && n("routine~") + " changed", n("routine-") && "−" + n("routine-") + " removed"].filter(Boolean).join(", ")}`,
+    (sum("income") + sum("fee")) && `Income +${money(sum("income") + sum("fee"))}`,
+    sum("expense") && `Spending +${money(sum("expense"))}`,
+    (n("student") || n("fee")) && `Tuition: ${[n("student") && n("student") + " student(s)", n("fee") && n("fee") + " month fee(s)"].filter(Boolean).join(", ")}`,
+    n("bill") && `+${n("bill")} bill(s) to pay`,
+    n("deadline") && `${n("deadline")} deadline(s)`, n("budget") && `${n("budget")} budget(s)`, n("money~") && `${n("money~")} amount change(s) (PIN)`, n("setting") && "Settings change",
+    n("cat") && `+${n("cat")} category`, n("event") && `+${n("event")} calendar event(s)`, n("goal") && `+${n("goal")} goal(s)`, n("habit") && `${n("habit")} habit log(s)`, n("due") && `+${n("due")} due(s)`,
   ].filter(Boolean);
 }
 
@@ -233,18 +233,18 @@ export async function shrink(file) {
 const YES = /^\s*(হ্যাঁ|হ্যা|হা|হুম|জি|ঠিক আছে|করো|করে দাও|yes|y|ok|okay|ha|haa|hmm|do it)\s*[.!।]*\s*$/i;
 
 export function askSheet(opts = {}) {
-  const q = h("textarea.input", { placeholder: "যেমন: আজ Leon-এর টিউশন নেই, বাদ দাও", maxlength: "800", style: { minHeight: "56px" } });
+  const q = h("textarea.input", { placeholder: "Ask or tell AI what to do…", maxlength: "800", style: { minHeight: "56px" } });
   const out = h("div");
   const history = [];
   let photo = null, pending = null;
   const thumb = h("div");
   const fileIn = h("span");
   const takePhoto = async () => {
-    const f = await pickPhoto("AI-কে ছবি দিন"); if (!f) return;
-    try { photo = await shrink(f); thumb.replaceChildren(h("div.row", { style: { gap: "8px", marginTop: "8px" } }, h("img", { src: photo.url, style: { width: "56px", height: "56px", objectFit: "cover", borderRadius: "10px" } }), h("span.small.muted.grow", "ছবি যোগ হয়েছে — এখন লিখে/বলে বলুন কী করতে হবে"), h("button.btn.small.ghost", { type: "button", onclick: () => { photo = null; thumb.replaceChildren(); } }, "✕"))); }
+    const f = await pickPhoto("Photo for AI"); if (!f) return;
+    try { photo = await shrink(f); thumb.replaceChildren(h("div.row", { style: { gap: "8px", marginTop: "8px" } }, h("img", { src: photo.url, style: { width: "56px", height: "56px", objectFit: "cover", borderRadius: "10px" } }), h("span.small.muted.grow", "Photo added — now say what to do"), h("button.btn.small.ghost", { type: "button", onclick: () => { photo = null; thumb.replaceChildren(); } }, "✕"))); }
     catch (e) { toast(e.message, "bad"); }
   };
-  const photoBtn = h("button.btn.small", { type: "button", onclick: () => takePhoto() }, "📷 ছবি (ক্যামেরা / গ্যালারি)");
+  const photoBtn = h("button.btn.small", { type: "button", onclick: () => takePhoto() }, "📷 Photo");
   if (opts.text) setTimeout(() => { q.value = opts.text; }, 0);
   if (opts.photo) setTimeout(() => takePhoto(), 450);
 
@@ -256,43 +256,43 @@ export function askSheet(opts = {}) {
     const bad = acts.length - items.length;
     const box = h("div");
     if (r.answer) box.append(h("div.ai-answer", r.answer));
-    if (bad) { box.append(h("p.small.warn", `⚠️ ${bad}টা জিনিস বোঝা যায়নি বা করা সম্ভব না, ওগুলো বাদ রাখলাম।`)); issue("partial", lastQ, `${bad} action(s) could not be used`); }
+    if (bad) { box.append(h("p.small.warn", `${bad} item(s) skipped — not clear or not possible.`)); issue("partial", lastQ, `${bad} action(s) could not be used`); }
     // did the AI get it wrong? one tap tells the admin
-    const wrong = h("button.linkbtn.small", { type: "button" }, "👎 ঠিক বোঝেনি?");
-    wrong.onclick = () => { issue("wrong", lastQ, (r.answer || "").slice(0, 300) + ((r.actions || []).length ? ` [${r.actions.length} actions]` : "")); wrong.replaceWith(h("span.small.muted", "ধন্যবাদ — অ্যাডমিনকে জানানো হলো, AI ঠিক করা হবে।")); };
+    const wrong = h("button.linkbtn.small", { type: "button" }, "👎 Wrong?");
+    wrong.onclick = () => { issue("wrong", lastQ, (r.answer || "").slice(0, 300) + ((r.actions || []).length ? ` [${r.actions.length} actions]` : "")); wrong.replaceWith(h("span.small.muted", "Thanks — reported.")); };
     box.append(h("div", { style: { textAlign: "right", marginTop: "4px" } }, wrong));
     if (!items.length) { pending = null; out.replaceChildren(box); return; }
     const sumBox = h("div.small", { style: { padding: "8px 10px", borderRadius: "10px", background: "var(--bg2)", margin: "8px 0" } });
-    const drawSum = () => sumBox.replaceChildren(h("b", "এতে যা বদলাবে:"), ...summary(items.filter(x => x.on)).map(l => h("div", l)));
+    const drawSum = () => sumBox.replaceChildren(h("b", "Changes:"), ...summary(items.filter(x => x.on)).map(l => h("div", l)));
     const list = h("div.list", items.map(x => h("label.li", { style: { alignItems: "flex-start", cursor: "pointer" } },
       h("input", { type: "checkbox", checked: true, style: { width: "20px", height: "20px", accentColor: "var(--brand)", marginTop: "2px", flexShrink: 0 }, onchange: e => { x.on = e.target.checked; drawSum(); } }),
       h("div.grow", h("div", x.d.ic, " ", x.d.text), x.a.label && x.a.label !== x.d.text ? h("div.small.faint", x.a.label) : null))));
     drawSum();
     const log = h("div.small", { style: { marginTop: "8px" } });
-    const yes = h("button.btn.primary", "✅ হ্যাঁ, করো");
-    const no = h("button.btn", "বাতিল");
+    const yes = h("button.btn.primary", "Yes, do it");
+    const no = h("button.btn", "Cancel");
     const doIt = async () => {
       const FIRST = ["add_category", "add_student", "edit_student"];
       const chosen = items.filter(x => x.on).sort((p, q) => (FIRST.includes(q.a.type) ? 1 : 0) - (FIRST.includes(p.a.type) ? 1 : 0));
-      if (!chosen.length) { toast("অন্তত একটা টিক দিন।", "bad"); return; }
+      if (!chosen.length) { toast("Tick at least one.", "bad"); return; }
       pending = null; yes.disabled = no.disabled = true; list.querySelectorAll("input").forEach(i => i.disabled = true);
       let ok = 0, needTasks = false, needBasics = false;
       for (const x of chosen) {
         const line = h("div", "⏳ ", x.d.text); log.append(line);
         try { await run(x.a, c); ok++; line.replaceChildren("✓ ", x.d.text); line.style.color = "var(--green)"; }
-        catch (e) { line.replaceChildren("✗ ", x.d.text, " — ", e.message || "হয়নি"); line.style.color = "var(--red)"; }
+        catch (e) { line.replaceChildren("✗ ", x.d.text, " — ", e.message || "failed"); line.style.color = "var(--red)"; }
         if (/routine|task/.test(x.d.area)) needTasks = true; if (x.d.area === "cat") needBasics = true;
       }
       try { if (needTasks) await api.rpc("ensure_tasks", { p_from: todayStr(), p_to: addDays(todayStr(), 7) }); if (needBasics) await loadBasics(); } catch { /* next open fixes it */ }
       log.append(h("div", { style: { marginTop: "6px", fontWeight: 700 } }, `${ok}/${chosen.length}টা হয়ে গেছে ✓`));
       yes.remove(); no.remove();
-      toast(`${ok}টা কাজ হয়ে গেছে ✓`, "ok"); rerender();
+      toast(`${ok} done ✓`, "ok"); rerender();
     };
     yes.onclick = busy(yes, doIt);
-    no.onclick = () => { pending = null; out.replaceChildren(h("p.small.muted", "বাতিল করা হয়েছে, কিছু বদলায়নি।")); };
+    no.onclick = () => { pending = null; out.replaceChildren(h("p.small.muted", "Cancelled — nothing changed.")); };
     pending = doIt;
     box.append(h("div.ai-plan",
-      h("div.ai-plan-h", h("span", "✨"), h("div", h("b", "আপনি কি এগুলো করতে চান?"), h("div.small.muted", "যেটা চান না, টিক তুলে দিন। “হ্যাঁ, করো” চাপলেই সব হয়ে যাবে।"))),
+      h("div.ai-plan-h", h("span", "✨"), h("div", h("b", "Do these?"), h("div.small.muted", "Untick what you don't want."))),
       list, sumBox, h("div.row", { style: { gap: "8px", justifyContent: "flex-end" } }, no, yes), log));
     out.replaceChildren(box);
   };
@@ -301,7 +301,7 @@ export function askSheet(opts = {}) {
   const issue = (kind, asked, note) => api.rpc("report_ai_issue", { p_kind: kind, p_asked: String(asked || "").slice(0, 500), p_note: String(note || "").slice(0, 500) }).catch(() => {});
   const ask = async ({ text, audio }) => {
     if (!audio && !photo && pending && YES.test(text || "")) { q.value = ""; await pending(); return; }
-    out.replaceChildren(h("div.ai-think", h("i"), h("i"), h("i"), h("span", photo ? "ছবি দেখছে…" : audio ? "শুনছে…" : "ভাবছে…")));
+    out.replaceChildren(h("div.ai-think", h("i"), h("i"), h("i"), h("span", photo ? "Reading photo…" : audio ? "Listening…" : "Thinking…")));
     lastQ = text || (audio ? "[voice]" : "") + (photo ? " [photo]" : "");
     const c = await gather();
     const r = await api.ai("ask", { question: text || "", audio: audio || null, image: photo ? { mime: photo.mime, data: photo.data } : null, ctx: c.forAi, history: history.slice(-6), today: todayStr() });
@@ -311,22 +311,22 @@ export function askSheet(opts = {}) {
     showPlan(r, c);
   };
   // speak → words appear in the box → fix if needed → Send (nothing happens before Send)
-  const voice = dictation(q, { transcribe: audio => api.ai("transcribe", { audio }), label: "চাপুন আর বাংলায় বলুন" });
+  const voice = dictation(q, { transcribe: audio => api.ai("transcribe", { audio }), label: "Tap and speak" });
   // what the AI can do — tap one to put an example in the box
-  const CAN = [["✅", "টাস্ক", "আজ Leon-এর টিউশন নেই, টাস্কটা বাদ দাও"], ["🗓️", "রুটিন", "প্রতি শনি ও সোমবার বিকাল ৫টা থেকে ৬টা Physics পড়াব"], ["📷", "ছবি থেকে", "এই ছবি দেখে আমার সাপ্তাহিক রুটিন বানাও"],
-    ["💳", "টাকা", "আজ রিকশা ভাড়ায় ২০০ টাকা খরচ হয়েছে"], ["🎓", "টিউশন ফি", "Leon নভেম্বর মাসের টিউশন ফি দিয়েছে"], ["📝", "পরীক্ষা", "রবিবার সকাল ১০টায় Physics CT আছে"],
-    ["🚭", "অভ্যাস", "আজ ৩টা সিগারেট খেয়েছি, প্রতিটা ১৫ টাকা"], ["💬", "প্রশ্ন", "এই সপ্তাহে কোন কাজে সবচেয়ে পিছিয়ে আছি?"]];
+  const CAN = [["✅", "Tasks", "আজ Leon-এর টিউশন নেই, টাস্কটা বাদ দাও"], ["🗓️", "Routine", "প্রতি শনি ও সোমবার বিকাল ৫টা থেকে ৬টা Physics পড়াব"], ["📷", "Photo", "এই ছবি দেখে আমার সাপ্তাহিক রুটিন বানাও"],
+    ["💳", "Money", "আজ রিকশা ভাড়ায় ২০০ টাকা খরচ হয়েছে"], ["🎓", "Fees", "Leon নভেম্বর মাসের টিউশন ফি দিয়েছে"], ["📝", "Exams", "রবিবার সকাল ১০টায় Physics CT আছে"],
+    ["🚭", "Habits", "আজ ৩টা সিগারেট খেয়েছি, প্রতিটা ১৫ টাকা"], ["💬", "Ask", "এই সপ্তাহে কোন কাজে সবচেয়ে পিছিয়ে আছি?"]];
   const grid = h("div.ai-can", CAN.map(([ic, t, ex]) => h("button", { type: "button", onclick: () => { q.value = ex; q.focus(); } }, h("span", ic), h("b", t))));
-  const guide = h("div", h("div.row.between", { style: { margin: "0 0 6px" } }, h("b.small", "AI যা যা করে দিতে পারে"), h("span.small.faint", "চাপলে উদাহরণ বসবে")), grid,
-    h("p.small.muted", { style: { margin: "6px 0 10px" } }, "লিখুন, 🎙️ বাংলায় বলুন বা ছবি দিন — আগে দেখাবে কী করবে, “হ্যাঁ” চাপলে তবেই হবে।"));
-  const tipsFold = h("details.ai-fold", h("summary", "💡 আজকের পরামর্শ"), coachBox());
+  const guide = h("div", h("div.row.between", { style: { margin: "0 0 6px" } }, h("b.small", "What AI can do"), h("span.small.faint", "tap for an example")), grid,
+    h("p.small.muted", { style: { margin: "6px 0 10px" } }, "Type, speak (Bangla or English) or add a photo. Nothing changes until you confirm."));
+  const tipsFold = h("details.ai-fold", h("summary", "Today's advice"), coachBox());
   return sheet("✨ AI", [
     guide,
     q, voice, h("div.row", { style: { gap: "8px", marginTop: "6px" } }, photoBtn, fileIn), thumb, out, tipsFold], {
     actions: close => {
       const go = h("button.btn.primary", "Send");
       go.onclick = busy(go, async () => {
-        if (!q.value.trim() && !photo) throw new Error("লিখুন, বলুন বা ছবি দিন।");
+        if (!q.value.trim() && !photo) throw new Error("Type, speak or add a photo.");
         try { await ask({ text: q.value.trim() }); }
         catch (e) { if (!e.offline) issue("error", q.value.trim(), e.message); throw e; }
       });

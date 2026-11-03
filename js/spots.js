@@ -3,13 +3,13 @@ import * as api from "./api.js";
 import { h } from "./ui.js";
 
 const TODAY = [
-  [".nav-ai", "AI", "প্রশ্ন করুন বা বলুন কী করতে হবে — টাস্ক, টাকা, রুটিন, পরীক্ষা।"],
-  [".top-bell", "Alerts", "নোটিফিকেশন চালু করা, Telegram, আর নতুন নোটিফিকেশন।"],
-  ["a.hero.mini", "আজকের রিপোর্ট", "চাপলে আজকের পুরো হিসাব আর AI-এর মূল্যায়ন।"],
-  [".upnext", "Up next", "পরের কাজ আর কত সময় বাকি।"],
-  [".btn.emg", "Emergency", "হঠাৎ জরুরি কাজ যোগ করুন।"],
-  [".fab", "নতুন টাস্ক", "একবারের কাজ যোগ করুন।"],
-  [".nav", "নিচের মেনু", "Routine · Money · Me — আর মাঝে AI।"],
+  [".nav-ai", "AI", "Ask, or tell it what to do."],
+  [".top-bell", "Alerts", "Notifications and Telegram."],
+  ["a.hero.mini", "Today's report", "Tap for the full day and AI review."],
+  [".upnext", "Up next", "Your next task."],
+  [".btn.emg", "Emergency", "Add something urgent."],
+  [".fab", "New task", "Add a one-time task."],
+  [".nav", "Menu", "Routine · Money · Me, with AI in the middle."],
 ];
 
 export function showSpots(force = false, list = TODAY) {

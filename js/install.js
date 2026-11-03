@@ -23,33 +23,33 @@ export function installBody(page = false) {
   const d = device();
   const out = [];
   if (d.inApp) {
-    out.push(steps("Facebook / Messenger-এর ভেতরে খোলা আছে", [
-      d.ios ? "উপরে/নিচে ⋯ বা ↗ চাপুন → “Open in Safari”" : "উপরে ⋮ চাপুন → “Open in Chrome” / “Open in browser”",
-      "তারপর সেখান থেকে Home Screen-এ যোগ করুন।"]));
+    out.push(steps("Opened inside Facebook / Messenger", [
+      d.ios ? "Tap ⋯ or ↗ → “Open in Safari”" : "Tap ⋮ → “Open in Chrome”",
+      "Then add it to the Home Screen from there."]));
     out.push(h("button.btn.block", { onclick: () => navigator.clipboard?.writeText(api.SITE_URL).then(() => toast("Link copied ✓", "ok")) }, "🔗 Copy link"));
   } else if (d.ios) {
-    if (d.iosOther) out.push(h("p.hint", "⚠️ iPhone-এ শুধু Safari থেকে Home Screen-এ যোগ করা যায়। লিংকটা Safari-তে খুলুন।"),
+    if (d.iosOther) out.push(h("p.hint", "On iPhone this works only in Safari. Open the link in Safari."),
       h("button.btn.block", { onclick: () => navigator.clipboard?.writeText(api.SITE_URL).then(() => toast("Link copied — paste it in Safari", "ok")) }, "🔗 Copy link"));
-    out.push(steps("iPhone / iPad (Safari)", ["নিচে Share বাটন চাপুন ( ⬆ বর্গের ভেতরে তীর )", "নিচে স্ক্রল করে “Add to Home Screen” চাপুন", "উপরে ডানে “Add” চাপুন", "এখন হোম স্ক্রিনের Amar Lifestyle আইকন থেকে খুলুন"]));
+    out.push(steps("iPhone / iPad (Safari)", ["Tap Share (square with ⬆ arrow)", "Scroll down → “Add to Home Screen”", "Tap “Add”", "Open Amar Lifestyle from the Home Screen"]));
   } else if (bip) {
-    const b = h("button.btn.primary.block", "📲 Install app — এক চাপে");
+    const b = h("button.btn.primary.block", "Install app");
     b.onclick = async () => { const p = bip; if (!p) return; p.prompt(); const r = await p.userChoice.catch(() => ({})); if (r.outcome === "accepted") { bip = null; b.closest(".backdrop")?.click(); } };
     out.push(b);
   } else {
     out.push(steps(d.android ? "Android (Chrome)" : "Computer (Chrome / Edge)", d.android
-      ? ["উপরে ডানে ⋮ চাপুন", "“Add to Home screen” বা “Install app” চাপুন", "“Install / Add” চাপুন — হোম স্ক্রিনে আইকন চলে আসবে"]
-      : ["ঠিকানা বারের ডানে ⊕ / Install আইকন চাপুন", "“Install” চাপুন"]));
+      ? ["Tap ⋮ (top right)", "Tap “Install app” / “Add to Home screen”", "Tap “Install”"]
+      : ["Click the install icon in the address bar", "Click “Install”"]));
   }
   if (page) return out;
   return [h("div.inst-why",
-    h("div", "⚡ আসল অ্যাপের মতো এক চাপে খোলে, পুরো স্ক্রিনে"),
-    h("div", "🔔 টাস্কের আগে নোটিফিকেশন ঠিকমতো আসে", d.ios ? h("b", " (iPhone-এ শুধু তখনই আসে)") : null),
-    h("div", "📴 ইন্টারনেট ছাড়াও খোলে")), ...out];
+    h("div", "⚡ Opens full screen in one tap"),
+    h("div", "🔔 Reliable reminders", d.ios ? h("b", " (required on iPhone)") : null),
+    h("div", "📴 Works offline")), ...out];
 }
 
 export function showInstall() {
   api.LS.set("al_inst_seen", Date.now());
-  return sheet("📱 আগে অ্যাপটা Home Screen-এ রাখুন", installBody(), { actions: close => [h("button.btn.block", { onclick: () => close(null) }, "পরে করবো")] });
+  return sheet("📱 Add to Home Screen", installBody(), { actions: close => [h("button.btn.block", { onclick: () => close(null) }, "Later")] });
 }
 // shown before everything else, again every day until it's done
 export async function installFirst() {
@@ -61,7 +61,7 @@ export async function installFirst() {
 export function installStrip() {
   if (isStandalone() || Date.now() - (api.LS.get("al_inst_strip") || 0) < 864e5) return null;
   const c = h("div.tg-hint", { style: { marginBottom: "10px", alignItems: "center", borderColor: "color-mix(in srgb, var(--brand) 45%, transparent)" } },
-    h("span", "📱"), h("span.grow", "অ্যাপটা Home Screen-এ রাখুন — নোটিফিকেশন ঠিকমতো আসবে।"),
+    h("span", "📱"), h("span.grow", "Add the app to your Home Screen."),
     h("button.btn.small.primary", { onclick: () => showInstall() }, "Add"),
     h("button.linkbtn.small", { onclick: () => { api.LS.set("al_inst_strip", Date.now()); c.remove(); } }, "✕"));
   return c;

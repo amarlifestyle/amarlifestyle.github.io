@@ -103,10 +103,10 @@ export async function syncWeekly() {
     }
   } catch (e) { toast("Couldn't update the weekly routine: " + e.message, "bad"); }
 }
-const MERGE = [["weekly", "📅 রুটিন আর Today-তে", "প্রতিটা ক্লাস টাস্ক হবে — DP, Completed / Not Completed, রিমাইন্ডার সহ"], ["none", "📁 আলাদা থাকুক", "শুধু এই ট্যাবেই থাকবে"]];
+const MERGE = [["weekly", "📅 Add to routine", "Each class becomes a task with DP and reminders"], ["none", "📁 Keep separate", "Only in this tab"]];
 // ask how this tab should join the daily plan
 function mergeSheet(tab, after) {
-  sheet(`“${tab.name}” — রুটিনের সাথে মেলাবেন?`, [h("p.hint", "এই ট্যাবের ক্লাসগুলো কি আপনার সাপ্তাহিক রুটিনে যোগ হবে? পরে এই ট্যাব থেকেই বদলানো যাবে।"),
+  sheet(`“${tab.name}” — রুটিনের সাথে মেলাবেন?`, [h("p.hint", "Add these classes to your weekly routine?"),
     h("div.list", MERGE.map(([k, l, sub]) => { const b = h("button.li", { style: { textAlign: "left" } }, h("div.grow", h("b", l, tab.merge === k ? " ✓" : ""), h("div.small.muted", sub)));
       b.onclick = busy(b, async () => { await api.update("timetable_tabs", `id=eq.${tab.id}`, { merge: k }); tab.merge = k; await loadTabs(); await syncWeekly(); document.querySelector(".backdrop")?.click(); after?.(); });
       return b; }))], { actions: close => [h("button.btn", { onclick: () => close(null) }, "Later")] });

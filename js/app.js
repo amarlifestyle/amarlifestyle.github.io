@@ -9,12 +9,12 @@ export function catColor(name) {
 }
 // what you do decides which categories and sections the app shows
 export const ROLES = {
-  school: { label: "School / college student", bn: "শিক্ষার্থী", icon: "📚", cats: ["Study + Class", "Skill learning", "Gym / Running", "Work / Personal"], tuition: false, income: ["Family", "Gift", "Other income"] },
-  student: { label: "University student", bn: "বিশ্ববিদ্যালয় শিক্ষার্থী", icon: "🎓", cats: ["Study + Class", "Tuition", "Skill learning", "Gym / Running", "Work / Personal"], tuition: true, income: ["Tuition", "Family", "Video work", "Gift", "Other income"] },
-  teacher: { label: "Teacher", bn: "শিক্ষক", icon: "👨‍🏫", cats: ["Class / Teaching", "Lesson prep", "Exam checking", "Tuition", "Skill learning", "Gym / Running", "Work / Personal"], tuition: true, income: ["Salary", "Tuition", "Other income"] },
-  business: { label: "Business", bn: "ব্যবসায়ী", icon: "💼", cats: ["Meeting", "Client work", "Shop / Sales", "Accounts", "Skill learning", "Gym / Running", "Work / Personal"], tuition: false, income: ["Sales", "Client payment", "Other income"] },
-  job: { label: "Job holder", bn: "চাকরিজীবী", icon: "🏢", cats: ["Office work", "Meeting", "Skill learning", "Side work", "Gym / Running", "Work / Personal"], tuition: false, income: ["Salary", "Bonus", "Side income", "Other income"] },
-  homemaker: { label: "Homemaker", bn: "গৃহিণী", icon: "🏠", cats: ["Cooking", "Housework", "Children care", "Bazar / Shopping", "Learning / Reading", "Gym / Running", "Work / Personal"], tuition: false, income: ["Family", "Gift", "Side income", "Other income"] },
+  school: { label: "School / college student", bn: "Student", icon: "📚", cats: ["Study + Class", "Skill learning", "Gym / Running", "Work / Personal"], tuition: false, income: ["Family", "Gift", "Other income"] },
+  student: { label: "University student", bn: "University student", icon: "🎓", cats: ["Study + Class", "Tuition", "Skill learning", "Gym / Running", "Work / Personal"], tuition: true, income: ["Tuition", "Family", "Video work", "Gift", "Other income"] },
+  teacher: { label: "Teacher", bn: "Teacher", icon: "👨‍🏫", cats: ["Class / Teaching", "Lesson prep", "Exam checking", "Tuition", "Skill learning", "Gym / Running", "Work / Personal"], tuition: true, income: ["Salary", "Tuition", "Other income"] },
+  business: { label: "Business", bn: "Business", icon: "💼", cats: ["Meeting", "Client work", "Shop / Sales", "Accounts", "Skill learning", "Gym / Running", "Work / Personal"], tuition: false, income: ["Sales", "Client payment", "Other income"] },
+  job: { label: "Job holder", bn: "Job holder", icon: "🏢", cats: ["Office work", "Meeting", "Skill learning", "Side work", "Gym / Running", "Work / Personal"], tuition: false, income: ["Salary", "Bonus", "Side income", "Other income"] },
+  homemaker: { label: "Homemaker", bn: "Homemaker", icon: "🏠", cats: ["Cooking", "Housework", "Children care", "Bazar / Shopping", "Learning / Reading", "Gym / Running", "Work / Personal"], tuition: false, income: ["Family", "Gift", "Side income", "Other income"] },
 };
 // chips: pick what you do — one or two (e.g. Job holder + University student)
 export const myRoles = (p = store.profile) => { const r = (p?.roles || []).filter(k => ROLES[k]); return r.length ? r : (p?.occupation && ROLES[p.occupation] ? [p.occupation] : []); };
@@ -28,7 +28,7 @@ export function occupationPicker(current, onPick) {
       draw(); onPick([...sel]);
     } }, sel.includes(k) ? "✓ " : "", r.icon, " ", r.label)));
   draw();
-  box.append(chips, h("div.small.muted", { style: { marginTop: "6px" } }, "চাইলে দুটো বেছে নিতে পারেন — যেমন Job holder + University student। দুটোর সব ফিচারই পাবেন।"));
+  box.append(chips, h("div.small.muted", { style: { marginTop: "6px" } }, "You can pick two, e.g. Job holder + University student."));
   return box;
 }
 export async function saveOccupation(list) {
@@ -71,7 +71,7 @@ export async function loadBasics() {
 }
 export function applyTheme(theme) {
   document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#F4F4EF" : "#07090D");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#F3F6FA" : "#0B1220");
   api.LS.set("al_theme", theme);
 }
 
@@ -270,7 +270,7 @@ export function start() {
 }
 
 // ছেলে / মেয়ে — optional, can be changed any time
-export const GENDERS = { male: "👨 ছেলে", female: "👩 মেয়ে", other: "🙂 বলতে চাই না" };
+export const GENDERS = { male: "Male", female: "Female", other: "Prefer not to say" };
 export function genderPicker(cur, onPick) {
   const box = h("div.seg");
   const draw = () => box.replaceChildren(...Object.entries(GENDERS).map(([k, l]) => h("button" + (k === cur ? ".on" : ""), { type: "button", onclick: () => { cur = k; onPick(k); draw(); } }, l)));
