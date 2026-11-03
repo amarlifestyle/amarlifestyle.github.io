@@ -5,8 +5,9 @@ import { route, store, catColor, catNames, catDp, rerender, go, occupationPicker
 import { prayerNow, prayerCount, religionPicker, saveReligion } from "./prayer.js";
 import { askSheet } from "./aicoach.js";
 import { showTour } from "./tour.js";
+import { timePicker, nowHM } from "./timepick.js";
 import { installFirst, isStandalone, showInstall } from "./install.js";
-import { examRows } from "./exams.js";
+import { examRows, examSheet, markExamDone, doneWord } from "./exams.js";
 import { quoteFor } from "./quotes.js";
 import { mealNow, classesBetween, classCard } from "./timetable.js";
 
@@ -146,7 +147,15 @@ route("today", async page => {
   // university classes from the timetable sit in the list by time (no DP)
   let classes = [];
   try { classes = await classesBetween(today, today); } catch { /* offline */ }
-  try { (await examRows()).forEach(e => stack.append(srow(e.ic, e.title, e.sub, h("span.s-tag", { style: { color: e.color } }, e.left), "#/exams"))); } catch { /* offline */ }
+  try {
+    (await examRows()).forEach(x => {
+      const ok = h("button.btn.small", { type: "button", title: doneWord(x.e.kind) }, "✓");
+      ok.onclick = busy(ok, async ev => { ev?.stopPropagation?.(); await markExamDone(x.e, true); });
+      const r = srow(x.ic, x.title, x.sub, [h("span.s-tag", { style: { color: x.color } }, x.left), ok], null);
+      r.style.cursor = "pointer"; r.onclick = ev => { if (!ok.contains(ev.target)) examSheet(x.e); };
+      stack.append(r);
+    });
+  } catch { /* offline */ }
   try { const pn = await prayerNow(); if (pn) stack.prepend(pn); } catch { /* offline */ }
   if (nightRow) stack.prepend(srow(...nightRow));
   if (!isStandalone() && Date.now() - (api.LS.get("al_inst_strip") || 0) > 864e5) {
@@ -182,7 +191,13 @@ route("today", async page => {
     const list = tasks.filter(x => x.status !== "running");
     const emgFirst = list.filter(x => (x.title || "").startsWith("🚨") && x.status === "pending");
     const pinned = [...emgFirst, ...list.filter(x => x.pinned && !emgFirst.includes(x))], rest = [...list.filter(x => !x.pinned && !emgFirst.includes(x)), ...classes].sort((a, b) => a.start_at.localeCompare(b.start_at));
-    [...pinned, ...rest].forEach(tk => body.append(tk.isClass ? classCard(tk) : taskCard(tk, queued.has(tk.id))));
+    const isDone = x => !x.isClass && (x.status !== "pending" || queued.has(x.id));
+    const all = [...pinned, ...rest], open = all.filter(x => !isDone(x)), finished = all.filter(isDone).sort((a, b) => a.start_at.localeCompare(b.start_at));
+    open.forEach(tk => body.append(tk.isClass ? classCard(tk) : taskCard(tk, false)));
+    if (finished.length) {
+      if (open.length) body.append(h("div.done-sep", h("span", `শেষ হয়েছে · ${finished.length}`)));
+      finished.forEach(tk => body.append(taskCard(tk, queued.has(tk.id))));
+    }
   }
   body.append(h("p.center.small.faint.mt", "Unplanned work? Use ", h("button.linkbtn", { onclick: openTimer }, "the timer"), " to earn DP."));
   notifyLoop(tasks);
@@ -195,7 +210,7 @@ function taskCard(tk, queued) {
   const c = tk.color || catColor(tk.category);
   const nowD = new Date();
   const ul = unlockAt(tk), le = lateEnd(tk);
-  const el = h("div.task" + (["completed", "late_completed"].includes(tk.status) || queued ? ".done" : ""), { style: { "--c": c } });
+  const el = h("div.task" + (["completed", "late_completed"].includes(tk.status) || queued ? ".done" : ["not_completed", "missed"].includes(tk.status) ? ".done.bad" : ""), { style: { "--c": c } });
   const status = {
     completed: h("span.badge.ok", "✓ " + (tk.done_pct && tk.done_pct < 100 ? tk.done_pct + "% · " : "") + "+" + tk.dp_awarded + " DP" + (tk.photo_bonus ? " 📷" : "")),
     late_completed: h("span.badge.warn", "✓ Done late" + (tk.done_pct && tk.done_pct < 100 ? " " + tk.done_pct + "%" : "") + " · 0 DP"),
@@ -214,9 +229,15 @@ function taskCard(tk, queued) {
       bN.onclick = busy(bN, async () => { if (await confirmBox("Not completed?", `Marking it now costs nothing (0 DP). Leaving it unmarked costs −${tk.dp_value} DP at 12 AM.`, "Yes, not completed")) await mark(tk, "not_completed"); });
       acts.append(bC, bN);
       if (late) acts.append(h("div.lockline", icon("info"), "Late now: marking Completed gives 0 DP, but counts as done."));
-      else if (nowD > new Date(tk.end_at)) acts.append(h("div.lockline", icon("info"), `Full DP until ${fmtTime(le.toISOString())} (half coins).`));
+      else if (nowD > new Date(tk.end_at)) acts.append(h("div.lockline", icon("info"), `Full DP until ${fmtTime(le.toISOString())}.`));
     }
-  } else if (tk.photo_path) {
+  } else if (["completed", "late_completed", "not_completed"].includes(tk.status) && tk.day === todayStr()) {
+    // changed your mind? take the mark back (same day only)
+    const u = h("button.linkbtn.small", { type: "button" }, "↺ মার্ক তুলে দিন");
+    u.onclick = busy(u, async () => { if (!(await confirmBox("মার্ক তুলে দেবেন?", "টাস্কটা আবার খোলা হবে, পাওয়া DP ফেরত যাবে। আবার ঠিকমতো মার্ক করতে পারবেন।", "হ্যাঁ, তুলে দিন"))) return; await api.rpc("unmark_task", { p_task: tk.id }); toast("মার্ক তুলে দেওয়া হলো — এখন আবার মার্ক করুন", "ok"); rerender(); });
+    acts.append(u);
+  }
+  if (tk.status !== "pending" && tk.photo_path) {
     const b = h("button.btn.small.ghost", icon("camera"), "View photo");
     b.onclick = busy(b, async () => { const u = await api.signedUrl(tk.photo_path); sheet(tk.title, h("img", { src: u, alt: "Proof photo", style: { borderRadius: "14px" } })); });
     acts.append(b);
@@ -233,7 +254,7 @@ function taskCard(tk, queued) {
 // how much of the task was done → DP and coins in the same share
 function pctSheet(tk, late) {
   const full = late ? 0 : tk.dp_value;
-  sheet("কতটুকু শেষ হয়েছে?", [h("p.hint", `“${tk.title}” — যতটুকু করেছেন সেটা বেছে নিন। DP আর কয়েন সেই অনুযায়ী পাবেন।`),
+  sheet("কতটুকু শেষ হয়েছে?", [h("p.hint", `“${tk.title}” — যতটুকু করেছেন সেটা বেছে নিন। DP সেই অনুযায়ী পাবেন।`),
     h("div.grid2", { style: { gap: "8px" } }, [25, 50, 75, 100].map(p => {
       const b = h("button.btn" + (p === 100 ? ".primary" : ""), { style: { flexDirection: "column", padding: "12px 6px", height: "auto" } }, h("b", { style: { fontSize: "20px" } }, p + "%"), h("span.small", late ? "0 DP (late)" : `+${Math.round(full * p / 100)} DP`));
       b.onclick = busy(b, async () => { document.querySelector(".backdrop")?.click(); await mark(tk, "completed", p); });
@@ -244,7 +265,7 @@ async function mark(tk, result, pctDone = 100) {
   if (tk.offlineNew) { api.queueMark(tk.id, result, pctDone); toast("Saved offline. It will sync when you're online.", "ok"); rerender(); return; }
   try {
     const r = await api.rpc("complete_task_pct", { p_task: tk.id, p_result: result, p_pct: pctDone });
-    if (r.status === "completed") toast(r.no_dp_reason === "added_after_start" ? "Done ✓ — no DP (task was added after it started)" : `${pctDone < 100 ? pctDone + "% done · " : "Great! "}+${r.dp} DP · +${r.coins} coins 🎉`, "ok");
+    if (r.status === "completed") toast(r.no_dp_reason === "added_after_start" ? "Done ✓ — no DP (task was added after it started)" : `${pctDone < 100 ? pctDone + "% done · " : "Great! "}+${r.dp} DP 🎉`, "ok");
     else if (r.status === "late_completed") toast("Marked done (late) — no DP this time.", "");
     else toast(`Noted. ${r.dp} DP`, "");
     if (navigator.vibrate) navigator.vibrate(30);
@@ -265,11 +286,8 @@ export async function addTask(tk = null, preset = {}) {
   const title = h("input.input", { value: tk?.title || preset.title || "", placeholder: "e.g. Physics chapter 3", maxlength: "80" });
   const cat = h("select.input", catNames().map(n => h("option", { value: n, selected: (tk?.category || preset.category) === n }, `${n} · ${catDp(n)} DP/hour`)));
   const day = h("input.input", { type: "date", value: tk?.day || preset.day || today, min: today });
-  const tStart = tk ? fmtLocalHM(tk.start_at) : preset.time || startDef;
-  const start = h("input.input", { type: "time", value: tStart });
-  let dur = tk ? mins(tk.start_at, tk.end_at) : 60;
-  const durInp = h("input.input", { type: "number", min: "5", max: "720", value: dur, inputmode: "numeric", "aria-label": "Minutes" });
-  const quick = h("div.seg", [30, 60, 90, 120].map(m => h("button" + (m === dur ? ".on" : ""), { type: "button", onclick: e => { durInp.value = m; quick.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); } }, durLabel(m))));
+  const tStart = tk ? fmtLocalHM(tk.start_at) : preset.time || nowHM();
+  const tp = timePicker({ start: tStart, minutes: tk ? mins(tk.start_at, tk.end_at) : 60 });
   const pin = h("input", { type: "checkbox", checked: !!tk?.pinned, id: "pinchk" });
   const showStu = () => { stuRow.style.display = cat.value === "Tuition" && students.length ? "" : "none"; };
   cat.addEventListener("change", showStu); showStu();
@@ -277,8 +295,8 @@ export async function addTask(tk = null, preset = {}) {
   return sheet(tk ? "Edit task" : t("Add task"), [
     h("label.f", h("span", "What will you do?"), title),
     h("div.grid2", h("label.f", h("span", "Category"), cat), stuRow),
-    h("div.grid2", h("label.f", h("span", "Day"), day), h("label.f", h("span", "Start time"), start)),
-    h("label.f", h("span", "How long? (minutes)"), quick, h("div", { style: { marginTop: "8px" } }, durInp)),
+    h("label.f", h("span", "Day"), day),
+    h("div.f", tp.el),
     h("label.check", { for: "pinchk" }, pin, h("span", "📌 Pin as important (shows at the top)")),
     h("p.hint", "Add tasks before they start to earn DP. Repeats every day? Use Routine instead."),
   ], {
@@ -286,8 +304,8 @@ export async function addTask(tk = null, preset = {}) {
       const save = h("button.btn.primary", t("Save"));
       save.onclick = busy(save, async () => {
         if (!title.value.trim()) throw new Error("Please write what you will do.");
-        const m = Number(durInp.value); if (!(m >= 5 && m <= 720)) throw new Error("Time must be 5 to 720 minutes.");
-        const s = dhakaIso(day.value, start.value); const e = new Date(new Date(s).getTime() + m * 60000).toISOString();
+        const { start: st0, minutes: m } = tp.get(); if (!(m >= 5 && m <= 720)) throw new Error("সময় ৫ মিনিট থেকে ১২ ঘণ্টার মধ্যে দিন।");
+        const s = dhakaIso(day.value, st0); const e = new Date(new Date(s).getTime() + m * 60000).toISOString();
         const student = cat.value === "Tuition" ? stu.value || null : null;
         const row = { title: title.value.trim(), category: cat.value, start_at: s, end_at: e, day: day.value, pinned: pin.checked, student_id: student };
         if (tk?.routine_id) await api.insert("routine_skips", { routine_id: tk.routine_id, day: tk.day, user_id: api.userId() }).catch(() => {}); // only this day changes; the routine won't add it again
@@ -303,7 +321,7 @@ export async function addTask(tk = null, preset = {}) {
       const btns = [h("button.btn", { onclick: () => close(null) }, t("Cancel")), save];
       if (tk) {
         const del = h("button.btn.danger", { "aria-label": t("Delete") }, icon("trash"));
-        del.onclick = busy(del, async () => { if (await confirmBox("Delete this task?", tk.routine_id ? "Only this day. The weekly routine stays." : "This cannot be undone.", t("Delete"), true)) { if (tk.routine_id) await api.insert("routine_skips", { routine_id: tk.routine_id, day: tk.day, user_id: api.userId() }).catch(() => {}); await api.remove("tasks", `id=eq.${tk.id}`); toast("Deleted"); close(true); rerender(); } });
+        del.onclick = busy(del, async () => { if (await confirmBox("Delete this task?", tk.routine_id ? "Only this day. The weekly routine stays." : "You can undo it right after.", t("Delete"), true)) { if (tk.routine_id) await api.insert("routine_skips", { routine_id: tk.routine_id, day: tk.day, user_id: api.userId() }).catch(() => {}); await api.remove("tasks", `id=eq.${tk.id}`); import("./undo.js").then(U => U.removedTask(tk)); close(true); rerender(); } });
         btns.unshift(del);
       }
       return btns;
@@ -323,11 +341,10 @@ function runningBar(tk) {
     const sec = Math.floor((Date.now() - new Date(tk.start_at)) / 1000);
     face.textContent = `${pad(Math.floor(sec / 3600))}:${pad(Math.floor(sec / 60) % 60)}:${pad(sec % 60)}`;
     if (pom?.id === tk.id) {
-      const cyc = sec % (30 * 60), inFocus = cyc < 25 * 60;
-      const left = inFocus ? 25 * 60 - cyc : 30 * 60 - cyc;
-      phase.textContent = `${inFocus ? "Focus" : "Break"} · ${pad(Math.floor(left / 60))}:${pad(left % 60)} left`;
-      const key = Math.floor(sec / 60) % 30;
-      if ((key === 25 || key === 0) && sec % 60 === 0 && sec > 0) notify(inFocus ? "Back to focus! 25 minutes." : "Take a 5-minute break ☕");
+      const W = (pom.work || 25) * 60, B = (pom.brk || 5) * 60, cyc = sec % (W + B), inFocus = cyc < W;
+      const left = inFocus ? W - cyc : W + B - cyc;
+      phase.textContent = `${inFocus ? "🎯 Focus" : "☕ Break"} · ${pad(Math.floor(left / 60))}:${pad(left % 60)} left · round ${Math.floor(sec / (W + B)) + 1}`;
+      if (sec > 0 && (cyc === 0 || cyc === W)) notify(cyc === W ? `${pom.brk || 5} মিনিট বিরতি ☕` : `আবার ফোকাস — ${pom.work || 25} মিনিট 🎯`);
     }
   };
   clearInterval(tick); tick = setInterval(upd, 1000); upd();
@@ -348,26 +365,38 @@ function runningBar(tk) {
 }
 
 export function openTimer() {
-  const title = h("input.input", { placeholder: "e.g. Self study", maxlength: "80" });
-  const cat = h("select.input", catNames().map(n => h("option", { value: n }, `${n} · ${catDp(n)} DP/hour`)));
-  let mode = "free";
-  const seg = h("div.seg", [["free", "Free timer"], ["pomo", "Pomodoro 25 + 5"]].map(([k, l]) => h("button" + (k === mode ? ".on" : ""), { type: "button", onclick: e => { mode = k; seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); } }, l)));
-  return sheet(t("Start timer"), [
-    h("p.hint", "For work that wasn't planned. DP is counted for the time it runs (at least 5 minutes)."),
-    h("label.f", h("span", "What are you doing?"), title), h("label.f", h("span", "Category"), cat), h("label.f", h("span", "Mode"), seg),
+  const title = h("input.input", { placeholder: "কী করছেন? যেমন: Self study", maxlength: "80" });
+  const cats = catNames();
+  const cat = h("select.input", cats.map(n => h("option", { value: n, selected: n === "Study + Class" }, n)));
+  let mode = "free", work = 25, brk = 5;
+  const presets = [[25, 5], [50, 10], [90, 15]];
+  const pBox = h("div");
+  const wIn = h("input.input", { type: "number", min: "5", max: "180", value: work, inputmode: "numeric" });
+  const bIn = h("input.input", { type: "number", min: "1", max: "60", value: brk, inputmode: "numeric" });
+  wIn.oninput = () => { work = Math.min(180, Math.max(5, Number(wIn.value) || 25)); drawP(); };
+  bIn.oninput = () => { brk = Math.min(60, Math.max(1, Number(bIn.value) || 5)); drawP(); };
+  const chips = h("div.row.wrap", { style: { gap: "6px" } });
+  const drawP = () => chips.replaceChildren(...presets.map(([w, b]) => h("button.chip" + (w === work && b === brk ? ".on" : ""), { type: "button", onclick: () => { work = w; brk = b; wIn.value = w; bIn.value = b; drawP(); } }, `${w} + ${b}`)));
+  drawP();
+  pBox.append(chips, h("div.grid2", { style: { marginTop: "8px" } }, h("label.f.mb0", h("span", "ফোকাস (মিনিট)"), wIn), h("label.f.mb0", h("span", "বিরতি (মিনিট)"), bIn)));
+  pBox.style.display = "none";
+  const seg = h("div.seg", [["free", "⏱️ Free timer"], ["pomo", "🍅 Pomodoro"]].map(([k, l]) => h("button" + (k === mode ? ".on" : ""), { type: "button", onclick: e => { mode = k; seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.currentTarget)); pBox.style.display = k === "pomo" ? "" : "none"; } }, l)));
+  return sheet("⏱️ Timer", [
+    h("label.f", h("span", "কী করছেন?"), title), seg, h("div", { style: { height: "10px" } }), pBox,
+    h("details.ai-fold", h("summary", "ধরন (category)"), h("div", { style: { marginTop: "8px" } }, cat)),
   ], {
     actions: close => {
       const go_ = h("button.btn.primary", icon("play"), "Start");
       go_.onclick = busy(go_, async () => {
         let id;
-        const tt = title.value.trim() || "Focus session";
+        const tt = title.value.trim() || (mode === "pomo" ? "Pomodoro" : "Focus session");
         try { id = await api.rpc("start_timer", { p_title: tt, p_category: cat.value }); }
         catch (e) {
           if (!e.offline) throw e;
           id = "local"; api.LS.set("al_localtimer", { title: tt, category: cat.value, start: new Date().toISOString() });
           toast("Offline timer started — it will sync later ✓", "ok");
         }
-        if (mode === "pomo") api.LS.set("al_pomo", { id });
+        if (mode === "pomo") api.LS.set("al_pomo", { id, work, brk }); else api.LS.del("al_pomo");
         askNotify(); close(true); go("#/today"); rerender();
       });
       return [h("button.btn", { onclick: () => close(null) }, t("Cancel")), go_];
@@ -457,27 +486,29 @@ function emergencySheet(tasks) {
 // ---------- rotating advice line (changes every 7 s; new advice each day)
 let tickTimer = null;
 function tipTicker(today) {
-  clearInterval(tickTimer);
+  clearTimeout(tickTimer);
   const box = h("button.ticker", { type: "button", onclick: () => askSheet(), "aria-label": "Open AI" });
   const items = () => {
     const c = api.LS.get("al_coach") || {};
     const list = [...(c.alerts || []).map(a => ({ ic: "⚠️", t: a.title, d: a.text, warn: true })), ...(c.tips || []).map(x => ({ ic: "💡", t: x.title, d: x.text }))];
-    for (let k = 0; k < 2; k++) { const [q, by] = quoteFor(store.profile?.occupation, today, k); list.push({ ic: "❝", t: q, d: by }); }
+    for (let k = 0; k < 2; k++) { const [q, by] = quoteFor(store.profile?.occupation, today, k); list.push({ ic: "❝", t: q, d: by, quote: true }); }
     return list;
   };
   let i = Number(api.LS.get("al_tick_i", 0)) || 0;
   const show = () => {
-    const L = items(); if (!L.length) return;
+    const L = items(); if (!L.length) return 7000;
     const it = L[i % L.length];
-    const line = h("span.tk-in", h("span.tk-ic", it.ic), h("span.tk-txt", h("b", it.t), it.d ? h("span", it.d) : null));
-    if (it.warn) box.classList.add("warn"); else box.classList.remove("warn");
-    const old = box.firstChild;
-    if (old) { old.classList.add("tk-out"); setTimeout(() => old.remove(), 260); }
+    const line = h("span.tk-in" + (it.quote ? ".quote" : ""), h("span.tk-ic", it.ic), h("span.tk-txt", h("b", it.t), it.d ? h("span", it.quote ? "— " + it.d : it.d) : null));
+    box.classList.toggle("warn", !!it.warn);
+    const old = box.querySelector(".tk-in:not(.tk-out)");
+    if (old) { old.classList.add("tk-out"); setTimeout(() => old.remove(), 300); }
     box.append(line);
     i++; api.LS.set("al_tick_i", i % 1000);
+    return Math.min(15000, 5000 + ((it.t || "").length + (it.d || "").length) * 45); // longer lines stay longer
   };
-  show();
-  tickTimer = setInterval(() => { if (!document.body.contains(box)) return clearInterval(tickTimer); if (!document.hidden) show(); }, 7000);
+  clearTimeout(tickTimer);
+  const loop = ms => { tickTimer = setTimeout(() => { if (!document.body.contains(box)) return; loop(document.hidden ? 3000 : show()); }, ms); };
+  loop(show());
   // refresh today's advice in the background (once a day it is new)
   // refresh: new advice once a day, and again after the routine / money changed (at most every 20 min)
   const stale = api.LS.get("al_coach_stale") && Date.now() - (api.LS.get("al_coach_at") || 0) > 20 * 60000;
@@ -494,6 +525,8 @@ export async function editChoice(tk, routines) {
   const opt = (ic, title, sub, fn) => { const b = h("button.li", { style: { textAlign: "left" } }, h("div.ic", ic), h("div.grow", h("b", title), h("div.small.muted", sub))); b.onclick = () => { document.querySelector(".backdrop")?.click(); setTimeout(fn, 230); }; return b; };
   sheet("Edit “" + tk.title + "”", [h("div.list",
     opt("1️⃣", "Only this week", `Change just ${fmtDate(tk.day, { weekday: "long", day: "numeric", month: "short" })}. Other weeks stay the same.`, () => addTask(tk)),
-    opt("🔁", "Every week", "Change the routine itself — all coming weeks.", () => import("./more.js").then(m => m.editRoutine(r))))],
+    r.source === "timetable"
+      ? opt("🔁", "Every week", "This comes from your class timetable — change it there for all weeks.", () => { location.hash = `#/schedule/${r.category === "Tuition" ? "coaching" : "university"}`; })
+      : opt("🔁", "Every week", "Change the routine itself — all coming weeks.", () => import("./more.js").then(m => m.editRoutine(r))))],
     { actions: close => [h("button.btn", { onclick: () => close(null) }, t("Cancel"))] });
 }

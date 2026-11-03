@@ -24,12 +24,12 @@ async function boot() {
 }
 
 function render() {
-  const tabs = [["overview", "Overview"], ["traffic", "Visitors"], ["capacity", "Capacity & AI"], ["shares", "Shares"], ["wishes", "Feature wishes"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
+  const tabs = [["overview", "Overview"], ["traffic", "Visitors"], ["research", "Research"], ["messages", "Messages"], ["capacity", "Capacity & AI"], ["shares", "Shares"], ["wishes", "AI problems"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
   const body = h("div");
   app.replaceChildren(
     h("header.topbar", h("div.brandmark", h("img", { src: "../assets/icon-64.png", width: 30, alt: "", style: { borderRadius: "8px" } }), h("span", "Amar ", h("b", "Lifestyle"), h("span.muted", " · Control"))), h("a.btn.small", { href: "../" }, "Open app")),
     h("div.tabs", tabs.map(([k, l]) => h("button" + (k === tab ? ".on" : ""), { onclick: () => { tab = k; render(); } }, l))), body);
-  ({ overview, traffic, capacity, shares, wishes, requests, users, logins, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
+  ({ overview, traffic, research, messages, capacity, shares, wishes, requests, users, logins, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
 }
 
 async function overview(b) {
@@ -259,16 +259,88 @@ async function shares(b) {
   b.append(h("p.small.faint", "“Came” = different phones that opened a shared link. “Joined” = of those, how many logged in."));
 }
 
-// things users asked the AI for that the app can't do yet — ideas for the next update
+// things users asked the AI for that the app can't do, AI answers they marked wrong, and errors
 async function wishes(b) {
-  const l = await api.rpc("admin_feature_requests", { p_limit: 300 });
+  const l = await api.rpc("admin_ai_feedback", { p_limit: 300 });
   const ROLE = { school: "School/college", student: "University", teacher: "Teacher", business: "Business", job: "Job", homemaker: "Homemaker" };
-  b.append(h("p.small.muted", "When a user asks the AI for something the app can't do, it is saved here with what kind of user they are."));
-  b.append(l.length ? h("div.list", l.map(x => h("div.li", { style: { alignItems: "flex-start" } }, h("div.grow",
-    h("b", x.wish),
-    x.asked ? h("div.small.faint", "“" + x.asked + "”") : null,
-    h("div.small.muted", [x.name || "—", (x.roles || []).filter(Boolean).map(r => ROLE[r] || r).join(" + "), x.religion, new Date(x.created_at).toLocaleString("en-GB")].filter(Boolean).join(" · "))))))
-    : h("div.card.small.muted", "No wishes yet."));
+  const K = { missing: ["💡", "App can't do it yet"], wrong: ["👎", "AI got it wrong"], error: ["⚠️", "AI error"], partial: ["🧩", "Partly not done"] };
+  let filter = "all";
+  const cnt = k => l.filter(x => x.kind === k).length;
+  const seg = h("div.row.wrap", { style: { gap: "6px", marginBottom: "10px" } });
+  const list = h("div");
+  const draw = () => {
+    seg.replaceChildren(...[["all", "All " + l.length], ...Object.entries(K).map(([k, [ic, n]]) => [k, `${ic} ${n} ${cnt(k)}`])].map(([k, t]) => h("button.chip" + (filter === k ? ".on" : ""), { onclick: () => { filter = k; draw(); } }, t)));
+    const rows = l.filter(x => filter === "all" || x.kind === filter);
+    list.replaceChildren(rows.length ? h("div.list", rows.map(x => h("div.li", { style: { alignItems: "flex-start" } }, h("div.ic", (K[x.kind] || ["•"])[0]), h("div.grow",
+      x.asked ? h("b", "“" + x.asked + "”") : null,
+      x.wish ? h("div.small", x.wish) : null,
+      h("div.small.muted", [x.name || "—", (x.roles || []).filter(Boolean).map(r => ROLE[r] || r).join(" + "), x.gender, new Date(x.created_at).toLocaleString("en-GB")].filter(Boolean).join(" · "))))))
+      : h("div.card.small.muted", "Nothing here yet."));
+  };
+  b.append(h("p.small.muted", "What people asked the AI that the app can't do, answers they marked 👎, and errors — with what kind of user they are."), seg, list);
+  draw();
+}
+
+// how disciplined people are — for research (no task names, no money)
+async function research(b) {
+  let days = 30;
+  const box = h("div");
+  const pick = h("div.row.wrap", { style: { gap: "6px", marginBottom: "10px" } }, [7, 30, 90].map(d => h("button.chip" + (d === days ? ".on" : ""), { onclick: e => { days = d; pick.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === e.target)); load(); } }, `Last ${d} days`)));
+  b.append(pick, box);
+  const ROLE = { school: "School/college", student: "University", teacher: "Teacher", business: "Business", job: "Job", homemaker: "Homemaker" };
+  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const stat = (k, v, sub) => h("div.stat", h("div.k", k), h("div.v", v ?? "—"), sub ? h("div.small.muted", sub) : null);
+  const load = async () => {
+    box.replaceChildren(h("p.small.muted", "Loading…"));
+    const r = await api.rpc("admin_research", { p_days: days });
+    const users = r.users || [];
+    box.replaceChildren(
+      h("div.grid3", stat("Keep discipline", r.maintaining_pct != null ? r.maintaining_pct + "%" : "—", "≥70% of tasks done"), stat("Average done", r.avg_rate != null ? r.avg_rate + "%" : "—", `${r.measured} people measured`), stat("People", users.length)),
+      h("div.card.mt", h("h3", "By what they do"), h("div.list", Object.entries(r.by_role || {}).map(([k, x]) => h("div.li", h("div.grow", ROLE[k] || k), h("span.small", `${x.people} people · ${x.rate ?? "—"}% done`))))),
+      h("div.card", h("h3", "By gender"), h("div.list", Object.entries(r.by_gender || {}).map(([k, x]) => h("div.li", h("div.grow", { male: "Male", female: "Female", other: "Not said" }[k] || k), h("span.small", `${x.people} people · ${x.rate ?? "—"}% done`))))),
+      h("div.card", h("h3", "Tasks done by weekday"), barChart((r.by_weekday || []).map(x => ({ l: DAYS[x.d], v: x.rate })), { fmt: v => v + "%" })),
+      h("div.card", h("h3", "Tasks done by start hour"), barChart((r.by_hour || []).map(x => ({ l: x.h % 3 === 0 ? (x.h % 12 || 12) + (x.h < 12 ? "a" : "p") : "", v: x.rate })), { fmt: v => v + "%" }), h("p.small.muted.mb0", "Which hours people actually do what they planned.")),
+      h("div.card", h("h3", "By category"), h("div.list", (r.by_category || []).map(x => h("div.li", h("div.grow", x.c), h("span.small", `${x.rate}% done · ${x.hours} h · ${x.n} tasks`))))),
+      h("div.section-title", h("h2", "People")),
+      h("div.list", users.map(u => {
+        const row = h("button.li", { style: { textAlign: "left", alignItems: "flex-start" } }, h("div.grow",
+          h("b", u.name), h("div.small.muted", [(u.roles || []).map(x => ROLE[x] || x).join(" + ") || "—", u.gender, u.device].filter(Boolean).join(" · "))),
+          h("div", { style: { textAlign: "right" } }, h("b", u.rate != null ? u.rate + "%" : "—"), h("div.small.muted", `${u.sessions} opens`)));
+        row.onclick = () => sheet(u.name, [h("div.list",
+          ...[["What they do", (u.roles || []).map(x => ROLE[x] || x).join(" + ") || "not set"], ["Gender", u.gender || "not set"], ["Religion", u.religion || "not set"], ["Phone", u.device || "unknown"],
+            ["Opened the app", `${u.sessions} times`], ["Last open", u.last_active ? new Date(u.last_active).toLocaleString("en-GB") : "—"], ["Joined", new Date(u.joined).toLocaleDateString("en-GB")],
+            ["Tasks (period)", u.tasks], ["Done", u.rate != null ? u.rate + "%" : "too few tasks"], ["Work per day", u.work_h_day + " h"], ["Active days", u.active_days],
+            ["DP this month", u.month_dp], ["Prayers", u.prayer_pct != null ? u.prayer_pct + "%" : "—"], ["AI uses", u.ai], ["Notifications", u.push ? "On" : "Off"], ["Telegram", u.telegram ? "Connected" : "No"]]
+            .map(([k, v]) => h("div.li", h("div.grow.small.muted", k), h("b", String(v))))), h("p.small.faint", "Task names, money and diary are never shown here.")]);
+        return row;
+      })));
+  };
+  load();
+}
+
+// messages people sent from About → Message the admin
+async function messages(b) {
+  const l = await api.rpc("admin_messages_list", { p_limit: 200 });
+  const K = { complaint: "😟 Complaint", idea: "💡 Idea", bug: "🐞 Problem", message: "💬 Message" };
+  b.append(h("p.small.muted", "Your reply goes to the person's 🔔 Alerts."));
+  b.append(l.length ? h("div.list", l.map(m => {
+    const row = h("button.li", { style: { textAlign: "left", alignItems: "flex-start", opacity: m.read ? .75 : 1 } }, h("div.grow",
+      h("div.small.muted", K[m.kind] || m.kind, " · ", m.name || "—", " · ", new Date(m.created_at).toLocaleString("en-GB")),
+      h("div", { style: { whiteSpace: "pre-wrap" } }, m.body), m.reply ? h("div.small", { style: { color: "var(--brand)", marginTop: "4px" } }, "↳ ", m.reply) : null),
+      m.read ? null : h("span.badge.warn", "New"));
+    row.onclick = () => {
+      const t = h("textarea.input", { placeholder: "Reply (optional)", style: { minHeight: "90px" } }, m.reply || "");
+      sheet("Message", [h("p.small.muted", `${m.name || "—"} · ${m.phone || ""} · ${(m.roles || []).join(" + ")}`), h("p", { style: { whiteSpace: "pre-wrap" } }, m.body), t], {
+        actions: close => {
+          const send = h("button.btn.primary", "Send reply"), read = h("button.btn", "Mark read");
+          send.onclick = busy(send, async () => { await api.rpc("admin_message_reply", { p_id: m.id, p_reply: t.value, p_read: true }); toast("Sent ✓", "ok"); close(); render(); });
+          read.onclick = busy(read, async () => { await api.rpc("admin_message_reply", { p_id: m.id, p_reply: null, p_read: true }); close(); render(); });
+          return [read, send];
+        },
+      });
+    };
+    return row;
+  })) : h("div.card.small.muted", "No messages yet."));
 }
 
 async function logs(b) {

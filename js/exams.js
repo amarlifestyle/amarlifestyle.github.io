@@ -44,7 +44,7 @@ export async function upcomingExams(days = 3) {
 // Today page: small rows inside the shared box
 export async function examRows() {
   const list = await upcomingExams(3);
-  return list.slice(0, 3).map(e => ({ ic: EXAM_KINDS[e.kind][0], title: e.title, sub: [EXAM_KINDS[e.kind][1], e.course].filter(Boolean).join(" · "), left: leftLabel(e.due_at).replace(" left", ""), color: urgency(e.due_at) }));
+  return list.slice(0, 3).map(e => ({ e, ic: EXAM_KINDS[e.kind][0], title: e.title, sub: [EXAM_KINDS[e.kind][1], e.course].filter(Boolean).join(" · "), left: leftLabel(e.due_at).replace(" left", ""), color: urgency(e.due_at) }));
 }
 // Today page: what is due in the next 3 days
 export async function examsCard() {
@@ -70,14 +70,19 @@ route("exams", async page => {
   const row = e => h("button.li", { onclick: () => examSheet(e), style: { textAlign: "left", opacity: e.done ? .6 : 1 } },
     h("div.ic", EXAM_KINDS[e.kind][0]),
     h("div.grow", { style: { minWidth: 0 } }, h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.title), h("div.small.muted", [EXAM_KINDS[e.kind][1], e.course, when(e.due_at)].filter(Boolean).join(" · "))),
-    e.done ? h("span.badge.ok", "Done") : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)));
+    e.done ? h("span.badge.ok", "✓ " + doneWord(e.kind)) : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)));
   page.append(h("div.section-title", h("h2", "Coming up")));
   page.append(open.length ? h("div.list", open.map(row)) : h("div.card.empty", h("p", "Nothing due right now.")));
   page.append(h("p.hint.mt", "Reminders: daily → twice a day in the last week → 3 times in the last 3 days → every 3 hours in the last 2 days → every 2 hours on the last day → every hour in the last 3 hours."));
   if (past.length) page.append(h("div.section-title", h("h2", "Done & past")), h("div.list", past.map(row)));
 }, { tab: "week" });
 
-function examSheet(e) {
+export const doneWord = k => ["lab", "assignment", "report", "paper", "result"].includes(k) ? "Submitted" : ["exam", "ct", "presentation"].includes(k) ? "Done" : "Done";
+export async function markExamDone(e, done = true) {
+  await api.update("exams", `id=eq.${e.id}`, { done });
+  toast(done ? `${doneWord(e.kind)} ✓ — reminders stopped` : "Back on the list", "ok"); rerender();
+}
+export function examSheet(e) {
   const R = deadlines();
   let kind = e?.kind || R.kinds[0];
   const seg = h("div.row.wrap", { style: { gap: "6px" } });
@@ -105,8 +110,8 @@ function examSheet(e) {
       });
       const out = [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
       if (e) {
-        const done = h("button.btn", e.done ? "Not done" : "✓ Done");
-        done.onclick = busy(done, async () => { await api.update("exams", `id=eq.${e.id}`, { done: !e.done }); toast(e.done ? "Marked not done" : "Done ✓ — reminders stopped", "ok"); close(true); rerender(); });
+        const done = h("button.btn", e.done ? "Undo" : "✓ " + doneWord(e.kind));
+        done.onclick = busy(done, async () => { close(true); await markExamDone(e, !e.done); });
         const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash"));
         del.onclick = busy(del, async () => { if (!(await confirmBox("Delete?", e.title, "Delete", true))) return; await api.remove("exams", `id=eq.${e.id}`); close(true); rerender(); });
         out.unshift(del, done);

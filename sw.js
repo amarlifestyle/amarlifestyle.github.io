@@ -1,8 +1,8 @@
 // Amar Lifestyle — offline support: app files are cached, data always comes fresh from the server.
-const CACHE = "amarlifestyle-v58";
+const CACHE = "amarlifestyle-v59";
 const FILES = [
   "./", "index.html", "manifest.json", "css/app.css",
-  "js/main.js", "js/app.js", "js/api.js", "js/ui.js", "js/auth.js", "js/today.js", "js/week.js", "js/money.js", "js/me.js", "js/more.js", "js/voice.js", "js/aicoach.js", "js/quotes.js", "js/assistant.js", "js/timetable.js", "js/prayer.js", "js/tour.js", "js/exams.js", "js/dayreport.js", "js/spots.js", "js/install.js", "js/pin.js", "js/widget.js", "tasks/", "tasks/index.html", "tasks/manifest.json", "assets/tasks-192.png",
+  "js/main.js", "js/app.js", "js/api.js", "js/ui.js", "js/auth.js", "js/today.js", "js/week.js", "js/money.js", "js/me.js", "js/more.js", "js/voice.js", "js/aicoach.js", "js/quotes.js", "js/assistant.js", "js/timetable.js", "js/prayer.js", "js/tour.js", "js/exams.js", "js/dayreport.js", "js/spots.js", "js/install.js", "js/pin.js", "js/widget.js", "js/undo.js", "js/timepick.js", "js/period.js", "js/syllabus.js", "tasks/", "tasks/index.html", "tasks/manifest.json", "assets/tasks-192.png",
   "assets/icon-64.png", "assets/icon-180.png", "assets/icon-192.png", "assets/icon-512.png", "assets/logo-dark.png", "assets/logo-light.png", "assets/founder.jpg",
 ];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: "reload" })))).then(() => self.skipWaiting())); });

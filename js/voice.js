@@ -161,3 +161,94 @@ export function voiceRecorder(onAudio, { label = "Tap and speak" } = {}) {
   cancel.onclick = () => { cancelled = true; stopRec(); };
   return h("div", b, cancel, hint);
 }
+
+// ---------- dictation: speak → words appear in the box (live where the phone supports Bangla speech typing),
+// pause / resume / cancel, then the person reads, fixes and sends. Nothing is done until they press Send.
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+export function dictation(box, { transcribe, lang = "bn-BD", label = "🎙️ বলুন" } = {}) {
+  const live = !!SR && !IOS; // Chrome/Android: live Bangla words. iPhone: record → AI writes it
+  let state = "idle", rec = null, base = "", said = "", stream = null, mr = null, chunks = [], sec = 0, timer = null, raf = 0, an = null, actx = null;
+  const bars = h("div.dict-wave", [...Array(18)].map(() => h("i")));
+  const status = h("span.dict-status", label);
+  const time = h("span.dict-time", "");
+  const main = h("button.dict-main", { type: "button", "aria-label": "Microphone" }, icon("mic"));
+  const pause = h("button.dict-btn", { type: "button" }, "⏸ Pause");
+  const cancel = h("button.dict-btn", { type: "button" }, "✕ Cancel");
+  const done = h("button.dict-btn.ok", { type: "button" }, "✓ Done");
+  const ctrls = h("div.dict-ctrls", pause, cancel, done);
+  const wrap = h("div.dict" + (live ? ".live" : ""), h("div.dict-row", main, h("div.dict-mid", status, bars), time), ctrls);
+  const set = st => {
+    state = st; wrap.dataset.state = st;
+    status.textContent = st === "rec" ? (live ? "শুনছে… বলতে থাকুন" : "রেকর্ড হচ্ছে… বলুন") : st === "paused" ? "থামানো আছে — আবার বলতে ▶ চাপুন" : st === "busy" ? "লিখছে…" : label;
+    pause.textContent = st === "paused" ? "▶ Resume" : "⏸ Pause";
+  };
+  const tick = () => { clearInterval(timer); timer = setInterval(() => { if (!wrap.isConnected) return stopAll(true); if (state === "rec") { sec++; time.textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`; if (sec >= 180) finish(); } }, 1000); };
+  const meter = s => { // moving bars from the real microphone level
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)(); an = actx.createAnalyser(); an.fftSize = 64;
+      actx.createMediaStreamSource(s).connect(an);
+      const data = new Uint8Array(an.frequencyBinCount), is = bars.children;
+      const loop = () => { an.getByteFrequencyData(data); for (let k = 0; k < is.length; k++) is[k].style.transform = `scaleY(${state === "rec" ? 0.15 + (data[k + 2] || 0) / 255 : 0.15})`; raf = requestAnimationFrame(loop); };
+      loop();
+    } catch { /* bars just pulse */ }
+  };
+  const write = () => { box.value = (base + (base && said ? " " : "") + said).trim(); box.dispatchEvent(new Event("input")); };
+  const startLive = () => {
+    rec = new SR(); rec.lang = lang; rec.continuous = true; rec.interimResults = true;
+    let finalTxt = said;
+    rec.onresult = e => { let interim = ""; for (let k = e.resultIndex; k < e.results.length; k++) { const r = e.results[k]; if (r.isFinal) finalTxt += (finalTxt ? " " : "") + r[0].transcript.trim(); else interim += r[0].transcript; } said = (finalTxt + (interim ? " " + interim : "")).trim(); write(); };
+    rec.onerror = e => { if (e.error === "not-allowed") { toast("মাইক্রোফোনের অনুমতি দিন।", "bad"); stopAll(true); } };
+    rec.onend = () => { said = finalTxt; write(); if (state === "rec") { try { rec.start(); } catch { /* restarts after a pause in speech */ } } };
+    rec.start();
+  };
+  const startRec = async () => {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    meter(stream); chunks = [];
+    mr = new MediaRecorder(stream); mr.ondataavailable = e => { if (e.data?.size) chunks.push(e.data); }; mr.start(250);
+  };
+  const stopAll = (drop = false) => {
+    clearInterval(timer); cancelAnimationFrame(raf);
+    try { rec && (rec.onend = null, rec.stop()); } catch {} rec = null;
+    try { if (mr && mr.state !== "inactive") mr.stop(); } catch {}
+    stream?.getTracks().forEach(t => t.stop()); stream = null; actx?.close?.(); actx = null;
+    if (drop) { said = ""; write(); }
+    sec = 0; time.textContent = ""; set("idle");
+  };
+  const begin = async () => {
+    if (!navigator.onLine) { toast("ভয়েসের জন্য ইন্টারনেট লাগবে।", "bad"); return; }
+    base = box.value.trim(); said = ""; sec = 0;
+    try { if (live) startLive(); else await startRec(); } // live mode: bars pulse by CSS (a second mic stream can stop speech typing on Android)
+    catch { toast("মাইক্রোফোনের অনুমতি দিন (ঠিকানা বারের 🔒 → Microphone → Allow)।", "bad"); stopAll(); return; }
+    set("rec"); tick();
+  };
+  const finish = async () => {
+    if (live) { stopAll(); box.focus(); return; }
+    clearInterval(timer); cancelAnimationFrame(raf);
+    const stopped = new Promise(ok => { if (mr && mr.state !== "inactive") { mr.onstop = ok; mr.stop(); } else ok(); });
+    set("busy"); await stopped;
+    stream?.getTracks().forEach(t => t.stop()); stream = null; actx?.close?.(); actx = null;
+    try {
+      const blob = new Blob(chunks, { type: mr?.mimeType || "audio/mp4" });
+      if (blob.size < 1500) throw new Error("কিছু শোনা যায়নি — আবার বলুন।");
+      const c = new (window.AudioContext || window.webkitAudioContext)();
+      const ab = await blob.arrayBuffer();
+      const buf = await new Promise((ok, bad) => { const p = c.decodeAudioData(ab, ok, bad); if (p?.then) p.then(ok, bad); });
+      c.close?.();
+      const r = await transcribe({ mime: "audio/wav", data: b64(toWav(buf)) });
+      said = (r?.text || "").trim(); write();
+      if (!said) toast("কিছু শোনা যায়নি — আবার বলুন বা লিখুন।", "bad");
+    } catch (e) { toast(e.message || "Voice failed. Try again.", "bad"); }
+    sec = 0; time.textContent = ""; set("idle"); box.focus();
+  };
+  main.onclick = () => state === "idle" ? begin() : state === "rec" ? finish() : state === "paused" ? resume() : null;
+  const resume = async () => { if (live) { base = box.value.trim(); said = ""; startLive(); } else mr?.resume?.(); set("rec"); };
+  pause.onclick = () => {
+    if (state === "rec") { if (live) { try { rec.onend = null; rec.stop(); } catch {} rec = null; } else mr?.pause?.(); set("paused"); }
+    else if (state === "paused") resume();
+  };
+  cancel.onclick = () => { stopAll(true); box.value = base; box.dispatchEvent(new Event("input")); toast("বাতিল — কিছু পাঠানো হয়নি"); };
+  done.onclick = () => finish();
+  set("idle");
+  return wrap;
+}

@@ -85,6 +85,11 @@ export async function daily() {
     const q = await api.flushQueue();
     syncToast(q);
     await api.rpc("settle_missed");
+    // phone model (Chrome on Android tells it only when asked) — once a day, for the admin's device list
+    try { const ud = navigator.userAgentData; if (ud?.getHighEntropyValues) ud.getHighEntropyValues(["model", "platformVersion"]).then(v => { const m = [v.model, ud.platform, v.platformVersion?.split(".")[0]].filter(Boolean).join(" "); if (m) api.rpc("set_device", { p_model: m }).catch(() => {}); }).catch(() => {});
+      else { const ua = navigator.userAgent, m = /iPhone/.test(ua) ? "iPhone iOS " + ((ua.match(/OS (\d+)/) || [])[1] || "") : /iPad/.test(ua) ? "iPad" : (ua.match(/Android [\d.]+; ([^;)]+)/) || [])[1]; if (m) api.rpc("set_device", { p_model: m.trim() }).catch(() => {}); } } catch { /* fine */ }
+    // classes from Today-only timetables are real tasks now: build them once
+    if (!api.LS.get("al_cls_sync")) { await import("./timetable.js").then(m => m.syncWeekly()).catch(() => {}); api.LS.set("al_cls_sync", 1); }
     await api.rpc("ensure_tasks", { p_from: d, p_to: addDays(d, 7) });
     await api.rpc("apply_recurring");
   } catch (e) { if (!e.offline) console.warn(e); lastDaily = ""; }
@@ -154,7 +159,7 @@ async function checkUnread() {
   if (Date.now() - unreadAt < 60000 || !api.getSession()) return;
   unreadAt = Date.now();
   try {
-    const r = await api.select("inbox", "select=id&read=eq.false&limit=20");
+    const r = await api.select("inbox", `select=id&read=eq.false&created_at=gt.${new Date(Date.now() - 3 * 3600e3).toISOString()}&limit=20`);
     if (r.length !== unread) { unread = r.length; const a = document.querySelector('.nav a[href="#/notifications"]'); a?.querySelector(".nav-badge")?.remove(); if (a && unread && !a.classList.contains("on")) a.append(h("i.nav-badge", unread > 9 ? "9+" : String(unread))); }
   } catch { /* offline */ }
 }
@@ -251,4 +256,12 @@ export function start() {
     }, { passive: true });
   }
   render();
+}
+
+// ছেলে / মেয়ে — optional, can be changed any time
+export const GENDERS = { male: "👨 ছেলে", female: "👩 মেয়ে", other: "🙂 বলতে চাই না" };
+export function genderPicker(cur, onPick) {
+  const box = h("div.seg");
+  const draw = () => box.replaceChildren(...Object.entries(GENDERS).map(([k, l]) => h("button" + (k === cur ? ".on" : ""), { type: "button", onclick: () => { cur = k; onPick(k); draw(); } }, l)));
+  draw(); return box;
 }

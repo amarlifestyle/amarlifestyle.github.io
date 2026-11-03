@@ -2,7 +2,7 @@
 // These only show the day's plan (no DP). Meals also remind you on the Today page.
 import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtHM, dhakaNow, pickPhoto } from "./ui.js";
-import { route, store, rerender, backbar } from "./app.js";
+import { route, store, rerender, backbar, myRoles } from "./app.js";
 import { shrink } from "./assistant.js";
 import { isMuslim } from "./prayer.js";
 import { deadlines } from "./exams.js";
@@ -53,7 +53,8 @@ const DEMO = {
 // tab bar shown on top of Routine (Weekly) and every timetable tab
 export async function routineTabsAsync(active) { await loadTabs(); return routineTabs(active); }
 export function routineTabs(active) {
-  const tabs = [["week", "📅 Weekly", "#/week"], ["exams", deadlines().tab, "#/exams"], ...(isMuslim() ? [["prayer", "🕌 Prayer", "#/prayer"]] : []), ...TABS.map(t => [tabKey(t), `${t.icon} ${t.name}`, `#/schedule/${tabKey(t)}`])];
+  const studying = myRoles().some(k => ["student", "school", "teacher"].includes(k)) || !myRoles().length;
+  const tabs = [["week", "📅 Weekly", "#/week"], ["exams", deadlines().tab, "#/exams"], ...(studying ? [["syllabus", "📚 Syllabus", "#/syllabus"]] : []), ...(isMuslim() ? [["prayer", "🕌 Prayer", "#/prayer"]] : []), ...TABS.map(t => [tabKey(t), `${t.icon} ${t.name}`, `#/schedule/${tabKey(t)}`])];
   return h("div.seg", { style: { marginBottom: "12px", overflowX: "auto" } },
     tabs.map(([k, l, href]) => h("button" + (k === active ? ".on" : ""), { onclick: () => { location.hash = href; }, style: { whiteSpace: "nowrap" } }, l)),
     h("button", { onclick: addTabSheet, style: { whiteSpace: "nowrap" }, "aria-label": "Add a tab" }, "＋"));
@@ -61,7 +62,7 @@ export function routineTabs(active) {
 function addTabSheet() {
   const name = h("input.input", { placeholder: "e.g. Gym plan · Exam routine" });
   const pick = async (kind, nm, ic) => {
-    const r = await api.insert("timetable_tabs", { user_id: api.userId(), kind, name: nm, icon: ic, merge: kind === "university" ? "today" : "none" });
+    const r = await api.insert("timetable_tabs", { user_id: api.userId(), kind, name: nm, icon: ic, merge: kind === "university" ? "weekly" : "none" });
     const row = (Array.isArray(r) ? r[0] : r) || {};
     await loadTabs(); location.hash = `#/schedule/${kind === "custom" ? row.id || "" : kind}`;
     if (kind !== "meal" && row.id) setTimeout(() => mergeSheet(TABS.find(t => t.id === row.id) || row, rerender), 400);
@@ -74,7 +75,7 @@ function addTabSheet() {
   };
   sheet("Add a tab to Routine", [
     h("p.hint", "📷 টিপ: রুটিনের ছবি তুলে AI-কে দিলে AI নিজেই পুরো রুটিন বানিয়ে দেবে — ট্যাব খুলে “From a photo (AI)” চাপুন।"),
-    h("div.list", opt("university", "University", "🎓", "Class timetable — also shows in Today (no DP)"), opt("coaching", "Coaching", "🏫", "Coaching / batch classes"), opt("meal", "Meals", "🍽️", "Meal times with a reminder on Today")),
+    h("div.list", opt("university", "University", "🎓", "Class timetable — each class becomes a task in Today (with DP)"), opt("coaching", "Coaching", "🏫", "Coaching / batch classes"), opt("meal", "Meals", "🍽️", "Meal times with a reminder on Today")),
     h("label.f.mt", h("span", "Or your own tab"), name),
   ], {
     actions: close => {
@@ -100,7 +101,7 @@ export async function syncWeekly() {
     }
   } catch (e) { toast("Couldn't update the weekly routine: " + e.message, "bad"); }
 }
-const MERGE = [["weekly", "📅 Weekly-তে যোগ", "এই ক্লাসগুলো আপনার সাপ্তাহিক রুটিনের টাস্ক হবে (DP সহ)"], ["today", "🗓️ শুধু Today-তে", "প্রতিদিন Today তালিকায় দেখাবে, DP ছাড়া, যেকোনো দিন বাদ দেওয়া যাবে"], ["none", "📁 আলাদা থাকুক", "শুধু এই ট্যাবেই থাকবে"]];
+const MERGE = [["weekly", "📅 রুটিন আর Today-তে", "প্রতিটা ক্লাস টাস্ক হবে — DP, Completed / Not Completed, রিমাইন্ডার সহ"], ["none", "📁 আলাদা থাকুক", "শুধু এই ট্যাবেই থাকবে"]];
 // ask how this tab should join the daily plan
 function mergeSheet(tab, after) {
   sheet(`“${tab.name}” — রুটিনের সাথে মেলাবেন?`, [h("p.hint", "এই ট্যাবের ক্লাসগুলো কি আপনার সাপ্তাহিক রুটিনে যোগ হবে? পরে এই ট্যাব থেকেই বদলানো যাবে।"),
@@ -124,7 +125,7 @@ route("schedule", async (page, key = "university", dayArg) => {
     h("button.btn.small.primary", { onclick: () => itemSheet(tab, null, kind === "meal" ? [] : [dow]) }, icon("plus"), "Add"));
   page.append(tools);
   if (kind !== "meal" && !tab.virtual) {
-    const cur = MERGE.find(m => m[0] === (tab.merge || "none"));
+    const cur = MERGE.find(m => m[0] === (tab.merge === "today" ? "weekly" : tab.merge || "none"));
     page.append(h("button.card.small", { onclick: () => mergeSheet(tab, rerender), style: { width: "100%", textAlign: "left", cursor: "pointer", padding: "8px 12px" } },
       "রুটিনের সাথে: ", h("b", cur[1]), h("span.muted", " — ", cur[2], " · বদলাতে চাপুন")));
   }
@@ -142,7 +143,7 @@ route("schedule", async (page, key = "university", dayArg) => {
       h("b", "Example — you can make yours like this:"),
       h("div.list.mt", demo.map(d => h("div.li", h("div.grow", h("b", d.title), h("div.small.muted", [d.days.length ? d.days.map(x => DAYS[x]).join(", ") : (d.start_time ? "Every day" : "Note"), range(d), d.detail].filter(Boolean).join(" · ")))))),
       h("div.row.mt", { style: { gap: "8px" } },
-        (() => { const b = h("button.btn.small", "Use this example"); b.onclick = busy(b, async () => { await api.insert("timetable_items", demo.map(d => ({ ...d, kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId() }))); if (tab.merge === "weekly") await syncWeekly(); toast("Example added — tap any item to change it ✓", "ok"); rerender(); }); return b; })())));
+        (() => { const b = h("button.btn.small", "Use this example"); b.onclick = busy(b, async () => { await api.insert("timetable_items", demo.map(d => ({ ...d, kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId() }))); if (tab.merge === "weekly" || tab.merge === "today") await syncWeekly(); toast("Example added — tap any item to change it ✓", "ok"); rerender(); }); return b; })())));
     return;
   }
 
@@ -179,7 +180,7 @@ function itemSheet(tab, it, presetDays = []) {
   const dayBox = h("div.row.wrap", { style: { gap: "6px" } });
   const drawDays = () => dayBox.replaceChildren(...ORDER.map(d => h("button.btn.small" + (days.includes(d) ? ".primary" : ""), { type: "button", onclick: () => { days = days.includes(d) ? days.filter(x => x !== d) : [...days, d]; drawDays(); } }, DAYS[d])));
   drawDays();
-  const weekly = tab.merge === "weekly";
+  const weekly = tab.merge === "weekly" || tab.merge === "today";
   const mine = h("input", { type: "checkbox", id: "ttmine", checked: it ? it.mine !== false : true });
   const code = h("input.input", { value: it?.code || "", placeholder: "e.g. CCP (optional)", maxlength: "20" });
   sheet(it ? "Edit" : `Add to ${tab.name}`, [
@@ -226,7 +227,7 @@ function photoImport(tab) {
         save.onclick = busy(save, async () => {
           const rows = items.filter(x => x.on).map(x => ({ kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId(), title: x.title, detail: x.detail || null, start_time: /^\d{2}:\d{2}$/.test(x.start || "") ? x.start : null, end_time: /^\d{2}:\d{2}$/.test(x.end || "") ? x.end : null, days: (x.days || []).map(d => DAYS.indexOf(String(d).slice(0, 3))).filter(d => d >= 0) }));
           if (!rows.length) throw new Error("Tick at least one.");
-          await api.insert("timetable_items", rows); if (tab.merge === "weekly") await syncWeekly(); toast(`Saved ${rows.length} ✓`, "ok"); close(true); rerender();
+          await api.insert("timetable_items", rows); if (tab.merge === "weekly" || tab.merge === "today") await syncWeekly(); toast(`Saved ${rows.length} ✓`, "ok"); close(true); rerender();
         });
         return [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
       },
@@ -266,7 +267,7 @@ export async function mealNow(data = false) {
 const CLASS_COLOR = "#60A5FA";
 export async function classesBetween(from, to) {
   await loadTabs();
-  const todayTabs = TABS.filter(t => t.merge === "today");
+  const todayTabs = []; // classes now come as real tasks (see sync_timetable_routines), not as extra cards
   if (!todayTabs.length) return [];
   const [items, skips] = await Promise.all([
     api.select("timetable_items", "select=*&start_time=not.is.null"),

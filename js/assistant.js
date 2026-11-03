@@ -3,7 +3,7 @@
 import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, todayStr, addDays, dhakaIso, fmtDate, fmtHM, durLabel, PALETTE, tk as money, askPin, pickPhoto } from "./ui.js";
 import { store, catNames, catDp, rerender, loadBasics, role } from "./app.js";
-import { voiceRecorder } from "./voice.js";
+import { dictation } from "./voice.js";
 import { waqts, isMuslim } from "./prayer.js";
 import { pickColor } from "./ui.js";
 
@@ -233,7 +233,7 @@ export async function shrink(file) {
 const YES = /^\s*(হ্যাঁ|হ্যা|হা|হুম|জি|ঠিক আছে|করো|করে দাও|yes|y|ok|okay|ha|haa|hmm|do it)\s*[.!।]*\s*$/i;
 
 export function askSheet(opts = {}) {
-  const q = h("textarea.input", { placeholder: "যেমন: আজ Leon নাই, বাদ দাও", maxlength: "800", style: { minHeight: "56px" } });
+  const q = h("textarea.input", { placeholder: "যেমন: আজ Leon-এর টিউশন নেই, বাদ দাও", maxlength: "800", style: { minHeight: "56px" } });
   const out = h("div");
   const history = [];
   let photo = null, pending = null;
@@ -255,8 +255,12 @@ export function askSheet(opts = {}) {
     const items = acts.map(a => ({ a, d: describe(a, c), on: true })).filter(x => x.d);
     const bad = acts.length - items.length;
     const box = h("div");
-    if (r.answer) box.append(h("div.card", { style: { marginTop: "10px", whiteSpace: "pre-wrap" } }, r.answer));
-    if (bad) box.append(h("p.small.warn", `⚠️ ${bad}টা জিনিস বোঝা যায়নি বা করা সম্ভব না, ওগুলো বাদ রাখলাম।`));
+    if (r.answer) box.append(h("div.ai-answer", r.answer));
+    if (bad) { box.append(h("p.small.warn", `⚠️ ${bad}টা জিনিস বোঝা যায়নি বা করা সম্ভব না, ওগুলো বাদ রাখলাম।`)); issue("partial", lastQ, `${bad} action(s) could not be used`); }
+    // did the AI get it wrong? one tap tells the admin
+    const wrong = h("button.linkbtn.small", { type: "button" }, "👎 ঠিক বোঝেনি?");
+    wrong.onclick = () => { issue("wrong", lastQ, (r.answer || "").slice(0, 300) + ((r.actions || []).length ? ` [${r.actions.length} actions]` : "")); wrong.replaceWith(h("span.small.muted", "ধন্যবাদ — অ্যাডমিনকে জানানো হলো, AI ঠিক করা হবে।")); };
+    box.append(h("div", { style: { textAlign: "right", marginTop: "4px" } }, wrong));
     if (!items.length) { pending = null; out.replaceChildren(box); return; }
     const sumBox = h("div.small", { style: { padding: "8px 10px", borderRadius: "10px", background: "var(--bg2)", margin: "8px 0" } });
     const drawSum = () => sumBox.replaceChildren(h("b", "এতে যা বদলাবে:"), ...summary(items.filter(x => x.on)).map(l => h("div", l)));
@@ -287,40 +291,44 @@ export function askSheet(opts = {}) {
     yes.onclick = busy(yes, doIt);
     no.onclick = () => { pending = null; out.replaceChildren(h("p.small.muted", "বাতিল করা হয়েছে, কিছু বদলায়নি।")); };
     pending = doIt;
-    box.append(h("div.card", { style: { marginTop: "10px", borderColor: "color-mix(in srgb, var(--brand) 45%, transparent)" } },
-      h("b", "🤖 আপনি কি এগুলো করতে বলছেন?"), h("p.small.muted", { style: { margin: "4px 0 8px" } }, "যেটা চান না, টিক তুলে দিন। “হ্যাঁ, করো” না চাপা পর্যন্ত কিছুই বদলাবে না।"),
+    box.append(h("div.ai-plan",
+      h("div.ai-plan-h", h("span", "✨"), h("div", h("b", "আপনি কি এগুলো করতে চান?"), h("div.small.muted", "যেটা চান না, টিক তুলে দিন। “হ্যাঁ, করো” চাপলেই সব হয়ে যাবে।"))),
       list, sumBox, h("div.row", { style: { gap: "8px", justifyContent: "flex-end" } }, no, yes), log));
     out.replaceChildren(box);
   };
 
+  let lastQ = "";
+  const issue = (kind, asked, note) => api.rpc("report_ai_issue", { p_kind: kind, p_asked: String(asked || "").slice(0, 500), p_note: String(note || "").slice(0, 500) }).catch(() => {});
   const ask = async ({ text, audio }) => {
     if (!audio && !photo && pending && YES.test(text || "")) { q.value = ""; await pending(); return; }
-    out.replaceChildren(h("p.small.muted", photo ? "🤖 ছবি দেখছে…" : "🤖 ভাবছে…"));
+    out.replaceChildren(h("div.ai-think", h("i"), h("i"), h("i"), h("span", photo ? "ছবি দেখছে…" : audio ? "শুনছে…" : "ভাবছে…")));
+    lastQ = text || (audio ? "[voice]" : "") + (photo ? " [photo]" : "");
     const c = await gather();
     const r = await api.ai("ask", { question: text || "", audio: audio || null, image: photo ? { mime: photo.mime, data: photo.data } : null, ctx: c.forAi, history: history.slice(-6), today: todayStr() });
-    if (r.heard) q.value = r.heard;
+    if (r.heard) { q.value = r.heard; lastQ = r.heard; }
     history.push({ role: "user", text: r.heard || text || (photo ? "[photo]" : "") }, { role: "ai", text: (r.answer || "").slice(0, 400) + ((r.actions || []).length ? ` [proposed ${(r.actions || []).length} changes]` : "") });
     photo = null; thumb.replaceChildren();
     showPlan(r, c);
   };
-  const voice = voiceRecorder(audio => ask({ audio }), { label: "বলুন — প্রশ্ন বা কাজ" });
-  // quick questions: tap to ask
-  const QUICK = ((api.LS.get("al_coach") || {}).questions || []).slice(0, 4).filter(Boolean);
-  if (QUICK.length < 2) QUICK.push("আজ আমার রুটিনে কী কী আছে?", "এই সপ্তাহে কোথায় পিছিয়ে আছি?");
-  const chips = h("div.row.wrap", { style: { gap: "6px", margin: "8px 0 4px" } }, QUICK.map(x => {
-    const b = h("button.chip", { type: "button" }, x);
-    b.onclick = busy(b, async () => { q.value = x; await ask({ text: x }); });
-    return b;
-  }));
+  // speak → words appear in the box → fix if needed → Send (nothing happens before Send)
+  const voice = dictation(q, { transcribe: audio => api.ai("transcribe", { audio }), label: "চাপুন আর বাংলায় বলুন" });
+  // what the AI can do — tap one to put an example in the box
+  const CAN = [["✅", "টাস্ক", "আজ Leon-এর টিউশন নেই, টাস্কটা বাদ দাও"], ["🗓️", "রুটিন", "প্রতি শনি ও সোমবার বিকাল ৫টা থেকে ৬টা Physics পড়াব"], ["📷", "ছবি থেকে", "এই ছবি দেখে আমার সাপ্তাহিক রুটিন বানাও"],
+    ["💳", "টাকা", "আজ রিকশা ভাড়ায় ২০০ টাকা খরচ হয়েছে"], ["🎓", "টিউশন ফি", "Leon নভেম্বর মাসের টিউশন ফি দিয়েছে"], ["📝", "পরীক্ষা", "রবিবার সকাল ১০টায় Physics CT আছে"],
+    ["🚭", "অভ্যাস", "আজ ৩টা সিগারেট খেয়েছি, প্রতিটা ১৫ টাকা"], ["💬", "প্রশ্ন", "এই সপ্তাহে কোন কাজে সবচেয়ে পিছিয়ে আছি?"]];
+  const grid = h("div.ai-can", CAN.map(([ic, t, ex]) => h("button", { type: "button", onclick: () => { q.value = ex; q.focus(); } }, h("span", ic), h("b", t))));
+  const guide = h("div", h("div.row.between", { style: { margin: "0 0 6px" } }, h("b.small", "AI যা যা করে দিতে পারে"), h("span.small.faint", "চাপলে উদাহরণ বসবে")), grid,
+    h("p.small.muted", { style: { margin: "6px 0 10px" } }, "লিখুন, 🎙️ বাংলায় বলুন বা ছবি দিন — আগে দেখাবে কী করবে, “হ্যাঁ” চাপলে তবেই হবে।"));
+  const tipsFold = h("details.ai-fold", h("summary", "💡 আজকের পরামর্শ"), coachBox());
   return sheet("✨ AI", [
-    coachBox(),
-    chips,
-    voice, h("div", { style: { height: "8px" } }), q, h("div.row", { style: { gap: "8px", marginTop: "6px" } }, photoBtn, fileIn), thumb, out], {
+    guide,
+    q, voice, h("div.row", { style: { gap: "8px", marginTop: "6px" } }, photoBtn, fileIn), thumb, out, tipsFold], {
     actions: close => {
       const go = h("button.btn.primary", "Send");
       go.onclick = busy(go, async () => {
         if (!q.value.trim() && !photo) throw new Error("লিখুন, বলুন বা ছবি দিন।");
-        await ask({ text: q.value.trim() });
+        try { await ask({ text: q.value.trim() }); }
+        catch (e) { if (!e.offline) issue("error", q.value.trim(), e.message); throw e; }
       });
       return [h("button.btn", { onclick: () => close() }, "Close"), go];
     },

@@ -2,7 +2,7 @@
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";
 import { RELIGIONS, religionPicker } from "./prayer.js";
-import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go, ROLES, occupationPicker, myRoles, role, setUnread } from "./app.js";
+import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go, ROLES, occupationPicker, myRoles, role, setUnread, genderPicker } from "./app.js";
 import { codeResetForm } from "./auth.js";
 
 const li = (href, ic, title, sub) => h("a.li", { href }, h("div.ic", icon(ic)), h("div.grow", h("b", title), sub ? h("div.small.muted", sub) : null), icon("chev", "chev"));
@@ -126,7 +126,9 @@ export async function editRoutine(r, templates, activeT) {
         del.onclick = busy(del, async () => {
           if (!(await confirmBox("Delete from ALL days?", `“${r.title}” will be removed from every day it repeats (${r.days.map(d => DAYS[d]).join(", ")}). To remove only one day, untick that day above and tap Save. Past days stay.`, "Delete all", true))) return;
           await api.remove("tasks", `routine_id=eq.${r.id}&status=eq.pending&start_at=gt.${new Date().toISOString()}`);
-          await api.remove("routines", `id=eq.${r.id}`); close(true); rerender();
+          await api.update("routines", `id=eq.${r.id}`, { active: false, template: "_removed" }); // kept hidden so Undo can bring it back
+          import("./undo.js").then(U => U.record(`“${r.title}” রুটিন থেকে মুছে ফেলা`, () => api.update("routines", `id=eq.${r.id}`, { active: true, template: r.template }), () => api.update("routines", `id=eq.${r.id}`, { active: false, template: "_removed" })));
+          close(true); rerender();
         });
         b.unshift(del);
       }
@@ -251,12 +253,14 @@ route("settings", async (page, open) => {
   const name = h("input.input", { value: p.name });
   const sleep = h("input.input", { type: "time", value: p.sleep_time.slice(0, 5) });
   const sv = h("button.btn.primary.block", t("Save"));
-  sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value, occupation: occ[0] || null, roles: occ.slice(0, 2), religion: rel }); await loadBasics(); api.LS.del?.("al_tt_tabs"); toast("Profile saved ✓", "ok"); rerender(); });
+  sv.onclick = busy(sv, async () => { await api.update("profiles", `id=eq.${p.id}`, { name: name.value.trim() || p.name, sleep_time: sleep.value, occupation: occ[0] || null, roles: occ.slice(0, 2), religion: rel, gender: gen }); await loadBasics(); api.LS.del?.("al_tt_tabs"); toast("Profile saved ✓", "ok"); rerender(); });
   let occ = myRoles(p);
   const occBox = occupationPicker(occ, k => occ = k);
-  let rel = p.religion || null;
+  let rel = p.religion || null, gen = p.gender || null;
   const relBox = religionPicker(rel, k => rel = k);
+  const genBox = genderPicker(gen, k => gen = k);
   page.append(fold("me", "Profile", p.name + (role() ? " · " + role().label : "") + (RELIGIONS[p.religion] ? " · " + RELIGIONS[p.religion].split(" · ")[0] : ""), [h("label.f", h("span", "Name"), name),
+    h("label.f", h("span", "আপনি"), genBox),
     h("label.f", h("span", "What do you do? (change any time)"), occBox),
     h("label.f", h("span", "Religion (change any time · Muslim → prayer times)"), relBox),
     h("label.f", h("span", "Bedtime (night report comes 30 min before)"), sleep),
@@ -309,7 +313,9 @@ route("settings", async (page, open) => {
     const a = h("a", { download: `amar-lifestyle-backup-${todayStr()}.json`, href: URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" })) });
     a.click(); toast("Backup downloaded ✓", "ok");
   });
-  page.append(fold("download", "Backup", "Download your data", [h("p.hint", "Your data is backed up on our server every day. You can also keep your own copy."), exp]));
+  exp.textContent = "Data file (JSON, for importing later)"; exp.className = "btn small ghost block";
+  const pdf = h("a.btn.primary.block", { href: "#/summary/all" }, icon("download"), "আমার পুরো ইতিহাস — PDF");
+  page.append(fold("download", "Backup", "Your full history as a PDF", [h("p.hint", "শুরু থেকে আজ পর্যন্ত সব — কাজ, DP, টাকা, টিউশন, নামাজ, অভ্যাস — এক PDF-এ। আপনার ডেটা সার্ভারেও প্রতিদিন ব্যাকআপ হয়।"), pdf, h("div", { style: { marginTop: "8px" } }, exp)]));
 }, { tab: "more" });
 
 // ---------- about us
@@ -338,7 +344,24 @@ export function aboutContent() {
 route("about", page => {
   page.append(h("header.topbar", h("div.row", h("a.icon-btn", { href: api.getSession() ? "#/more" : "#/home", "aria-label": "Back" }, icon("back")), h("h1", t("About Us")))));
   page.append(aboutContent());
+  if (api.getSession()) page.append(messageAdminCard());
 }, { public: true });
+
+// complaint, idea or anything — goes straight to the admin panel; the reply comes to 🔔 Alerts
+function messageAdminCard() {
+  let kind = "message";
+  const K = [["message", "💬 কথা"], ["complaint", "😟 অভিযোগ"], ["idea", "💡 আইডিয়া"], ["bug", "🐞 সমস্যা"]];
+  const seg = h("div.row.wrap", { style: { gap: "6px" } });
+  const draw = () => seg.replaceChildren(...K.map(([k, l]) => h("button.chip" + (k === kind ? ".on" : ""), { type: "button", onclick: () => { kind = k; draw(); } }, l)));
+  draw();
+  const txt = h("textarea.input", { placeholder: "অ্যাডমিনকে যা বলতে চান লিখুন…", maxlength: "2000", style: { minHeight: "96px", marginTop: "8px" } });
+  const send = h("button.btn.primary.block", { style: { marginTop: "8px" } }, "পাঠান");
+  send.onclick = busy(send, async () => {
+    await api.rpc("send_admin_message", { p_body: txt.value, p_kind: kind });
+    txt.value = ""; toast("পাঠানো হয়েছে ✓ — উত্তর এলে 🔔 Alerts-এ পাবেন", "ok");
+  });
+  return h("div.card.mt", { id: "msg-admin" }, h("h3", "✉️ Message the admin"), h("p.hint", "অভিযোগ, আইডিয়া বা যেকোনো কথা — ইমেইল ছাড়াই সরাসরি অ্যাডমিনের কাছে যাবে।"), seg, txt, send);
+}
 
 // ---------- download / install
 route("download", async page => {
@@ -374,9 +397,17 @@ route("reports", async page => {
     const id = await api.rpc("create_report", { p_title: title, p_start: from.value, p_end: to.value, p_pin: pin });
     go(`#/report/${id}`);
   });
+  page.append(h("div.list",
+    h("a.li", { href: "#/summary" }, h("div.ic", "🗓️"), h("div.grow", h("b", "মাসের সারাংশ"), h("div.small.muted", "যেকোনো মাস — কাজ, DP, টাকা, AI রিভিউ, PDF")), icon("chev", "chev")),
+    h("a.li", { href: "#/weekreport" }, h("div.ic", "📊"), h("div.grow", h("b", "এই সপ্তাহের রিপোর্ট"), h("div.small.muted", "গত ৭ দিন + AI-র পরিকল্পনা")), icon("chev", "chev")),
+    h("a.li", { href: "#/summary/all" }, h("div.ic", "📚"), h("div.grow", h("b", "পুরো ইতিহাস (PDF)"), h("div.small.muted", "শুরু থেকে আজ পর্যন্ত সব এক PDF-এ")), icon("chev", "chev"))));
   page.append(h("div.card", h("h3", "New report"), h("p.hint", "Includes income, expenses (with every edit shown), tasks and DP. Each report has its own ID and a QR code anyone can scan to check it's real."),
     quick, h("div.grid2.mt", h("label.f", h("span", "From"), from), h("label.f", h("span", "To"), to)), make));
-  if (list.length) page.append(h("div.section-title", h("h2", "My reports")), h("div.list", list.map(r => h("a.li", { href: `#/report/${r.id}` }, h("div.ic", icon("report")), h("div.grow", h("b", r.title), h("div.small.muted", "Made " + new Date(r.created_at).toLocaleString("en-GB"))), icon("chev", "chev")))));
+  if (list.length) page.append(h("div.section-title", h("h2", "My reports")), h("div.list", list.map(r => {
+    const del = h("button.icon-btn", { "aria-label": "Delete report", title: "Delete" }, icon("trash"));
+    del.onclick = busy(del, async ev => { ev?.preventDefault?.(); ev?.stopPropagation?.(); if (!(await confirmBox("রিপোর্টটা মুছবেন?", r.title + " — QR দিয়ে আর যাচাই করা যাবে না।", "Delete", true))) return; await api.remove("reports", `id=eq.${r.id}`); toast("মুছে ফেলা হলো", "ok"); rerender(); });
+    return h("div.li", h("a.row.grow", { href: `#/report/${r.id}`, style: { gap: "12px", color: "inherit", minWidth: 0 } }, h("div.ic", icon("report")), h("div.grow", { style: { minWidth: 0 } }, h("b", r.title), h("div.small.muted", "Made " + new Date(r.created_at).toLocaleString("en-GB")))), del);
+  })));
 }, { tab: "more" });
 
 export function reportView(rep, verifyMode = false) {
@@ -489,9 +520,10 @@ route("notifications", async page => {
   const folds = await alertFolds(store.profile);
   folds.forEach(f => { if (/Off|Not connected/.test(f.textContent.slice(0, 80))) f.open = true; });
   page.append(...folds);
-  const list = await api.select("inbox", "select=id,title,body,url,level,created_at,read&order=created_at.desc&limit=60").catch(() => []);
-  page.append(h("div.section-title", h("h2", "Recent")));
-  if (!list.length) { page.append(h("div.card.empty", h("p", "No notifications yet. Turn them on above."))); return; }
+  const since = new Date(Date.now() - 3 * 3600e3).toISOString();
+  const list = await api.select("inbox", `select=id,title,body,url,level,created_at,read&created_at=gt.${since}&order=created_at.desc&limit=60`).catch(() => []);
+  page.append(h("div.section-title", h("h2", "Recent"), h("span.small.faint", "৩ ঘণ্টা পর নিজে থেকে মুছে যায়")));
+  if (!list.length) { page.append(h("div.card.empty", h("p", "এখন কোনো নোটিফিকেশন নেই।"))); return; }
   page.append(h("div.list", list.map(n => h("a.li", { href: n.url || "#/today", style: { alignItems: "flex-start", opacity: n.read ? .7 : 1 } },
     h("div.ic", n.level === "urgent" ? "🚨" : "🔔"),
     h("div.grow", h("b", n.title), n.body ? h("div.small.muted", n.body) : null, h("div.small.faint", new Date(n.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }))),

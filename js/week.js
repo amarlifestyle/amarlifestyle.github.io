@@ -1,5 +1,7 @@
 // Amar Lifestyle — weekly planner: build your week like a neon routine chart
 import * as api from "./api.js";
+import * as U from "./undo.js";
+import { timePicker, nowHM } from "./timepick.js";
 import { pickColor } from "./ui.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, todayStr, addDays, fmtTime, mins, durLabel, fmtDate, DAYS, dhakaIso, colorPicker, pad } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender } from "./app.js";
@@ -16,7 +18,7 @@ route("week", async (page, offset = "0") => {
   const ws = addDays(weekStart(today), off * 7), we = addDays(ws, 6);
   page.append(h("header.topbar",
     h("div", h("h1", "Routine"), h("div.sub", off === 0 ? "This week · " : off === 1 ? "Next week · " : "", `${fmtDate(ws)} – ${fmtDate(we)}`)),
-    h("div.row", off !== 0 ? h("a.btn.small", { href: "#/week/0" }, "Today") : null,
+    h("div.row", U.undoButtons(), off !== 0 ? h("a.btn.small", { href: "#/week/0" }, "Today") : null,
       h("a.icon-btn", { href: `#/week/${off - 1}`, "aria-label": "Previous week" }, icon("back")),
       h("a.icon-btn", { href: `#/week/${off + 1}`, "aria-label": "Next week" }, icon("chev")))));
   page.append(await routineTabsAsync("week"));
@@ -47,8 +49,8 @@ route("week", async (page, offset = "0") => {
   const grid = h("div.week.z" + zoom, days.map(d => {
     const list = tasks.filter(x => x.day === d && x.status !== "running");
     const dow = new Date(d + "T00:00:00").getDay();
-    return h("div.wday",
-      h("div.h" + (d === today ? ".today" : ""), DAYS[dow], h("small", fmtDate(d))),
+    return h("div.wday" + (d < today ? ".past" : ""),
+      h("div.h" + (d === today ? ".today" : ""), DAYS[dow], h("small", d < today ? "শেষ" : fmtDate(d))),
       list.map(tk => {
         const st = ["completed", "late_completed"].includes(tk.status) ? ".done" : ["missed", "not_completed"].includes(tk.status) ? ".missed" : "";
         return h("div.cell" + st, { style: { "--c": colorOf(tk) }, role: "button", tabindex: "0", onclick: () => detail(tk, ctx, list) },
@@ -112,8 +114,7 @@ export function planSheet(ctx, pre = {}) {
   const dayBox = h("div.days");
   const drawDays = () => dayBox.replaceChildren(...[6, 0, 1, 2, 3, 4, 5].map(d => h("button" + (days.includes(d) ? ".on" : ""), { type: "button", onclick: () => { days = days.includes(d) ? days.filter(x => x !== d) : [...days, d]; drawDays(); } }, DAYS[d].slice(0, 2))));
   drawDays();
-  const start = h("input.input", { type: "time", value: "17:00" });
-  const dur = h("input.input", { type: "number", min: "5", max: "720", value: 60, inputmode: "numeric", "aria-label": "Minutes" });
+  const tp = timePicker({ start: pre.day && pre.day > today ? "17:00" : nowHM(), minutes: 60 });
   let color = "";
   const colors = colorPicker("", c => color = c, { allowNone: true });
   let repeat = pre.repeat || "week"; // a task added on a day is for this week only, unless you choose Every week
@@ -128,7 +129,7 @@ export function planSheet(ctx, pre = {}) {
     h("label.f", h("span", "What"), title),
     h("div.grid2", h("label.f", h("span", "Category"), cat), stuRow),
     h("label.f", h("span", "Days"), dayBox),
-    h("div.grid2", h("label.f", h("span", "Start"), start), h("label.f", h("span", "Minutes"), dur)),
+    h("div.f", tp.el),
     h("label.f", h("span", "Colour"), colors),
     h("label.f", h("span", "Repeat"), rep),
   ], {
@@ -136,7 +137,7 @@ export function planSheet(ctx, pre = {}) {
       const save = h("button.btn.primary", t("Save"));
       save.onclick = busy(save, async () => {
         const name = title.value.trim() || (students.find(s => s.id === stu.value)?.name) || cat.value;
-        const m = Number(dur.value);
+        const { start: stHM, minutes: m } = tp.get(); const start = { value: stHM };
         if (!days.length) throw new Error("Pick at least one day.");
         if (!(m >= 5 && m <= 720)) throw new Error("Minutes must be 5 to 720.");
         const student = cat.value === "Tuition" ? stu.value || null : null;
@@ -185,7 +186,7 @@ function detail(tk, ctx, dayList = []) {
       rmWeek.onclick = busy(rmWeek, async () => {
         if (routine) await api.insert("routine_skips", { routine_id: routine.id, day: tk.day, user_id: api.userId() });
         await api.remove("tasks", `id=eq.${tk.id}&status=eq.pending`);
-        toast("Removed ✓", "ok"); close(); rerender();
+        U.removedTask(tk); close(); rerender();
       });
       const dow = new Date(tk.day + "T00:00:00").getDay(), dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dow];
       const others = routine ? routine.days.filter(d => d !== dow) : [];
@@ -196,9 +197,10 @@ function detail(tk, ctx, dayList = []) {
         const pend = await api.select("tasks", `select=id,day&routine_id=eq.${routine.id}&status=eq.pending&end_at=gt.${new Date().toISOString()}`);
         const ids = pend.filter(x => new Date(x.day + "T00:00:00").getDay() === dow).map(x => x.id);
         if (ids.length) await api.remove("tasks", `id=in.(${ids.join(",")})&status=eq.pending`);
-        if (others.length) await api.update("routines", `id=eq.${routine.id}`, { days: others });
-        else await api.update("routines", `id=eq.${routine.id}`, { active: false, template: "_removed" });
-        toast(`Removed from every ${dayName} ✓`, "ok"); close(); rerender();
+        const after = others.length ? { days: others } : { active: false, template: "_removed" };
+        await api.update("routines", `id=eq.${routine.id}`, after);
+        U.changedRoutine(`“${routine.title}” প্রতি ${dayName} থেকে সরানো`, { days: routine.days, active: true, template: routine.template }, after, routine.id);
+        close(); rerender();
       });
       const mv = new Date(tk.start_at) > new Date() ? h("button.btn.small", "↕ Move") : null;
       if (mv) mv.onclick = () => { close(); moveSheet(tk, ctx, dayList); };
@@ -271,6 +273,8 @@ const hhmm = iso => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit",
 async function applyMove(tk, newStart, scope, ctx) {
   const s = new Date(newStart), e = new Date(s.getTime() + (new Date(tk.end_at) - new Date(tk.start_at)));
   const routine = ctx.routines.find(r => r.id === tk.routine_id);
+  if (routine && scope === "every") U.changedRoutine(`“${tk.title}” এর সময় বদল (প্রতি সপ্তাহ)`, { start_time: routine.start_time }, { start_time: hhmm(s.toISOString()) }, routine.id);
+  else U.movedTasks(`“${tk.title}” সরানো হলো`, [{ id: tk.id, from: [tk.start_at, tk.end_at], to: [s.toISOString(), e.toISOString()] }]);
   const moveTask = async () => {
     if (routine) await api.insert("routine_skips", { routine_id: routine.id, day: tk.day, user_id: api.userId() }).catch(() => {}); // keep the routine from re-adding it
     await api.update("tasks", `id=eq.${tk.id}&status=eq.pending`, { start_at: s.toISOString(), end_at: e.toISOString() });

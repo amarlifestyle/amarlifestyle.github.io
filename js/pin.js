@@ -25,9 +25,10 @@ export async function pinGate(area, reason = "এই অংশ খুলতে P
     if (r === "skip") { api.LS.set("al_pin_skip", Date.now()); return true; }
     return false;
   }
-  const pin = await askPin(reason); if (!pin) return false;
+  const pin = await askPin(reason + " · ভুলে গেলে: Settings → PIN → Forgot PIN"); if (!pin) return false;
   try { if (!(await api.rpc("check_pin", { p_pin: pin }))) { toast("Wrong PIN.", "bad"); return false; } } catch (e) { toast(e.message || "Wrong PIN.", "bad"); return false; }
   opened[area] = Date.now();
   return true;
 }
-export const lockedCard = (onOpen) => h("div.card.empty", h("p", "🔒 PIN দিয়ে খুলুন"), h("button.btn.primary", { onclick: onOpen }, "Unlock"));
+export const lockedCard = (onOpen) => h("div.card.empty", h("p", "🔒 PIN দিয়ে খুলুন"), h("button.btn.primary", { onclick: onOpen }, "Unlock"),
+  h("div", { style: { marginTop: "10px" } }, h("a.small", { href: "#/settings" }, "PIN ভুলে গেছেন? Settings → PIN → Forgot PIN (Telegram বা ইমেইলে কোড)")));

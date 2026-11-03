@@ -2,7 +2,7 @@
 import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, todayStr, addDays, DAYS, PALETTE, dhakaIso, durLabel, fmtHM, fmtTime, fmtDate } from "./ui.js";
 import { store, catNames, rerender } from "./app.js";
-import { voiceRecorder } from "./voice.js";
+import { dictation } from "./voice.js";
 import { pickColor } from "./ui.js";
 import { askSheet } from "./assistant.js";
 export { askSheet };
@@ -77,15 +77,10 @@ export function aiPlanSheet(ctx) {
     if (save) save.disabled = !items.length;
     if (make) make.textContent = "🤖 Make again";
   };
-  const voice = voiceRecorder(async audio => {
-    result.replaceChildren(h("p.small.muted.mt", "🤖 AI is reading your routine…"));
-    apply(await api.ai("plan", { audio }));
-  }, { label: "Tap and say your routine" });
+  const voice = dictation(text, { transcribe: audio => api.ai("transcribe", { audio }), label: "চাপুন আর রুটিন বলুন" });
   return sheet("🤖 Build routine with AI", [
-    h("p.hint", "যেমন: “শনিবার ৫টা ৬ সিপি, প্রতিদিন সকাল ৬টায় আধা ঘণ্টা দৌড়”। শেষ হলে আবার চাপুন — AI শুনে লিস্ট বানাবে। কিছু না বললে আগের রুটিন দেখে অনুমান করবে। Save করার আগে দেখে নিন।"),
-    voice,
-    h("div.small.faint", { style: { textAlign: "center", margin: "10px 0 6px" } }, "— অথবা লিখুন / ঠিক করুন —"),
-    text, result,
+    h("p.hint", "বলুন বা লিখুন: “শনিবার ৫টা থেকে ৬টা CP, প্রতিদিন সকাল ৬টায় আধা ঘণ্টা দৌড়”। লেখাটা দেখে ঠিক করে “Make plan” চাপুন — Save করার আগে সব দেখাবে।"),
+    text, voice, result,
   ], {
     actions: close => {
       make = h("button.btn", "🤖 Make plan");

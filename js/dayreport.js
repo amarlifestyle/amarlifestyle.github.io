@@ -39,7 +39,7 @@ route("day", async (page, dayArg) => {
   // headline
   page.append(h("div.hero", ring(pct, `${Math.round(pct * 100)}%`, ""),
     h("div.grow", h("div", h("b.mid", `${done.length}/${real.length}`), h("span.small.muted", " tasks done")),
-      h("div.small.muted", `${durLabel(Math.round(workMin))} of work · ${dp >= 0 ? "+" : ""}${dp} DP · ${coins} coins`))));
+      h("div.small.muted", `${durLabel(Math.round(workMin))} of work · ${dp >= 0 ? "+" : ""}${dp} DP`))));
   page.append(h("div.grid3",
     h("div.stat", h("div.k", "Income"), h("div.v.ok", money(inc))),
     h("div.stat", h("div.k", "Spent"), h("div.v.bad", money(exp))),
@@ -53,8 +53,7 @@ route("day", async (page, dayArg) => {
     `Date ${day}. Tasks: ${done.length} done, ${notDone.length} not done, ${pending.length} not marked, of ${real.length}. Completion ${Math.round(pct * 100)}%.`,
     `Work time by category (minutes): ${JSON.stringify(Object.fromEntries(Object.entries(byCat).map(([k, v]) => [k, Math.round(v)])))}.`,
     `Done: ${done.map(t => t.title + (t.done_pct && t.done_pct < 100 ? ` (${t.done_pct}%)` : "")).join(", ") || "none"}. Not done: ${notDone.map(t => t.title).join(", ") || "none"}. Not marked: ${pending.map(t => t.title).join(", ") || "none"}.`,
-    `DP ${dp}, coins ${coins}. Income ৳${inc}, spent ৳${exp} ${JSON.stringify(expCat)}.`,
-    prayed !== null ? `Prayers prayed: ${prayed}/5.` : "",
+    `DP ${dp}. Income ৳${inc}, spent ৳${exp} ${JSON.stringify(expCat)}.`,
     habitLines.length ? `Bad habits: ${habitLines.map(x => `${x.name} ×${x.n}${x.cost ? ` (৳${x.cost})` : ""}`).join(", ")}.` : "",
     life[0] ? `Water ${life[0].water || 0} glasses.` : "",
   ].filter(Boolean).join(" ");
