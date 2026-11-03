@@ -11,6 +11,7 @@ import "./exams.js";
 import "./dayreport.js";
 import "./period.js";
 import "./syllabus.js";
+import "./notes.js";
 import "./install.js"; // catches the one-tap install offer early
 
 // password-reset link from email arrives as #access_token=...&type=recovery

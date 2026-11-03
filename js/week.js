@@ -2,6 +2,7 @@
 import * as api from "./api.js";
 import * as U from "./undo.js";
 import { timePicker, nowHM } from "./timepick.js";
+import { clashOk } from "./today.js";
 import { pickColor } from "./ui.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, todayStr, addDays, fmtTime, mins, durLabel, fmtDate, DAYS, dhakaIso, colorPicker, pad } from "./ui.js";
 import { route, store, catColor, catNames, catDp, rerender } from "./app.js";
@@ -154,6 +155,7 @@ export function planSheet(ctx, pre = {}) {
             const s = dhakaIso(date, start.value);
             if (date < today || new Date(s) < new Date(Date.now() - 60000)) { skipped++; continue; }
             const e = new Date(new Date(s).getTime() + m * 60000).toISOString();
+            if (!(await clashOk(date, s, e))) { skipped++; continue; }
             const r = await api.offlineSafe({ kind: "task", title: name, category: cat.value, start: s, end: e, studentId: student });
             const col = color || pickColor(name, ctx.routines);
             if (r && !r.queued) await api.update("tasks", `id=eq.${r}`, { color: col });

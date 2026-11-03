@@ -120,6 +120,8 @@ route("today", async page => {
   } catch { /* offline: skip */ }
   // meal reminder (from your meal plan)
   try { const meal = await mealNow(true); if (meal) stack.append(srow("🍽️", meal.title, meal.when, null, "#/schedule/meal")); } catch { /* offline */ }
+  // notes for today (quick add, reminded until done)
+  try { const { notesCard } = await import("./notes.js"); body.append(await notesCard()); } catch { /* offline */ }
   // one line that changes every few seconds: today's AI advice + a quote (tap → AI)
   body.append(tipTicker(today));
 
@@ -301,6 +303,7 @@ export async function addTask(tk = null, preset = {}) {
         if (!title.value.trim()) throw new Error("Please write what you will do.");
         const { start: st0, minutes: m } = tp.get(); if (!(m >= 5 && m <= 720)) throw new Error("Pick 5 minutes to 12 hours.");
         const s = dhakaIso(day.value, st0); const e = new Date(new Date(s).getTime() + m * 60000).toISOString();
+        if (!(await clashOk(day.value, s, e, tk?.id))) return;
         const student = cat.value === "Tuition" ? stu.value || null : null;
         const row = { title: title.value.trim(), category: cat.value, start_at: s, end_at: e, day: day.value, pinned: pin.checked, student_id: student };
         if (tk?.routine_id) await api.insert("routine_skips", { routine_id: tk.routine_id, day: tk.day, user_id: api.userId() }).catch(() => {}); // only this day changes; the routine won't add it again
@@ -322,6 +325,20 @@ export async function addTask(tk = null, preset = {}) {
       return btns;
     },
   });
+}
+// two things at the same time, or over a prayer time? ask before saving
+export async function clashOk(day, s, e, skipId = null) {
+  const S = new Date(s).getTime(), E = new Date(e).getTime(), hits = [];
+  try {
+    const list = await api.select("tasks", `select=id,title,start_at,end_at,status&day=eq.${day}&status=eq.pending`);
+    list.filter(x => x.id !== skipId && new Date(x.start_at) < E && new Date(x.end_at) > S).forEach(x => hits.push(`${x.title} (${fmtTime(x.start_at)} – ${fmtTime(x.end_at)})`));
+  } catch { /* offline: skip the check */ }
+  try {
+    const P = await import("./prayer.js");
+    if (P.isMuslim()) P.waqts(day).filter(w => w.start >= S && w.start < E).forEach(w => hits.push(`${w.bn} prayer (${fmtTime(new Date(w.start).toISOString())})`));
+  } catch { /* fine */ }
+  if (!hits.length) return true;
+  return confirmBox("Time clash", "Overlaps with: " + hits.join(", "), "Save anyway");
 }
 function fmtDay(iso) { const d = new Date(new Date(iso).getTime() + (6 * 60 + new Date().getTimezoneOffset()) * 60000); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function fmtLocalHM(iso) { const d = new Date(new Date(iso).getTime() + (6 * 60 + new Date().getTimezoneOffset()) * 60000); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }

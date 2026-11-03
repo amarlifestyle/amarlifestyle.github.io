@@ -12,6 +12,7 @@ route("more", page => {
   page.append(h("button.share-card", { onclick: shareApp }, h("span.share-ic", "📤"), h("div.grow", h("b", "Share the app with friends"), h("div.small.muted", "WhatsApp, Messenger, Facebook…")), icon("chev", "chev")));
   page.append(h("div.list",
     li("#/calendar", "cal", "Calendar", "Extra classes, birthdays, meetings"),
+    li("#/notes", "edit", "Notes", "All your notes, day by day"),
     li("#/reports", "report", t("Reports"), "PDF with QR verification")));
   page.append(h("div.list",
     li("#/settings", "gear", t("Settings"), "PIN, theme, language, privacy"),
@@ -464,7 +465,7 @@ route("verify", async (page, id) => {
 // phone notifications + Telegram — used in Settings and on the Notifications page
 async function alertFolds(p) {
   // phone notifications
-  const nt = { tasks: true, unlock: true, events: true, night: true, ...(p.notify || {}) };
+  const nt = { tasks: true, unlock: true, events: true, night: true, water: true, sleep: true, ...(p.notify || {}) };
   const pst = await api.pushState().catch(() => "unsupported");
   const nBody = [];
   if (pst === "on") {
@@ -472,7 +473,7 @@ async function alertFolds(p) {
     test.onclick = busy(test, async () => { const n = await api.pushTest(); toast(n ? "Test sent — check your notifications ✓" : "No phone found. Turn notifications off and on again.", n ? "ok" : "bad"); });
     const off = h("button.btn.small.danger", "Turn off on this phone");
     off.onclick = busy(off, async () => { await api.disablePush(); toast("Notifications off on this phone"); rerender(); });
-    const nl = { tasks: "30 & 15 min before each task, at start, and every 30 min during study", unlock: "When Completed can be marked", events: "Meetings and birthdays", night: "Night report (30 min before bedtime)" };
+    const nl = { tasks: "30 & 15 min before each task, at start, and every 30 min during study", unlock: "When Completed can be marked", events: "Meetings and birthdays", night: "Night report (30 min before bedtime)", water: "Drink water (11 AM, 2 PM, 5 PM)", sleep: "Bedtime — phone away" };
     nBody.push(h("p.hint.keep", "✅ On for this phone. They come even when the app is closed (internet needed)."),
       Object.entries(nl).map(([k, l]) => h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", l),
         h("input", { type: "checkbox", checked: !!nt[k], onchange: async e => { nt[k] = e.target.checked; await api.update("profiles", `id=eq.${p.id}`, { notify: nt }); p.notify = nt; } }))),

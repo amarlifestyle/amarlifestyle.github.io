@@ -60,7 +60,7 @@ function facts(D) {
 }
 
 // the page itself — a clean paper-like document that prints well
-async function render(page, { from, to, title, sub, aiKey, aiAsk, back = "#/reports", nav = null }) {
+async function render(page, { from, to, title, sub, aiKey, aiAsk, back = "#/reports", nav = null, share = false }) {
   page.append(h("header.topbar.noprint", h("div.row", { style: { gap: "10px" } }, h("a.icon-btn", { href: back, "aria-label": "Back" }, icon("back")), h("div", h("h1", title), h("div.sub", sub))),
     h("button.btn.small.primary", { onclick: () => window.print() }, icon("download"), "Save PDF")));
   // money and habits are inside: PIN first (if one is set)
@@ -69,6 +69,7 @@ async function render(page, { from, to, title, sub, aiKey, aiAsk, back = "#/repo
   if (nav) page.append(nav);
   page.append(h("p.hint.noprint", "Untick parts you don't want, then Save PDF."));
   const D = await load(from, to);
+  if (share) page.querySelector("header.topbar")?.lastElementChild?.before(h("button.btn.small", { onclick: () => shareCard(D, title) }, "Share card"));
   const doc = h("div.doc");
   page.append(doc);
   const p = store.profile;
@@ -126,7 +127,7 @@ async function render(page, { from, to, title, sub, aiKey, aiAsk, back = "#/repo
 // Friday report: the last 7 days
 route("weekreport", async page => {
   const to = todayStr(), from = addDays(to, -6);
-  await render(page, { from, to, title: "Weekly report", sub: `${fmtDate(from)} – ${fmtDate(to)}`, back: "#/today", aiKey: "al_weekai_" + to,
+  await render(page, { share: true, from, to, title: "Weekly report", sub: `${fmtDate(from)} – ${fmtDate(to)}`, back: "#/today", aiKey: "al_weekai_" + to,
     aiAsk: `আমার গত ৭ দিনের রিপোর্ট দেখে বাংলায় সাপ্তাহিক রিভিউ দাও। ফরম্যাট: প্রথম লাইনে সপ্তাহটা এক কথায় (দারুণ / ভালো / মোটামুটি / খারাপ) আর কেন। তারপর "✅ এই সপ্তাহে ভালো:" ৩টা, "⚠️ যেখানে পিছিয়ে:" ২-৩টা, "🎯 পরের সপ্তাহের পরিকল্পনা:" ৩টা নির্দিষ্ট কাজ (দিন/সময় সহ), শেষে এক লাইনের অনুপ্রেরণা।` });
 }, { tab: "today" });
 
@@ -147,3 +148,35 @@ route("summary", async (page, which) => {
   await render(page, { from: m + "-01", to, title: "Month summary", sub: new Date(m + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" }), aiKey: "al_monthai_" + m, nav: pick,
     aiAsk: `আমার এই মাসের পুরো হিসাব দেখে বাংলায় সৎ মাসিক মূল্যায়ন দাও। ফরম্যাট: প্রথম লাইনে মাসটা এক কথায় আর কেন। তারপর "✅ ভালো যা হয়েছে:" ৩টা, "⚠️ সমস্যা:" ৩টা (কোথায়, কত বার), "💰 টাকা:" ২টা কথা, "🎯 পরের মাসে:" ৩টা নির্দিষ্ট লক্ষ্য।` });
 }, { tab: "more" });
+
+// a picture of the week to post on Facebook / WhatsApp (no money, no task names)
+async function shareCard(D, title) {
+  const W = 1080, H = 1350, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#0B1220"); g.addColorStop(1, "#13263A"); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.fillStyle = "rgba(45,212,191,.12)"; x.beginPath(); x.arc(W - 120, 160, 260, 0, 7); x.fill();
+  const F = "-apple-system, Segoe UI, Roboto, 'Noto Sans Bengali', sans-serif";
+  x.fillStyle = "#2DD4BF"; x.font = `700 44px ${F}`; x.fillText("Amar Lifestyle", 80, 130);
+  x.fillStyle = "#94A3B8"; x.font = `500 36px ${F}`; x.fillText(`${title} · ${fmtDate(D.from)} – ${fmtDate(D.to)}`, 80, 190);
+  x.fillStyle = "#EEF2F7"; x.font = `700 52px ${F}`; x.fillText(store.profile?.name || "", 80, 290);
+  // big ring
+  const pct = Math.round(D.pct * 100), cx = W / 2, cy = 590, r = 210;
+  x.lineWidth = 42; x.strokeStyle = "rgba(148,163,184,.15)"; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.stroke();
+  const rg = x.createLinearGradient(cx - r, cy - r, cx + r, cy + r); rg.addColorStop(0, "#22D3EE"); rg.addColorStop(1, "#4ADE80");
+  x.strokeStyle = rg; x.lineCap = "round"; x.beginPath(); x.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * D.pct); x.stroke();
+  x.textAlign = "center"; x.fillStyle = "#EEF2F7"; x.font = `800 130px ${F}`; x.fillText(pct + "%", cx, cy + 40);
+  x.fillStyle = "#94A3B8"; x.font = `500 36px ${F}`; x.fillText("tasks done", cx, cy + 100);
+  const stats = [[(D.dp >= 0 ? "+" : "") + D.dp, "DP"], [(D.workMin / 60).toFixed(1) + "h", "work"], [`${D.activeDays}/${D.nDays}`, "active days"]];
+  stats.forEach(([v, l], i) => {
+    const bx = 80 + i * 320, by = 900;
+    x.fillStyle = "rgba(255,255,255,.06)"; x.beginPath(); x.roundRect(bx, by, 280, 200, 32); x.fill();
+    x.fillStyle = "#EEF2F7"; x.font = `800 72px ${F}`; x.fillText(v, bx + 140, by + 110);
+    x.fillStyle = "#94A3B8"; x.font = `500 32px ${F}`; x.fillText(l, bx + 140, by + 160);
+  });
+  x.fillStyle = "#64748B"; x.font = `500 32px ${F}`; x.fillText("amarlifestyle.github.io", W / 2, H - 80);
+  const blob = await new Promise(ok => c.toBlob(ok, "image/png"));
+  const file = new File([blob], "my-week.png", { type: "image/png" });
+  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], text: "My week on Amar Lifestyle — amarlifestyle.github.io" }); return; } catch { return; } }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "my-week.png"; a.click();
+  toast("Picture saved ✓", "ok");
+}

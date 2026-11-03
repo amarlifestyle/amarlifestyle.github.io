@@ -1,6 +1,6 @@
 // Amar Lifestyle — Syllabus: subjects → chapters. Tick a chapter with the day you finished it; see how much is done, per subject and per exam.
 import * as api from "./api.js";
-import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtDate, ring, PALETTE } from "./ui.js";
+import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtDate, ring, PALETTE, barChart } from "./ui.js";
 import { route, rerender } from "./app.js";
 
 const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
@@ -24,6 +24,25 @@ route("syllabus", async (page, examArg) => {
     h("div.grow", h("div", h("b.mid", `${doneN}/${all.length}`), h("span.small.muted", " chapters done")),
       h("div.small.muted", ex ? `${ex.name}${ex.exam_date ? " · " + fmtDate(ex.exam_date, { day: "numeric", month: "short" }) + " · " + daysLeft(ex.exam_date) : ""}` : "All subjects"),
       ex ? h("button.linkbtn.small", { onclick: () => examSheet(ex, subs, chs) }, "Edit exam") : null)));
+  // revise today: chapters finished 3, 7 or 30 days ago
+  const tday = todayStr(), back = n => { const d = new Date(tday + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
+  const due = chs.filter(c => c.done_on && [3, 7, 30].some(n => c.done_on === back(n)));
+  if (due.length) page.append(h("div.card.revise", h("h3", "📚 Revise today"), h("div.list", due.map(c => {
+    const b = h("button.btn.small", "✓ Revised");
+    b.onclick = busy(b, async () => { await api.update("syl_chapters", `id=eq.${c.id}`, { revised: (c.revised || 0) + 1 }); toast("Nice ✓", "ok"); rerender(); });
+    return h("div.li", h("div.grow", h("b", c.title), h("div.small.muted", subs.find(s => s.id === c.subject_id)?.name || "")), b);
+  }))));
+  // study hours by subject (last 7 days): tasks whose name matches the subject
+  if (subs.length) {
+    const tasks = await api.select("tasks", `select=title,start_at,end_at,status,done_pct&day=gte.${back(6)}&status=in.(completed,late_completed)`).catch(() => []);
+    const key = x => String(x || "").toLowerCase().replace(/[^a-z0-9ঀ-৿]+/g, " ").trim();
+    const hrs = subs.map(sb => {
+      const words = key(sb.name).split(" ").filter(w => w.length > 2 && !["paper", "1st", "2nd", "the"].includes(w));
+      const m = tasks.filter(t => words.some(w => key(t.title).includes(w))).reduce((a, t) => a + (new Date(t.end_at) - new Date(t.start_at)) / 36e5 * (t.done_pct || 100) / 100, 0);
+      return { l: sb.name.length > 10 ? sb.name.slice(0, 9) + "…" : sb.name, v: +m.toFixed(1), c: sb.color };
+    });
+    if (hrs.some(x => x.v > 0)) page.append(h("div.card", h("h3", "Study hours — last 7 days"), barChart(hrs, { fmt: v => v + "h" })));
+  }
   if (!subs.length) {
     page.append(h("div.card.empty", h("p", "Add a subject, then its chapters."), h("button.btn.primary", { onclick: () => subjectSheet() }, icon("plus"), "Add subject")));
     return;

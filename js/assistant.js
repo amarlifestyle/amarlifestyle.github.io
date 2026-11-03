@@ -116,6 +116,7 @@ function describe(a, c) {
     case "mark_prayer": { if (!isMuslim()) return null; const w = waqts(todayStr()).find(x => x.key === a.prayer); if (!w || Date.now() < w.start || !["prayed", "not_prayed"].includes(a.status)) return null;
       return { ic: "🕌", area: "prayer", text: `${w.en}: ${a.status === "prayed" ? "Prayed ✓" : "Not prayed"}` }; }
     case "set_bedtime": return HHMM.test(a.time || "") ? { ic: "🌙", area: "setting", text: `Bedtime: ${fmtHM(a.time)}` } : null;
+    case "add_note": return String(a.text || "").trim() ? { ic: "📝", area: "note", text: `Note: ${String(a.text).trim().slice(0, 200)}${DATE.test(a.date || "") && a.date !== todayStr() ? " · " + fmtDate(a.date) : ""}` } : null;
   }
   return null;
 }
@@ -218,6 +219,7 @@ async function run(a, c) {
     }
     case "mark_prayer": return api.rpc("mark_prayer", { p_day: todayStr(), p_prayer: a.prayer, p_status: a.status });
     case "set_bedtime": await api.update("profiles", `id=eq.${store.profile.id}`, { sleep_time: a.time }); await loadBasics(); return;
+    case "add_note": await api.insert("notes", { user_id: api.userId(), text: String(a.text).trim().slice(0, 500), day: DATE.test(a.date || "") ? a.date : todayStr() }); return;
   }
 }
 
