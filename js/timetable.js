@@ -55,9 +55,11 @@ export async function routineTabsAsync(active) { await loadTabs(); return routin
 export function routineTabs(active) {
   const studying = myRoles().some(k => ["student", "school", "teacher"].includes(k)) || !myRoles().length;
   const tabs = [["week", "📅 Weekly", "#/week"], ["exams", deadlines().tab, "#/exams"], ...(studying ? [["syllabus", "📚 Syllabus", "#/syllabus"]] : []), ...(isMuslim() ? [["prayer", "🕌 Prayer", "#/prayer"]] : []), ...TABS.map(t => [tabKey(t), `${t.icon} ${t.name}`, `#/schedule/${tabKey(t)}`])];
-  return h("div.seg", { style: { marginBottom: "12px", overflowX: "auto" } },
+  const bar = h("div.seg.rtabs", { style: { marginBottom: "12px", overflowX: "auto" } },
     tabs.map(([k, l, href]) => h("button" + (k === active ? ".on" : ""), { onclick: () => { location.hash = href; }, style: { whiteSpace: "nowrap" } }, l)),
     h("button", { onclick: addTabSheet, style: { whiteSpace: "nowrap" }, "aria-label": "Add a tab" }, "＋"));
+  setTimeout(() => bar.querySelector("button.on")?.scrollIntoView({ inline: "center", block: "nearest" }), 60); // the open tab is always in view
+  return bar;
 }
 function addTabSheet() {
   const name = h("input.input", { placeholder: "e.g. Gym plan · Exam routine" });

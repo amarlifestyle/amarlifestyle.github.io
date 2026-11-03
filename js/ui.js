@@ -76,7 +76,78 @@ const P = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   logo: '',
+  mosque: '<path d="M12 3c2 2 4 3 4 6H8c0-3 2-4 4-6z"/><path d="M5 21V12h14v9M3 21h18M10 21v-4a2 2 0 0 1 4 0v4M5 12V9M19 12V9"/>',
+  siren: '<path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 21h14v-3H5zM12 3V1M4.2 6.2 3 5M19.8 6.2 21 5"/>',
+  send: '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/>',
+  phone: '<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/>',
+  bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',
+  warn: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.01"/>',
+  cup: '<path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17M8 2v3M12 2v3"/>',
+  flask: '<path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/><path d="M7 15h10"/>',
+  spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
+  share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.6M8.2 13.2l7.6 4.6"/>',
+  receipt: '<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  food: '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 0-3 3-3 6s1 3 3 3v9"/>',
+  box: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  hourglass: '<path d="M6 2h12M6 22h12M7 2c0 5 10 6 10 10S7 17 7 22M17 2c0 5-10 6-10 10s10 5 10 10"/>',
+  gem: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/>',
+  health: '<path d="M3 12h4l2-5 4 10 2-5h6"/>',
+  shop: '<path d="M3 6h18l-2 9H5z"/><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/><path d="M3 6 2 3"/>',
+  party: '<path d="M4 20 9 7l8 8z"/><path d="M14 4v2M19 9h2M17 6l1.5-1.5M12 9c1-1 2-1 3 0"/>',
+  smoke: '<path d="M2 16h15v3H2zM19 16v3M22 16v3M19 12c0-2 2-2 2-4s-2-2-2-4"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+  sleep: '<path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"/>',
+  trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/>',
+  repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
+  zap: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  wifi: '<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5v.01"/>',
 };
+
+// ---------- emoji → clean line icons (one style everywhere, in the app's colour)
+const EMO = {
+  "✅": "check", "☑️": "check", "✔️": "check", "❌": "x", "✖️": "x", "📅": "cal", "🗓️": "cal", "📆": "cal", "📝": "edit", "✍️": "edit", "📚": "book", "📖": "book",
+  "🕌": "mosque", "🚨": "siren", "⏰": "clock", "⏱️": "timer", "⏳": "hourglass", "⌛": "hourglass", "🔔": "bell", "✈️": "send", "📱": "phone", "📲": "phone",
+  "💡": "bulb", "⚠️": "warn", "❗": "warn", "❓": "info", "🎯": "goal", "🍅": "timer", "☕": "cup", "🎓": "student", "🏫": "student", "🧪": "flask", "📄": "report", "📑": "report", "📋": "report",
+  "📊": "chart", "📈": "chart", "📉": "chart", "🔥": "fire", "🏅": "medal", "🏆": "trophy", "💎": "gem", "💰": "wallet", "💳": "wallet", "💸": "wallet", "💵": "money", "🧾": "receipt",
+  "🍽️": "food", "🍵": "cup", "🎂": "gift", "🎁": "gift", "🤝": "people", "👥": "people", "📌": "pin", "✨": "spark", "🤖": "spark", "📷": "camera", "📸": "camera", "🎙️": "mic", "🎤": "mic",
+  "💬": "chat", "✉️": "chat", "🚭": "habit", "🚬": "smoke", "📤": "share", "🔐": "lock", "🔒": "lock", "👤": "user", "🙂": "user", "👨": "user", "👩": "user", "🌙": "moon", "☀️": "sun",
+  "📦": "box", "🩺": "health", "🛒": "shop", "🎉": "party", "🖨️": "report", "📽️": "video", "🔁": "repeat", "↻": "repeat", "⚡": "zap", "📴": "wifi", "🏠": "today", "⬇️": "download",
+  "💪": "fire", "👋": "", "😟": "chat", "🐞": "warn", "📁": "box", "🗂️": "box", "📚️": "book", "🎨": "edit", "🔄": "repeat", "1️⃣": "cal", "🧩": "info", "👎": "warn", "💤": "sleep", "😴": "sleep", "💧": "water",
+};
+const EMO_RE = new RegExp([...Object.keys(EMO)].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + "|\\p{Extended_Pictographic}\\uFE0F?", "gu");
+export function iconize(root) {
+  if (!root || root.nodeType !== 1) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => {
+    const p = n.parentElement; if (!p || p.closest("input,textarea,select,option,script,style,.no-ico,.doc-print-keep")) return NodeFilter.FILTER_REJECT;
+    for (const m of n.nodeValue.matchAll(EMO_RE)) if (!KEEP.has(m[0].replace(/\uFE0F/g, ""))) return NodeFilter.FILTER_ACCEPT; // arrows we keep never loop
+    return NodeFilter.FILTER_REJECT;
+  } });
+  const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+  for (const n of nodes) {
+    const frag = document.createDocumentFragment(); let last = 0; const v = n.nodeValue;
+    EMO_RE.lastIndex = 0;
+    for (const m of v.matchAll(EMO_RE)) {
+      if (m.index > last) frag.append(v.slice(last, m.index));
+      const name = EMO[m[0]] ?? EMO[m[0].replace(/\uFE0F/g, "")];
+      if (name) frag.append(icon(name, "ei"));
+      else if (KEEP.has(m[0].replace(/\uFE0F/g, ""))) frag.append(m[0].replace(/\uFE0F/g, "")); // arrows and media signs stay as text
+      last = m.index + m[0].length;
+    }
+    frag.append(v.slice(last).replace(/^\s+(?=\S)/, last ? " " : ""));
+    n.replaceWith(frag);
+  }
+}
+const KEEP = new Set(["↕", "⏸", "▶", "⬆", "⬇", "©", "™", "⏹", "↔", "⏭", "⏮"]);
+let icoObs = null;
+export function autoIconize() { // pages, sheets, toasts — everything that appears
+  if (icoObs) return;
+  iconize(document.body);
+  icoObs = new MutationObserver(list => { for (const r of list) for (const n of r.addedNodes) { if (n.nodeType === 1) iconize(n); else if (n.nodeType === 3 && n.parentElement) iconize(n.parentElement); } });
+  icoObs.observe(document.body, { childList: true, subtree: true });
+}
 export function icon(name, cls = "") {
   if (name === "logo") return logoSvg();
   const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");

@@ -24,9 +24,7 @@ route("today", async page => {
   const first = (store.profile?.name || "").split(" ")[0];
   page.append(h("header.topbar",
     h("div", h("h1", `${greeting()}, ${first}`), h("div.sub", fmtDate(today, { weekday: "long", day: "numeric", month: "long" }))),
-    h("div.row", { style: { gap: "8px" } },
-      h("button.ai-orb", { onclick: () => askSheet(), "aria-label": "AI — suggestions and ask", title: "AI" }, h("span", "✨"), h("small", "AI")),
-      h("button.icon-btn", { onclick: openTimer, "aria-label": t("Start timer"), title: t("Start timer") }, icon("timer")))));
+    null));
 
   const body = h("div");
   page.append(body, h("button.fab", { onclick: () => addTask(), "aria-label": t("Add task") }, icon("plus")));
@@ -177,17 +175,12 @@ route("today", async page => {
       stack.append(c);
     }).catch(() => {});
   }
-  body.append(h("div.section-title", h("h2", "Today's tasks"), h("div.row", { style: { gap: "10px", alignItems: "center" } }, h("button.btn.small.emg", { onclick: () => emergencySheet(tasks) }, "🚨 Emergency"), h("a.small", { href: "#/routine" }, "Set routine"))));
+  body.append(h("div.section-title", h("h2", "Today's tasks"), h("div.row", { style: { gap: "10px", alignItems: "center" } }, h("button.btn.small", { onclick: openTimer, "aria-label": t("Start timer") }, icon("timer"), "Timer"), h("button.btn.small.emg", { onclick: () => emergencySheet(tasks) }, "🚨 Emergency"))));
   if (!realTasks.length && !running && !classes.length) {
     body.append(h("div.card.empty", icon("today"), h("p", "No tasks today."),
       h("p.small", "Tap ＋ to add one, or set a daily routine so tasks appear by themselves."),
       h("div.row", { style: { justifyContent: "center" } }, h("button.btn.primary", { onclick: () => addTask() }, icon("plus"), t("Add task")), h("a.btn", { href: "#/routine" }, icon("routine"), t("Routine")))));
   } else {
-    if (realTasks.length && !api.LS.get("al_tip_seen")) {
-      const tip = h("div.card.small", h("b", "Tip: "), "Mark a task near its end. Unmarked tasks lose DP at 12 AM.",
-        h("div", h("button.linkbtn", { onclick: () => { api.LS.set("al_tip_seen", 1); tip.remove(); } }, "Got it")));
-      body.append(tip);
-    }
     const list = tasks.filter(x => x.status !== "running");
     const emgFirst = list.filter(x => (x.title || "").startsWith("🚨") && x.status === "pending");
     const pinned = [...emgFirst, ...list.filter(x => x.pinned && !emgFirst.includes(x))], rest = [...list.filter(x => !x.pinned && !emgFirst.includes(x)), ...classes].sort((a, b) => a.start_at.localeCompare(b.start_at));
@@ -199,7 +192,6 @@ route("today", async page => {
       finished.forEach(tk => body.append(taskCard(tk, queued.has(tk.id))));
     }
   }
-  body.append(h("p.center.small.faint.mt", "Unplanned work? Use ", h("button.linkbtn", { onclick: openTimer }, "the timer"), " to earn DP."));
   notifyLoop(tasks);
   // first: put the app on the home screen, then the guide
   setTimeout(async () => { if (!location.hash.startsWith("#/today") || document.querySelector(".backdrop")) return; await installFirst(); if (location.hash.startsWith("#/today") && !document.querySelector(".backdrop")) showTour(); }, 700);

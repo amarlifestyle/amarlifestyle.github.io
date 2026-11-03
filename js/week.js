@@ -18,10 +18,11 @@ route("week", async (page, offset = "0") => {
   const ws = addDays(weekStart(today), off * 7), we = addDays(ws, 6);
   page.append(h("header.topbar",
     h("div", h("h1", "Routine"), h("div.sub", off === 0 ? "This week · " : off === 1 ? "Next week · " : "", `${fmtDate(ws)} – ${fmtDate(we)}`)),
-    h("div.row", U.undoButtons(), off !== 0 ? h("a.btn.small", { href: "#/week/0" }, "Today") : null,
+    h("div.row", off !== 0 ? h("a.btn.small", { href: "#/week/0" }, "Today") : null,
       h("a.icon-btn", { href: `#/week/${off - 1}`, "aria-label": "Previous week" }, icon("back")),
       h("a.icon-btn", { href: `#/week/${off + 1}`, "aria-label": "Next week" }, icon("chev")))));
   page.append(await routineTabsAsync("week"));
+  page.append(h("div.row.between", { style: { margin: "-4px 0 8px" } }, h("span.small.muted", off === 0 ? "এই সপ্তাহ" : ""), U.undoButtons()));
   if (we >= today) { try { await api.rpc("ensure_tasks", { p_from: ws < today ? today : ws, p_to: we }); } catch {} }
   const [tasks0, routines, students] = await Promise.all([
     api.select("tasks", `select=*&day=gte.${ws}&day=lte.${we}&order=start_at`),

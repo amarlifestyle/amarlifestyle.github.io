@@ -789,3 +789,44 @@ html:not(.apple) body, html:not(.apple) button, html:not(.apple) input, html:not
 .ai-plan .list { margin: 0; }
 .ai-plan .li { background: var(--card); }
 .ai-plan .btn.primary { min-width: 46%; }
+/* line icons that replace emoji inside text */
+svg.ei { width: 1.05em; height: 1.05em; vertical-align: -0.17em; stroke-width: 2; color: var(--brand); display: inline-block; margin: 0 .12em; }
+.btn svg.ei, .chip svg.ei, .seg svg.ei { color: currentColor; }
+.btn.primary svg.ei { color: currentColor; }
+.badge svg.ei, .s-tag svg.ei, .bad svg.ei, .warn svg.ei, .ok svg.ei { color: currentColor; }
+.s-ic svg.ei, .ai-can svg.ei, .tk-ic svg.ei, .ic svg.ei, .tour-ic svg.ei, .share-ic svg.ei, .ai-plan-h > span svg.ei { width: 22px; height: 22px; vertical-align: middle; margin: 0; }
+.ai-can button span { color: var(--brand); }
+.tour-ic svg.ei { width: 40px; height: 40px; }
+h1 svg.ei, h2 svg.ei, h3 svg.ei { color: var(--brand); }
+.doc svg.ei { color: #0F766E; }
+
+/* bottom menu: 4 tabs + big AI button in the middle */
+.nav-inner { grid-template-columns: repeat(5, 1fr) !important; align-items: center; }
+.nav-ai { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; height: 100%; border: 0; background: none; color: var(--text); font: inherit; cursor: pointer; padding: 0 0 8px; }
+.nav-ai-orb { width: 54px; height: 54px; margin-top: -22px; border-radius: 50%; display: grid; place-items: center; color: #04211d;
+  background: conic-gradient(from 210deg, #22D3EE, #4ADE80, #A78BFA, #22D3EE); box-shadow: 0 8px 24px color-mix(in srgb, var(--brand) 45%, transparent), 0 0 0 5px var(--bg); transition: transform .2s var(--ease, ease); }
+.nav-ai-orb svg { width: 26px; height: 26px; stroke-width: 2; }
+.nav-ai small { font-size: 10.5px; font-weight: 700; color: var(--brand); }
+.nav-ai:active .nav-ai-orb { transform: scale(.9); }
+.nav-ai-orb::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--brand) 40%, transparent); animation: aiRing 2.6s ease-out infinite; pointer-events: none; }
+.nav-ai-orb { position: relative; }
+@keyframes aiRing { 0% { transform: scale(.9); opacity: .9; } 100% { transform: scale(1.35); opacity: 0; } }
+@media (min-width: 760px) {
+  .nav-ai { flex-direction: row; justify-content: flex-start; gap: 12px; padding: 0 14px; min-height: 46px; height: auto; border-radius: 12px; }
+  .nav-ai-orb { width: 30px; height: 30px; margin: 0; box-shadow: none; }
+  .nav-ai-orb svg { width: 17px; height: 17px; }
+  .nav-ai small { font-size: 14.5px; }
+  .nav-ai-orb::after { display: none; }
+}
+/* top-right Alerts + More */
+.top-actions { display: flex; gap: 6px; margin-left: 8px; flex-shrink: 0; }
+.top-actions .icon-btn { position: relative; }
+.top-actions .icon-btn.on { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
+.top-bell .nav-badge { top: -4px; left: auto; right: -4px; }
+header.topbar { gap: 8px; }
+header.topbar > .row { flex-wrap: nowrap; }
+/* less text: long help lines are hidden on pages (sheets still explain what they need) */
+.page p.hint:not(.keep), .page .hint:not(.keep):not(label) { display: none; }
+.page .small.faint.mt { display: none; }
+header.topbar h1 { font-size: clamp(20px, 6vw, 26px); line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+header.topbar > div:first-child { min-width: 0; flex: 1; }

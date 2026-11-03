@@ -106,7 +106,8 @@ const snapshots = new Map();
 let renderTurn = 0;
 const routes = {};
 export function route(path, render, opts = {}) { routes[path] = { render, ...opts }; }
-const NAV = [["today", "#/today", "Today"], ["week", "#/week", "Routine"], ["money", "#/money", "Money"], ["me", "#/me", "Me"], ["alerts", "#/notifications", "Alerts"], ["more", "#/more", "More"]];
+const NAV = [["today", "#/today", "Today"], ["week", "#/week", "Routine"], ["ai", null, "AI"], ["money", "#/money", "Money"], ["me", "#/me", "Me"]];
+const MAIN = new Set(["today", "week", "money", "me", "notifications", "more", "exams", "prayer", "syllabus", "schedule"]);
 
 export function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
 
@@ -137,7 +138,11 @@ async function render() {
   } else app.replaceChildren(page);
   if (!same) window.scrollTo(0, 0);
   api.resetStale();
-  try { await r.render(page, ...args); if (api.isStale && !r.public) page.prepend(offlineNote()); }
+  try {
+    await r.render(page, ...args); if (api.isStale && !r.public) page.prepend(offlineNote());
+    const tb = page.querySelector(":scope > header.topbar");
+    if (!r.public && tb && MAIN.has(path)) tb.append(topActions(path === "notifications" ? "alerts" : path));
+  }
   catch (e) { page.replaceChildren(h("div.empty", icon("info"), h("p", e.message || "Could not load."), h("button.btn", { onclick: render }, "Try again"))); }
   if (myTurn !== renderTurn) return; // user already moved on
   page.removeAttribute("style"); page.classList.add(snap ? "swap" : "fresh");
@@ -149,18 +154,25 @@ async function render() {
 }
 function navBar(active) {
   return h("nav.nav", { "aria-label": "Main" }, h("div.nav-inner",
-    NAV.map(([k, href, label]) => h("a" + (k === active ? ".on" : ""), { href, "aria-current": k === active ? "page" : null }, icon(k), t(label),
-      k === "alerts" && unread > 0 && active !== "alerts" ? h("i.nav-badge", unread > 9 ? "9+" : String(unread)) : null))));
+    NAV.map(([k, href, label]) => k === "ai"
+      ? h("button.nav-ai", { type: "button", "aria-label": "AI assistant", onclick: () => import("./assistant.js").then(m => m.askSheet()) }, h("span.nav-ai-orb", icon("spark")), h("small", "AI"))
+      : h("a" + (k === active ? ".on" : ""), { href, "aria-current": k === active ? "page" : null }, icon(k), t(label)))));
+}
+// 🔔 Alerts and ⋯ More sit at the top right of the main pages
+function topActions(active) {
+  const bell = h("a.icon-btn.top-bell" + (active === "alerts" ? ".on" : ""), { href: "#/notifications", "aria-label": "Alerts" }, icon("bell"), unread > 0 ? h("i.nav-badge", unread > 9 ? "9+" : String(unread)) : null);
+  const more = h("a.icon-btn" + (active === "more" ? ".on" : ""), { href: "#/more", "aria-label": "More" }, icon("more"));
+  return h("div.top-actions", bell, more);
 }
 // unread count on the 🔔 Alerts tab
 let unread = 0, unreadAt = 0;
-export function setUnread(n) { unread = n; document.querySelector(".nav-badge")?.remove(); }
+export function setUnread(n) { unread = n; document.querySelectorAll(".top-bell .nav-badge").forEach(x => x.remove()); }
 async function checkUnread() {
   if (Date.now() - unreadAt < 60000 || !api.getSession()) return;
   unreadAt = Date.now();
   try {
     const r = await api.select("inbox", `select=id&read=eq.false&created_at=gt.${new Date(Date.now() - 3 * 3600e3).toISOString()}&limit=20`);
-    if (r.length !== unread) { unread = r.length; const a = document.querySelector('.nav a[href="#/notifications"]'); a?.querySelector(".nav-badge")?.remove(); if (a && unread && !a.classList.contains("on")) a.append(h("i.nav-badge", unread > 9 ? "9+" : String(unread))); }
+    if (r.length !== unread) { unread = r.length; document.querySelectorAll(".top-bell").forEach(a => { a.querySelector(".nav-badge")?.remove(); if (unread) a.append(h("i.nav-badge", unread > 9 ? "9+" : String(unread))); }); }
   } catch { /* offline */ }
 }
 export const rerender = () => render();
@@ -199,7 +211,6 @@ function dragFab() {
     start = null;
   });
   fab.addEventListener("click", e => { if (moved) { e.stopImmediatePropagation(); e.preventDefault(); moved = false; } }, true);
-  if (!api.LS.get("al_fab_tip") && !window.__fabTip) { window.__fabTip = 1; api.LS.set("al_fab_tip", 1); setTimeout(() => toast("Tip: hold and drag the ＋ button to move it anywhere."), 1200); }
 }
 function offlineNote() {
   const n = api.pendingOps().length;

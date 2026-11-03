@@ -30,4 +30,6 @@ if ("serviceWorker" in navigator) {
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
   }).catch(() => {}));
 }
+import { autoIconize } from "./ui.js";
 start();
+autoIconize(); // emoji → clean line icons everywhere

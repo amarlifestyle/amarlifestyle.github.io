@@ -474,14 +474,14 @@ async function alertFolds(p) {
     const off = h("button.btn.small.danger", "Turn off on this phone");
     off.onclick = busy(off, async () => { await api.disablePush(); toast("Notifications off on this phone"); rerender(); });
     const nl = { tasks: "30 & 15 min before each task, at start, and every 30 min during study", unlock: "When Completed can be marked", events: "Meetings and birthdays", night: "Night report (30 min before bedtime)" };
-    nBody.push(h("p.hint", "✅ On for this phone. They come even when the app is closed (internet needed)."),
+    nBody.push(h("p.hint.keep", "✅ On for this phone. They come even when the app is closed (internet needed)."),
       Object.entries(nl).map(([k, l]) => h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", l),
         h("input", { type: "checkbox", checked: !!nt[k], onchange: async e => { nt[k] = e.target.checked; await api.update("profiles", `id=eq.${p.id}`, { notify: nt }); p.notify = nt; } }))),
       h("div.row", { style: { gap: "8px" } }, test, off));
   } else {
     const on = h("button.btn.primary.block", icon("bell"), "Turn on notifications");
     on.onclick = busy(on, async () => { await api.enablePush(); toast("Notifications on ✓", "ok"); await api.pushTest().catch(() => {}); rerender(); });
-    nBody.push(h("p.hint", pst === "blocked" ? "Notifications are blocked for this site. Allow them in your browser's site settings, then tap below."
+    nBody.push(h("p.hint.keep", pst === "blocked" ? "Notifications are blocked for this site. Allow them in your browser's site settings, then tap below."
       : pst === "unsupported" ? "On iPhone/iPad: first add the app to the Home Screen (Share → Add to Home Screen), open it from there, then tap below."
       : "Reminders for tasks, tuition, meetings, birthdays and your night report — even when the app is closed."), on);
   }
@@ -494,7 +494,7 @@ async function alertFolds(p) {
     const off = h("button.btn.block.danger", "Disconnect Telegram");
     off.onclick = busy(off, async () => { await api.rpc("telegram_unlink"); toast("Disconnected"); rerender(); });
     const tgOn = { ...(p.notify || {}) }.tg !== false;
-    tgBody.push(h("p.hint", "✅ Connected. Reset codes come here, and important reminders (15 min before, at start, exams, night report) also come with Telegram's sound."),
+    tgBody.push(h("p.hint.keep", "✅ Connected. Reset codes come here, and important reminders (15 min before, at start, exams, night report) also come with Telegram's sound."),
       h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", "Send reminders to Telegram"),
         h("input", { type: "checkbox", checked: tgOn, onchange: async e => { const nt = { ...(p.notify || {}), tg: e.target.checked }; await api.update("profiles", `id=eq.${p.id}`, { notify: nt }); p.notify = nt; } })), off);
   } else {
@@ -504,7 +504,7 @@ async function alertFolds(p) {
       window.open(`https://t.me/${api.TG_BOT}?start=${code}`, "_blank");
       toast("Tap START in Telegram, then come back here.", "ok");
     });
-    tgBody.push(h("p.hint", "Forgot your password or PIN? Get a code here. Important reminders also come to Telegram with its own sound."), con,
+    tgBody.push(h("p.hint.keep", "Forgot your password or PIN? Get a code here. Important reminders also come to Telegram with its own sound."), con,
       h("button.linkbtn.small", { onclick: () => rerender() }, "I've pressed START — refresh"));
   }
   const f2 = fold("lock", "Telegram", hasTg ? "Connected" : "Not connected", tgBody);
