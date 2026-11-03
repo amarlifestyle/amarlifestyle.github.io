@@ -69,10 +69,9 @@ export async function loadBasics() {
   applyTheme(store.profile.theme);
   api.LS.set("al_lang", store.profile.lang);
 }
-export function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#F3F6FA" : "#0B1220");
-  api.LS.set("al_theme", theme);
+export function applyTheme() { // dark only
+  document.documentElement.dataset.theme = "dark";
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#0B1220");
 }
 
 // daily housekeeping: missed tasks, routine tasks for the next week, monthly fixed costs, offline marks
@@ -251,7 +250,7 @@ export function start() {
   setInterval(() => { if (!document.hidden) track(false); }, 60000); // keeps "time spent" up to date
   window.addEventListener("online", () => { api.flushQueue().then(r => { if (r.length) { syncToast(r); render(); } }); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && api.getSession()) daily(); });
-  const th = api.LS.get("al_theme"); if (th) applyTheme(th);
+  applyTheme();
   // home-screen app has no browser back button: swipe from the left edge to go back
   const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
   if (standalone) {

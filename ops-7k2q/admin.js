@@ -3,7 +3,7 @@ import * as api from "../js/api.js";
 import { h, icon, toast, sheet, confirmBox, busy, askPin, tk, fmtDate, barChart } from "../js/ui.js";
 
 const app = document.getElementById("app");
-try { if (JSON.parse(localStorage.getItem("al_theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
+
 let tab = "overview";
 const UNLOCK_KEY = "al_admin_ok";
 
