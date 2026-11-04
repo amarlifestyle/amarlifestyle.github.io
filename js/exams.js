@@ -44,7 +44,11 @@ export async function upcomingExams(days = 3) {
 }
 // Today page: small rows inside the shared box
 export async function examRows() {
-  const list = await upcomingExams(3);
+  let list = await upcomingExams(3);
+  // the very next one is always shown, however far away it is
+  if (!list.length) {
+    try { list = await api.select("exams", `select=*&done=eq.false&hide_home=eq.false&due_at=gt.${new Date().toISOString()}&order=due_at&limit=1`); } catch { /* offline */ }
+  }
   return list.slice(0, 3).map(e => ({ e, ic: EXAM_KINDS[e.kind][0], title: e.title, sub: [EXAM_KINDS[e.kind][1], e.course].filter(Boolean).join(" · "), left: leftLabel(e.due_at).replace(" left", ""), color: urgency(e.due_at) }));
 }
 // Today page: what is due in the next 3 days

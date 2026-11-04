@@ -21,6 +21,14 @@ export async function removeExam(e, chs) {
   await api.remove("syl_exams", `id=eq.${e.id}`);
   U.record(`Exam “${e.name}” removed`, async () => { await api.insert("syl_exams", strip(e)); for (const c of linked) await api.update("syl_chapters", `id=eq.${c.id}`, { exam_ids: c.exam_ids }); }, () => api.remove("syl_exams", `id=eq.${e.id}`));
 }
+// spaced revision: day 1, 7, 15 and 30 after a chapter is finished; "revised" counts how many are done
+export const REV_DAYS = [1, 7, 15, 30];
+export const revNext = c => { if (!c.done_on || (c.revised || 0) >= REV_DAYS.length) return null; const d = new Date(c.done_on + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + REV_DAYS[c.revised || 0]); return d.toISOString().slice(0, 10); };
+export const revDay = c => REV_DAYS[Math.min(c.revised || 0, REV_DAYS.length - 1)];
+export async function markRevised(c) {
+  await api.update("syl_chapters", `id=eq.${c.id}`, { revised: (c.revised || 0) + 1 });
+  U.record(`Revised: ${c.title} (Day ${revDay(c)})`, () => api.update("syl_chapters", `id=eq.${c.id}`, { revised: c.revised || 0 }), () => api.update("syl_chapters", `id=eq.${c.id}`, { revised: (c.revised || 0) + 1 }));
+}
 const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
 route("syllabus", async (page, examArg) => {
   const { routineTabsAsync } = await import("./timetable.js");
@@ -43,13 +51,14 @@ route("syllabus", async (page, examArg) => {
       h("div.small.muted", ex ? `${ex.name}${ex.exam_date ? " · " + fmtDate(ex.exam_date, { day: "numeric", month: "short" }) + " · " + daysLeft(ex.exam_date) : ""}` : "All subjects"),
       ex ? h("div.row", { style: { gap: "14px" } }, h("button.linkbtn.small", { onclick: () => examSheet(ex, subs, chs) }, "Edit exam"),
         (() => { const b = h("button.linkbtn.small", { style: { color: "var(--red)" } }, "Remove exam"); b.onclick = busy(b, async () => { if (!(await confirmBox("Remove exam?", ex.name + " — chapters stay.", "Remove", true))) return; await removeExam(ex, chs); location.hash = "#/syllabus"; }); return b; })()) : null)));
-  // revise today: chapters finished 3, 7 or 30 days ago
+  // revise today: day 1 / 7 / 15 / 30 after finishing (overdue ones too, until marked)
   const tday = todayStr(), back = n => { const d = new Date(tday + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
-  const due = chs.filter(c => c.done_on && [3, 7, 30].some(n => c.done_on === back(n)));
+  const due = chs.filter(c => { const n = revNext(c); return n && n <= tday; });
   if (due.length) page.append(h("div.card.revise", h("h3", "📚 Revise today"), h("div.list", due.map(c => {
     const b = h("button.btn.small", "✓ Revised");
-    b.onclick = busy(b, async () => { await api.update("syl_chapters", `id=eq.${c.id}`, { revised: (c.revised || 0) + 1 }); toast("Nice ✓", "ok"); rerender(); });
-    return h("div.li", h("div.grow", h("b", c.title), h("div.small.muted", subs.find(s => s.id === c.subject_id)?.name || "")), b);
+    b.onclick = busy(b, async () => { await markRevised(c); toast("Nice ✓", "ok"); rerender(); });
+    const late = revNext(c) < tday;
+    return h("div.li", h("div.grow", h("b", c.title), h("div.small.muted", `${subs.find(s => s.id === c.subject_id)?.name || ""} · Day ${revDay(c)} revision${late ? " · late" : ""}`)), b);
   }))));
   // study hours by subject (last 7 days) — only finished study tasks whose name really names the subject:
   // the course code (e.g. "PHY 105" = "phy105") or the whole subject name. Tuition / teaching tasks never count.
@@ -138,7 +147,7 @@ function chapterRow(c, exams, list = null, idx = 0) {
     h("button.grow", { type: "button", onclick: () => !ordering && chapterSheet(null, c, exams), style: { textAlign: "left", background: "none", border: 0, color: "inherit", font: "inherit", padding: 0, minWidth: 0 } },
       h("div", STAR(c.stars), c.title),
       c.note ? h("div.small.syl-note", c.note) : null,
-      h("div.small.muted", [c.done_on ? "✓ " + fmtDate(c.done_on, { day: "numeric", month: "short" }) : null, c.revised ? `revised ×${c.revised}` : null, names.length ? "🎓 " + names.join(", ") : null].filter(Boolean).join(" · "))),
+      h("div.small.muted", [c.done_on ? "✓ " + fmtDate(c.done_on, { day: "numeric", month: "short" }) : null, c.done_on ? (revNext(c) ? `next revision Day ${revDay(c)} · ${fmtDate(revNext(c), { day: "numeric", month: "short" })}` : "all 4 revisions done ✓") : null, names.length ? "🎓 " + names.join(", ") : null].filter(Boolean).join(" · "))),
     ordering ? arrows : x);
   if (!ordering) swipeAway(row, gone);
   return row;

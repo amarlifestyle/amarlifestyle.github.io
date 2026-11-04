@@ -141,11 +141,36 @@ route("today", async page => {
     (await examRows()).forEach(x => {
       const ok = h("button.btn.small", { type: "button", title: doneWord(x.e.kind) }, "✓");
       ok.onclick = busy(ok, async ev => { ev?.stopPropagation?.(); await markExamDone(x.e, true); });
-      const r = srow(x.ic, x.title, x.sub, [h("span.s-tag", { style: { color: x.color } }, x.left), ok], null);
+      const hideX = h("button.s-x", { type: "button", "aria-label": "Hide from Today" }, "✕");
+      const r = srow(x.ic, x.title, x.sub, [h("span.s-tag", { style: { color: x.color } }, x.left), ok, hideX], null);
+      hideX.onclick = busy(hideX, async ev => { ev?.stopPropagation?.(); r.dataset.swiped = 1; await hideExam(x.e.id, true); r.remove();
+        import("./undo.js").then(U => U.record(`“${x.title}” hidden from Today`, async () => hideExam(x.e.id, false), async () => hideExam(x.e.id, true))); });
       r.style.cursor = "pointer"; r.onclick = ev => { if (!ok.contains(ev.target) && !r.dataset.swiped) examSheet(x.e); };
       swipeAway(r, async () => { await hideExam(x.e.id, true); import("./undo.js").then(U => U.record(`“${x.title}” hidden`, async () => hideExam(x.e.id, false), async () => hideExam(x.e.id, true))); });
       stack.append(r);
     });
+  } catch { /* offline */ }
+  // chapters due for revision (day 1 / 7 / 15 / 30 after finishing)
+  try {
+    const { revNext, revDay, markRevised } = await import("./syllabus.js");
+    const chs = await api.select("syl_chapters", "select=id,subject_id,title,done_on,revised&done_on=not.is.null&revised=lt.4");
+    const due = chs.filter(c => { const n = revNext(c); return n && n <= today; });
+    if (due.length) {
+      const subs = await api.select("syl_subjects", "select=id,name").catch(() => []);
+      const hidden = new Set(api.LS.get("al_rev_hide_" + today, []));
+      due.filter(c => !hidden.has(c.id)).slice(0, 4).forEach(c => {
+        const ok = h("button.btn.small", { type: "button", title: "Revised" }, "✓");
+        const x = h("button.s-x", { type: "button", "aria-label": "Not today" }, "✕");
+        const r = srow("📚", `Revise: ${c.title}`, `${subs.find(s => s.id === c.subject_id)?.name || ""} · Day ${revDay(c)}${revNext(c) < today ? " · late" : ""}`, [ok, x], null);
+        ok.onclick = busy(ok, async ev => { ev?.stopPropagation?.(); await markRevised(c); toast("Revised ✓", "ok"); r.remove(); });
+        const hideToday = () => { const l = new Set(api.LS.get("al_rev_hide_" + today, [])); l.add(c.id); api.LS.set("al_rev_hide_" + today, [...l]); r.remove();
+          import("./undo.js").then(U => U.record("Revision hidden for today", async () => { const m = new Set(api.LS.get("al_rev_hide_" + today, [])); m.delete(c.id); api.LS.set("al_rev_hide_" + today, [...m]); }, async () => {})); };
+        x.onclick = ev => { ev.stopPropagation(); hideToday(); };
+        r.style.cursor = "pointer"; r.onclick = ev => { if (!ok.contains(ev.target) && !x.contains(ev.target)) location.hash = "#/syllabus"; };
+        swipeAway(r, hideToday);
+        stack.append(r);
+      });
+    }
   } catch { /* offline */ }
   try { const pn = await prayerNow(); if (pn) (pn.classList.contains("pchip") ? pslot.append(pn) : stack.prepend(pn)); } catch { /* offline */ }
   if (!isStandalone() && Date.now() - (api.LS.get("al_inst_strip") || 0) > 864e5) {
