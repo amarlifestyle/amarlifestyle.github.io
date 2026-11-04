@@ -5,7 +5,7 @@ import { h, icon, toast, busy, todayStr, fmtDate, swipeAway } from "./ui.js";
 import { route, rerender, backbar } from "./app.js";
 
 // one note line. Ticking it done moves it to History (it leaves the open list); ✕ removes it, with Undo.
-function row(n, after, { history = false } = {}) {
+function row(n, after, { history = false, dateLabel = null } = {}) {
   const tick = h("button.note-tick" + (n.done ? ".on" : ""), { type: "button", "aria-label": n.done ? "Not done" : "Done" }, n.done ? "✓" : "");
   const el = h("div.note" + (n.done ? ".done" : ""));
   const leave = () => new Promise(r => { el.classList.add("note-out"); setTimeout(r, 260); });
@@ -26,16 +26,51 @@ function row(n, after, { history = false } = {}) {
     after();
   };
   del.onclick = busy(del, async () => { await leave(); await remove(); });
-  el.append(tick, h("div.note-t", n.text, history && n.done && n.done_at ? h("div.small.muted", "✓ " + fmtDate(n.done_at.slice(0, 10), { day: "numeric", month: "short" })) : null), del);
+  el.dataset.id = n.id; el.dataset.sort = n.sort ?? 0;
+  const grip = n.done ? null : h("span.note-grip", { "aria-label": "Drag to move", title: "Hold and drag to move" }, "⋮⋮");
+  if (grip) dragSort(grip, el, after);
+  el.append(...[grip, tick, h("div.note-t", n.text, history && n.done && n.done_at ? h("div.small.muted", "✓ " + fmtDate(n.done_at.slice(0, 10), { day: "numeric", month: "short" })) : dateLabel ? h("div.small.muted", dateLabel) : null), del].filter(Boolean));
   swipeAway(el, remove);
   return el;
+}
+
+// hold ⋮⋮ and drag a note up or down; the new order is saved for that list
+function dragSort(grip, el, after) {
+  grip.style.touchAction = "none";
+  grip.addEventListener("pointerdown", e => {
+    e.preventDefault(); e.stopPropagation();
+    const list = el.parentElement; if (!list) return;
+    const y0 = e.clientY; let base = y0;
+    el.classList.add("dragging"); grip.setPointerCapture?.(e.pointerId);
+    navigator.vibrate?.(10);
+    const move = ev => {
+      let dy = ev.clientY - base;
+      el.style.transform = `translateY(${dy}px)`;
+      const prev = el.previousElementSibling, next = el.nextElementSibling;
+      if (dy < 0 && prev?.classList.contains("note") && ev.clientY < prev.getBoundingClientRect().top + prev.offsetHeight / 2) {
+        list.insertBefore(el, prev); base -= prev.offsetHeight; dy = ev.clientY - base; el.style.transform = `translateY(${dy}px)`;
+      } else if (dy > 0 && next?.classList.contains("note") && ev.clientY > next.getBoundingClientRect().top + next.offsetHeight / 2) {
+        list.insertBefore(next, el); base += next.offsetHeight; dy = ev.clientY - base; el.style.transform = `translateY(${dy}px)`;
+      }
+    };
+    const up = async () => {
+      grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
+      el.classList.remove("dragging"); el.style.transform = "";
+      const rows = [...list.children].filter(x => x.classList.contains("note") && x.dataset.id);
+      const changes = rows.map((x, i) => [x.dataset.id, i, Number(x.dataset.sort)]).filter(([, i, old]) => i !== old);
+      if (!changes.length) return;
+      try { await Promise.all(changes.map(([id, i]) => api.update("notes", `id=eq.${id}`, { sort: i }))); rows.forEach((x, i) => { x.dataset.sort = i; }); }
+      catch (er) { toast(er.message, "bad"); after(); }
+    };
+    grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
+  });
 }
 function adder(day, after) {
   const inp = h("input.input.note-in", { placeholder: "Add a note…", maxlength: "500", enterkeyhint: "done" });
   const add = async () => {
     const t = inp.value.trim(); if (!t) return;
     inp.value = "";
-    try { await api.insert("notes", { user_id: api.userId(), text: t, day }); after(); } catch (e) { inp.value = t; toast(e.message, "bad"); }
+    try { await api.insert("notes", { user_id: api.userId(), text: t, day, sort: 999 }); after(); } catch (e) { inp.value = t; toast(e.message, "bad"); }
   };
   inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); add(); } });
   // speak a note: words appear in the box, then tap ＋
@@ -56,15 +91,15 @@ export async function openNotes() {
   const list = h("div.note-list");
   const draw = async () => {
     let rows = [];
-    try { rows = await api.select("notes", `select=*&done=eq.false&day=lte.${day}&order=day.desc,sort,created_at&limit=60`); } catch { /* offline */ }
-    list.replaceChildren(rows.length ? rows.map(n => n.day === day ? row(n, draw) : h("div", h("div.small.muted", { style: { margin: "4px 2px -2px" } }, fmtDate(n.day, { weekday: "short", day: "numeric", month: "short" })), row(n, draw)))
+    try { rows = await api.select("notes", `select=*&done=eq.false&day=lte.${day}&order=sort,day.desc,created_at&limit=60`); } catch { /* offline */ }
+    list.replaceChildren(rows.length ? rows.map(n => row(n, draw, { dateLabel: n.day === day ? null : "from " + fmtDate(n.day, { weekday: "short", day: "numeric", month: "short" }) }))
       : h("p.small.muted", { style: { margin: "6px 2px" } }, "No open notes. Done notes are in History."));
     refreshNotesBadge();
   };
   await draw();
   sheet("📝 Notes", [list, adder(day, draw),
     h("div.row", { style: { gap: "8px", marginTop: "12px" } },
-      h("a.btn.small.grow", { href: "#/notes", onclick: () => [...document.querySelectorAll(".backdrop")].pop()?.click() }, icon("history"), "History · done notes"),
+      h("a.btn.small.grow", { href: "#/notes", onclick: () => [...document.querySelectorAll(".backdrop")].pop()?.click() }, icon("history"), "History"),
       h("button.btn.small.grow", { type: "button", onclick: () => { [...document.querySelectorAll(".backdrop")].pop()?.click(); setTimeout(() => import("./assistant.js").then(m => m.askSheet({ text: "নোট করে রাখো: " })), 260); } }, "✨ Note with AI"))],
     { actions: close => [h("button.btn.block", { onclick: () => close() }, "Done")] });
 }
@@ -101,10 +136,10 @@ route("notes", async page => {
   const draw = async () => {
     const all = await api.select("notes", "select=*&order=day.desc,sort,created_at&limit=800");
     const today = todayStr();
-    const open = all.filter(n => !n.done), done = all.filter(n => n.done);
+    const open = all.filter(n => !n.done).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || b.day.localeCompare(a.day)), done = all.filter(n => n.done);
     const body = h("div");
     body.append(h("div.card.notes", h("h3", "Open"),
-      open.length ? h("div.note-list", open.map(n => h("div", n.day !== today ? h("div.small.muted", fmtDate(n.day, { weekday: "short", day: "numeric", month: "short" })) : null, row(n, draw)))) : h("p.small.muted.keep", "Nothing open."),
+      open.length ? h("div.note-list", open.map(n => row(n, draw, { dateLabel: n.day !== today ? "from " + fmtDate(n.day, { weekday: "short", day: "numeric", month: "short" }) : null }))) : h("p.small.muted.keep", "Nothing open."),
       adder(today, draw)));
     const doneDay = n => (n.done_at ? new Date(new Date(n.done_at).getTime() + 6 * 3600e3).toISOString().slice(0, 10) : n.day);
     const days = [...new Set(done.map(doneDay))].sort().reverse();

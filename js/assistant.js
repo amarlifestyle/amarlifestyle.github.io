@@ -23,7 +23,7 @@ async function gather() {
   const month = today.slice(0, 8) + "01";
   const prev = (() => { const d = new Date(month); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 8) + "01"; })();
   const [exams, events, goals, dues, entries, budgets] = await Promise.all([
-    api.select("exams", `select=id,kind,title,course,due_at,done&or=(done.eq.false,due_at.gt.${new Date(Date.now() - 7 * 864e5).toISOString()})&order=due_at`).catch(() => []),
+    api.select("exams", `select=id,kind,title,course,due_at,done,marks_got,marks_total&or=(done.eq.false,due_at.gt.${new Date(Date.now() - 120 * 864e5).toISOString()})&order=due_at&limit=120`).catch(() => []),
     api.select("events", `select=id,title,kind,date,time,yearly&or=(date.gte.${today},yearly.eq.true)&order=date&limit=40`).catch(() => []),
     api.select("goals", "select=id,title,span,period,done&done=eq.false&limit=40").catch(() => []),
     api.select("dues", "select=id,person,amount,direction,note&settled=eq.false").catch(() => []),
@@ -63,7 +63,7 @@ async function gather() {
     bills_this_month: billsNow.map(b => ({ id: b.id, title: b.title, amount: +b.amount, due_day: b.due_day, monthly: b.monthly, paid: billPays.some(p => p.bill_id === b.id) })),
     task_categories: Object.fromEntries(catNames().map(c => [c, catDp(c)])),
     expense_categories: expCats(), income_categories: incCats(),
-    deadlines: exams.map(e => ({ id: e.id, kind: e.kind, title: e.title, course: e.course, due: new Date(new Date(e.due_at).getTime() + 6 * 3600e3).toISOString().slice(0, 16).replace("T", " "), done: e.done })),
+    deadlines: exams.map(e => ({ id: e.id, kind: e.kind, title: e.title, course: e.course, due: new Date(new Date(e.due_at).getTime() + 6 * 3600e3).toISOString().slice(0, 16).replace("T", " "), done: e.done, marks: e.marks_got != null ? `${e.marks_got}/${e.marks_total}` : null })),
     events: events.map(e => ({ id: e.id, title: e.title, kind: e.kind, date: e.date, time: e.time?.slice(0, 5) || null, yearly: e.yearly })),
     goals: goals.map(g => ({ id: g.id, title: g.title, span: g.span })),
     dues: dues.map(d => ({ id: d.id, person: d.person, amount: +d.amount, direction: d.direction })),
@@ -126,7 +126,7 @@ function describe(a, c) {
     case "add_deadline": if (!a.title || !DATE.test(a.date || "")) return null;
       return { ic: "📝", area: "deadline", text: `${KIND_BN[a.kind] || "Deadline"}: ${a.title}${a.course ? " · " + a.course : ""} · ${fmtDate(a.date, { weekday: "short", day: "numeric", month: "short" })} ${fmtHM(HHMM.test(a.time || "") ? a.time : "10:00")}` };
     case "edit_deadline": { const e = c.exams.find(x => x.id === a.deadline_id); if (!e) return null;
-      const ch = [a.title && `Name → ${a.title}`, DATE.test(a.date || "") && `Date → ${fmtDate(a.date)}`, HHMM.test(a.time || "") && `Time → ${fmtHM(a.time)}`, a.done === true && "শেষ ✓ (রিমাইন্ডার বন্ধ)", a.done === false && "Active again"].filter(Boolean);
+      const ch = [a.title && `Name → ${a.title}`, DATE.test(a.date || "") && `Date → ${fmtDate(a.date)}`, HHMM.test(a.time || "") && `Time → ${fmtHM(a.time)}`, a.done === true && "শেষ ✓ (রিমাইন্ডার বন্ধ)", a.done === false && "Active again", a.marks_got != null && +a.marks_total > 0 && `Marks → ${+a.marks_got}/${+a.marks_total}`].filter(Boolean);
       return ch.length ? { ic: "✏️", area: "deadline", text: `${e.title} — ${ch.join(", ")}` } : null; }
     case "remove_deadline": { const e = c.exams.find(x => x.id === a.deadline_id); return e ? { ic: "🗑️", area: "deadline", text: `Remove deadline: ${e.title}` } : null; }
     case "remove_event": { const e = c.events.find(x => x.id === a.event_id); return e ? { ic: "🗑️", area: "event", text: `Remove event: ${e.title} · ${fmtDate(e.date)}` } : null; }
@@ -282,6 +282,7 @@ async function run(a, c) {
     case "add_deadline": return api.insert("exams", { user_id: api.userId(), kind: KIND_BN[a.kind] ? a.kind : "other", title: a.title.slice(0, 120), course: a.course || null, due_at: new Date(`${a.date}T${HHMM.test(a.time || "") ? a.time : "10:00"}:00+06:00`).toISOString(), note: a.note || null });
     case "edit_deadline": { const e = c.exams.find(x => x.id === a.deadline_id); const row = {};
       if (a.title) row.title = a.title; if (typeof a.done === "boolean") row.done = a.done;
+      if (a.marks_got != null && +a.marks_total > 0 && +a.marks_got >= 0 && +a.marks_got <= +a.marks_total) { row.marks_got = +a.marks_got; row.marks_total = +a.marks_total; row.done = true; }
       if (DATE.test(a.date || "") || HHMM.test(a.time || "")) { const cur = new Date(new Date(e.due_at).getTime() + 6 * 3600e3).toISOString(); row.due_at = new Date(`${DATE.test(a.date || "") ? a.date : cur.slice(0, 10)}T${HHMM.test(a.time || "") ? a.time : cur.slice(11, 16)}:00+06:00`).toISOString(); }
       return api.update("exams", `id=eq.${e.id}`, row); }
     case "remove_deadline": return api.remove("exams", `id=eq.${a.deadline_id}`);
@@ -373,7 +374,7 @@ async function run(a, c) {
       await api.remove("attendance", `student_id=eq.${a.student_id}&date=eq.${a.date}`).catch(() => {});
       if (a.present !== false) await api.insert("attendance", { user_id: api.userId(), student_id: a.student_id, date: a.date, present: true });
       return;
-    case "add_note": await api.insert("notes", { user_id: api.userId(), text: String(a.text).trim().slice(0, 500), day: DATE.test(a.date || "") ? a.date : todayStr() }); return;
+    case "add_note": await api.insert("notes", { user_id: api.userId(), text: String(a.text).trim().slice(0, 500), day: DATE.test(a.date || "") ? a.date : todayStr(), sort: 999 }); return;
   }
 }
 

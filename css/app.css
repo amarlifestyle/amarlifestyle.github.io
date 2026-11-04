@@ -986,3 +986,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .res-c:last-child { border-bottom: 0; padding-bottom: 2px; }
 .res-bar { height: 6px; border-radius: 4px; background: var(--bg2); margin: 6px 0 4px; overflow: hidden; }
 .res-bar i { display: block; height: 100%; border-radius: 4px; }
+
+/* notes: drag handle */
+.note-grip { flex-shrink: 0; width: 18px; margin-left: -4px; color: var(--faint); font-size: 14px; letter-spacing: -3px; cursor: grab; user-select: none; -webkit-user-select: none; text-align: center; padding: 8px 0; }
+.note.dragging { position: relative; z-index: 5; background: var(--card2); box-shadow: var(--shadow-2); border-radius: 12px; transition: none; }
+.note.dragging .note-grip { color: var(--brand); cursor: grabbing; }
