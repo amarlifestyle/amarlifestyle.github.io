@@ -38,10 +38,23 @@ async function gather() {
     api.select("bills", "select=id,title,amount,category,due_day,monthly,start_month&active=eq.true"),
     api.select("bill_payments", `select=bill_id&month=eq.${month}`),
   ]);
+  const [subjects, chapters, sylExams, ttTabs, ttItems, notes, savings, fixed, cats, lifeToday] = await Promise.all([
+    api.select("syl_subjects", "select=id,name,color&order=sort,created_at").catch(() => []),
+    api.select("syl_chapters", "select=id,subject_id,title,done_on,revised,exam_ids&order=sort,created_at&limit=400").catch(() => []),
+    api.select("syl_exams", "select=id,name,exam_date&order=exam_date.nullslast").catch(() => []),
+    api.select("timetable_tabs", "select=id,kind,name,merge").catch(() => []),
+    api.select("timetable_items", "select=id,kind,tab_id,title,code,days,start_time,end_time,detail,mine&order=start_time&limit=200").catch(() => []),
+    api.select("notes", `select=id,text,day,done&or=(day.eq.${today},done.eq.false)&order=day.desc&limit=60`).catch(() => []),
+    api.select("savings_goals", "select=id,title,target,deadline").catch(() => []),
+    api.select("recurring_costs", "select=id,title,amount,category,day_of_month,active").catch(() => []),
+    api.select("user_categories", "select=id,name,color,dp").catch(() => []),
+    api.select("life_logs", `select=water,slept_at,woke_at,mood&day=eq.${today}`).catch(() => []),
+  ]);
+  const allBills = bills;
   const billsNow = bills.filter(b => b.monthly ? b.start_month <= month : b.start_month === month);
   const sName = id => students.find(s => s.id === id)?.name || null;
   const forAi = {
-    app_updates: "Newest layout (use this over older notes): bottom menu is Today · Routine · Money · Me · 🔔 Alerts · More. Alerts = turn notifications on, connect Telegram (reset codes + important reminders with Telegram's sound), Home Screen install steps, and every past notification. More = 📤 Share the app with friends, Calendar, Reports, Settings, Get the app (Today's tasks home-screen icon), How to use. PIN is asked to change money entries or a student's fee, open the full tuition sheet (Tuition → All payments) and download a backup; adding new money or students never needs it. Today shows prayer, exams, bills, events and setup hints together in one small box under Up next.",
+    app_updates: "Current layout: bottom menu Today · Routine · ✨AI (centre) · Money · Me. Top right on main pages: 📝 Notes, 🔔 Alerts, ⋯ More. Routine has tabs: Weekly, Exams (CT/lab/assignment deadlines), Syllabus (subjects → chapters, done/revised, syllabus exams, revise reminders), Prayer, and timetable tabs (University classes, Coaching, Meal plan, custom) — classes in a tab set to Weekly are put into the weekly routine automatically. Me has DP level, habits, water/sleep/mood, diary (private, never shared with AI). Money: Overview (daily spending, bills, budget), Entries, Tuition (students, fees, attendance), Dues & Goals (dues, savings goals), fixed monthly costs. PIN is needed to change money amounts.",
     tasks: tasks.map(t => ({ id: t.id, title: t.title, category: t.category, date: t.day, weekday: DAYS[new Date(t.day + "T00:00:00").getDay()], start: hm(t.start_at), end: hm(t.end_at), status: t.status, repeats: !!t.routine_id, student: sName(t.student_id) })),
     routines: routines.map(r => ({ id: r.id, title: r.title, category: r.category, days: r.days.map(d => DAYS[d]), start: r.start_time.slice(0, 5), minutes: r.duration_min, student: sName(r.student_id), color: r.color })),
     students: students.map(s => ({ id: s.id, name: s.name, monthly_fee: +s.monthly_fee, active: s.active, paid_months: pays.filter(p => p.student_id === s.id).map(p => p.month.slice(0, 7)).sort() })),
@@ -55,8 +68,18 @@ async function gather() {
     dues: dues.map(d => ({ id: d.id, person: d.person, amount: +d.amount, direction: d.direction })),
     money_entries: entries.map(e => ({ id: e.id, kind: e.kind, category: e.category, amount: +e.amount, note: e.note, date: e.entry_date })),
     budgets_this_month: Object.fromEntries(budgets.map(b => [b.category, +b.amount])),
+    all_bills: allBills.map(b => ({ id: b.id, title: b.title, amount: +b.amount, due_day: b.due_day, monthly: b.monthly })),
+    syllabus_subjects: subjects.map(x => ({ id: x.id, name: x.name, chapters: chapters.filter(c => c.subject_id === x.id).map(c => ({ id: c.id, title: c.title, done: !!c.done_on, revised: c.revised || 0, exams: (c.exam_ids || []).map(e => sylExams.find(y => y.id === e)?.name).filter(Boolean) })) })),
+    syllabus_exams: sylExams.map(e => ({ id: e.id, name: e.name, date: e.exam_date })),
+    timetable_tabs: ttTabs.map(t => ({ id: t.id, kind: t.kind, name: t.name, adds_to_weekly_routine: t.merge === "weekly" || t.merge === "today" })),
+    timetable_classes: ttItems.map(i => ({ id: i.id, kind: i.kind, tab_id: i.tab_id, title: i.title, code: i.code, days: (i.days || []).map(d => DAYS[d]), start: i.start_time?.slice(0, 5) || null, end: i.end_time?.slice(0, 5) || null, detail: i.detail, mine: i.mine })),
+    notes: notes.map(n => ({ id: n.id, text: n.text, day: n.day, done: n.done })),
+    savings_goals: savings.map(g => ({ id: g.id, title: g.title, target: +g.target, deadline: g.deadline })),
+    fixed_monthly_costs: fixed.map(f => ({ id: f.id, title: f.title, amount: +f.amount, category: f.category, day: f.day_of_month, on: f.active })),
+    my_categories: cats.map(x => ({ id: x.id, name: x.name, dp: x.dp, color: x.color })),
+    today_life: lifeToday[0] ? { water_glasses: lifeToday[0].water || 0, slept_at: lifeToday[0].slept_at?.slice(0, 5) || null, woke_at: lifeToday[0].woke_at?.slice(0, 5) || null, mood: lifeToday[0].mood } : null,
   };
-  return { tasks, routines, students, habits, bills: billsNow, billPaid: new Set(billPays.map(p => p.bill_id)), month, forAi, exams, events, goals, dues, entries };
+  return { tasks, routines, students, habits, bills: billsNow, allBills, billPaid: new Set(billPays.map(p => p.bill_id)), month, forAi, exams, events, goals, dues, entries, subjects, chapters, sylExams, ttTabs, ttItems, notes, savings, fixed, cats };
 }
 
 // one plain line for each proposed change, made from the real data (not from the AI's words)
@@ -116,6 +139,60 @@ function describe(a, c) {
     case "mark_prayer": { if (!isMuslim()) return null; const w = waqts(todayStr()).find(x => x.key === a.prayer); if (!w || Date.now() < w.start || !["prayed", "not_prayed"].includes(a.status)) return null;
       return { ic: "🕌", area: "prayer", text: `${w.en}: ${a.status === "prayed" ? "Prayed ✓" : "Not prayed"}` }; }
     case "set_bedtime": return HHMM.test(a.time || "") ? { ic: "🌙", area: "setting", text: `Bedtime: ${fmtHM(a.time)}` } : null;
+    // ---- syllabus
+    case "add_subject": if (!String(a.name || "").trim()) return null;
+      return { ic: "📚", area: "syllabus", text: `Syllabus subject: ${a.name}${(a.chapters || []).length ? ` · ${a.chapters.length} chapter(s): ${a.chapters.slice(0, 6).join(", ")}${a.chapters.length > 6 ? "…" : ""}` : ""}${c.subjects.some(x => x.name.toLowerCase() === String(a.name).trim().toLowerCase()) ? " (already there — skipped)" : ""}` };
+    case "edit_subject": { const x = c.subjects.find(y => y.id === a.subject_id); return x && a.name ? { ic: "✏️", area: "syllabus", text: `Rename subject: ${x.name} → ${a.name}` } : null; }
+    case "remove_subject": { const x = c.subjects.find(y => y.id === a.subject_id); return x ? { ic: "🗑️", area: "syllabus", text: `Remove subject (and its chapters): ${x.name}` } : null; }
+    case "add_chapters": { const x = c.subjects.find(y => y.id === a.subject_id); const t = (a.titles || []).filter(Boolean); return x && t.length ? { ic: "📖", area: "syllabus", text: `${x.name}: +${t.length} chapter(s) — ${t.slice(0, 8).join(", ")}${t.length > 8 ? "…" : ""}` } : null; }
+    case "edit_chapter": { const ch = c.chapters.find(y => y.id === a.chapter_id); if (!ch) return null;
+      const sub = c.subjects.find(y => y.id === ch.subject_id)?.name || "";
+      const w = [a.title && `Name → ${a.title}`, a.done === true && "Done ✓", a.done === false && "Not done", +a.revised_add > 0 && `Revised +${+a.revised_add}`].filter(Boolean);
+      return w.length ? { ic: a.done ? "✅" : "✏️", area: "syllabus", text: `${sub} · ${ch.title} — ${w.join(", ")}` } : null; }
+    case "remove_chapter": { const ch = c.chapters.find(y => y.id === a.chapter_id); return ch ? { ic: "🗑️", area: "syllabus", text: `Remove chapter: ${ch.title}` } : null; }
+    case "add_syl_exam": if (!a.name) return null;
+      return { ic: "📝", area: "syllabus", text: `Syllabus exam: ${a.name}${DATE.test(a.date || "") ? " · " + fmtDate(a.date) : ""}${(a.chapter_ids || []).length ? ` · ${a.chapter_ids.filter(id => c.chapters.some(x => x.id === id)).length} chapter(s)` : ""}` };
+    case "edit_syl_exam": { const e = c.sylExams.find(y => y.id === a.exam_id); if (!e) return null;
+      const w = [a.name && `Name → ${a.name}`, DATE.test(a.date || "") && `Date → ${fmtDate(a.date)}`, (a.add_chapter_ids || []).length && `+${a.add_chapter_ids.length} chapter(s)`].filter(Boolean);
+      return w.length ? { ic: "✏️", area: "syllabus", text: `${e.name} — ${w.join(", ")}` } : null; }
+    case "remove_syl_exam": { const e = c.sylExams.find(y => y.id === a.exam_id); return e ? { ic: "🗑️", area: "syllabus", text: `Remove syllabus exam: ${e.name}` } : null; }
+    // ---- timetable (university / coaching / meal / custom tabs)
+    case "add_class": { if (!a.title || !["university", "coaching", "meal", "custom"].includes(a.kind)) return null;
+      if (a.kind !== "meal" && !(a.days || []).length) return null;
+      if (a.kind === "custom" && !c.ttTabs.some(t => t.id === a.tab_id)) return null;
+      return { ic: a.kind === "meal" ? "🍽️" : "🎓", area: "class", text: `${{ university: "University", coaching: "Coaching", meal: "Meal plan", custom: c.ttTabs.find(t => t.id === a.tab_id)?.name || "Timetable" }[a.kind]}: ${a.title}${a.code ? " (" + a.code + ")" : ""} · ${days(a.days) || "every day"}${HHMM.test(a.start || "") ? " · " + fmtHM(a.start) + (HHMM.test(a.end || "") ? "–" + fmtHM(a.end) : "") : ""}` }; }
+    case "edit_class": { const it = c.ttItems.find(y => y.id === a.item_id); if (!it) return null;
+      const w = [a.title && `Name → ${a.title}`, a.code !== undefined && a.code !== null && `Code → ${a.code}`, (a.days || []).length && `Days → ${days(a.days)}`, HHMM.test(a.start || "") && `Start → ${fmtHM(a.start)}`, HHMM.test(a.end || "") && `End → ${fmtHM(a.end)}`, a.detail && `Note → ${a.detail}`, a.mine === true && "My class", a.mine === false && "Not my class"].filter(Boolean);
+      return w.length ? { ic: "✏️", area: "class", text: `Change class: ${it.title} — ${w.join(", ")}` } : null; }
+    case "remove_class": { const it = c.ttItems.find(y => y.id === a.item_id); return it ? { ic: "🗑️", area: "class", text: `Remove from timetable: ${it.title} (${(it.days || []).map(d => DAYS[d]).join(", ")} ${it.start_time ? fmtHM(it.start_time.slice(0, 5)) : ""})` } : null; }
+    case "skip_class": { const it = c.ttItems.find(y => y.id === a.item_id); return it && DATE.test(a.date || "") ? { ic: "⏭️", area: "class", text: `No class on ${fmtDate(a.date, { weekday: "short", day: "numeric", month: "short" })}: ${it.title}` } : null; }
+    // ---- notes
+    case "note_done": { const n = c.notes.find(y => y.id === a.note_id); return n ? { ic: "✅", area: "note", text: `${a.done === false ? "Note open again" : "Note done"}: ${n.text.slice(0, 80)}` } : null; }
+    case "remove_note": { const n = c.notes.find(y => y.id === a.note_id); return n ? { ic: "🗑️", area: "note", text: `Remove note: ${n.text.slice(0, 80)}` } : null; }
+    // ---- other edits
+    case "unmark_task": { const t = T(a.task_id); return t && ["completed", "not_completed", "partial"].includes(t.status) ? { ic: "↩️", area: "mark", text: `Undo mark: ${tline(t)}` } : null; }
+    case "edit_event": { const e = c.events.find(y => y.id === a.event_id); if (!e) return null;
+      const w = [a.title && `Name → ${a.title}`, DATE.test(a.date || "") && `Date → ${fmtDate(a.date)}`, HHMM.test(a.time || "") && `Time → ${fmtHM(a.time)}`, typeof a.yearly === "boolean" && (a.yearly ? "yearly" : "once")].filter(Boolean);
+      return w.length ? { ic: "✏️", area: "event", text: `${e.title} — ${w.join(", ")}` } : null; }
+    case "edit_goal": { const g = c.goals.find(y => y.id === a.goal_id); return g && a.title ? { ic: "✏️", area: "goal", text: `Goal: ${g.title} → ${a.title}` } : null; }
+    case "remove_habit": { const x = c.habits.find(y => y.id === a.habit_id); return x ? { ic: "🗑️", area: "habit", text: `Stop tracking habit: ${x.name}` } : null; }
+    case "edit_due": { const d = c.dues.find(y => y.id === a.due_id); if (!d) return null;
+      const w = [a.person && `Name → ${a.person}`, +a.amount > 0 && `Amount → ${money(+a.amount)}`, a.note && `Note → ${a.note}`].filter(Boolean);
+      return w.length ? { ic: "✏️", area: "due", text: `Due ${d.person} — ${w.join(", ")}` } : null; }
+    case "remove_due": { const d = c.dues.find(y => y.id === a.due_id); return d ? { ic: "🗑️", area: "due", text: `Remove due: ${d.person} · ${money(+d.amount)}` } : null; }
+    case "edit_bill": { const b = c.allBills.find(y => y.id === a.bill_id); if (!b) return null;
+      const w = [a.title && `Name → ${a.title}`, +a.amount >= 0 && a.amount != null && `Amount → ${money(+a.amount)}`, +a.due_day >= 1 && `Due day → ${a.due_day}`].filter(Boolean);
+      return w.length ? { ic: "✏️", area: "bill", text: `Bill ${b.title} — ${w.join(", ")}` } : null; }
+    case "edit_category": { const x = c.cats.find(y => y.id === a.category_id); if (!x) return null;
+      const w = [+a.dp > 0 && `${Math.min(50, Math.round(+a.dp))} DP/hour`, HEX.test(a.color || "") && "Colour"].filter(Boolean);
+      return w.length ? { ic: "🏷️", area: "cat", text: `Category ${x.name} — ${w.join(", ")}` } : null; }
+    case "add_saving": return a.title && +a.target > 0 ? { ic: "🎯", area: "saving", text: `Savings goal: ${a.title} · ${money(+a.target)}${DATE.test(a.deadline || "") ? " by " + fmtDate(a.deadline) : ""}` } : null;
+    case "remove_saving": { const g = c.savings.find(y => y.id === a.saving_id); return g ? { ic: "🗑️", area: "saving", text: `Remove savings goal: ${g.title}` } : null; }
+    case "add_fixed_cost": return a.title && +a.amount > 0 ? { ic: "🔁", area: "fixed", text: `Fixed monthly cost: ${a.title} · ${money(+a.amount)} · day ${Math.min(28, Math.max(1, +a.day || 1))} (added to expenses automatically)` } : null;
+    case "toggle_fixed_cost": { const f = c.fixed.find(y => y.id === a.cost_id); return f && typeof a.on === "boolean" ? { ic: "🔁", area: "fixed", text: `${a.on ? "Turn on" : "Pause"} fixed cost: ${f.title}` } : null; }
+    case "log_life": { const w = [+a.water >= 0 && a.water != null && `Water ${+a.water} glass(es)`, HHMM.test(a.slept_at || "") && `Slept ${fmtHM(a.slept_at)}`, HHMM.test(a.woke_at || "") && `Woke ${fmtHM(a.woke_at)}`, ["great", "okay", "bad"].includes(a.mood) && `Mood ${a.mood}`].filter(Boolean);
+      return w.length ? { ic: "💧", area: "life", text: `Today: ${w.join(" · ")}` } : null; }
+    case "mark_attendance": { const st = S(a.student_id); return st && DATE.test(a.date || "") ? { ic: a.present === false ? "❌" : "✅", area: "att", text: `${st.name} · ${fmtDate(a.date)} · ${a.present === false ? "absent" : "present"}` } : null; }
     case "add_note": return String(a.text || "").trim() ? { ic: "📝", area: "note", text: `Note: ${String(a.text).trim().slice(0, 200)}${DATE.test(a.date || "") && a.date !== todayStr() ? " · " + fmtDate(a.date) : ""}` } : null;
   }
   return null;
@@ -132,7 +209,8 @@ function summary(items) {
     (n("student") || n("fee")) && `Tuition: ${[n("student") && n("student") + " student(s)", n("fee") && n("fee") + " month fee(s)"].filter(Boolean).join(", ")}`,
     n("bill") && `+${n("bill")} bill(s) to pay`,
     n("deadline") && `${n("deadline")} deadline(s)`, n("budget") && `${n("budget")} budget(s)`, n("money~") && `${n("money~")} amount change(s) (PIN)`, n("setting") && "Settings change",
-    n("cat") && `+${n("cat")} category`, n("event") && `+${n("event")} calendar event(s)`, n("goal") && `+${n("goal")} goal(s)`, n("habit") && `${n("habit")} habit log(s)`, n("due") && `+${n("due")} due(s)`,
+    n("syllabus") && `Syllabus: ${n("syllabus")} change(s)`, n("class") && `Timetable: ${n("class")} change(s)`, n("note") && `${n("note")} note(s)`, n("saving") && `${n("saving")} savings goal change(s)`, n("fixed") && `${n("fixed")} fixed cost change(s)`, n("life") && "Water / sleep / mood", n("att") && `${n("att")} attendance mark(s)`,
+    n("cat") && `${n("cat")} category change(s)`, n("event") && `+${n("event")} calendar event(s)`, n("goal") && `+${n("goal")} goal(s)`, n("habit") && `${n("habit")} habit log(s)`, n("due") && `+${n("due")} due(s)`,
   ].filter(Boolean);
 }
 
@@ -219,6 +297,79 @@ async function run(a, c) {
     }
     case "mark_prayer": return api.rpc("mark_prayer", { p_day: todayStr(), p_prayer: a.prayer, p_status: a.status });
     case "set_bedtime": await api.update("profiles", `id=eq.${store.profile.id}`, { sleep_time: a.time }); await loadBasics(); return;
+    // ---- syllabus
+    case "add_subject": {
+      const nm = String(a.name).trim().slice(0, 80);
+      let sub = c.subjects.find(x => x.name.toLowerCase() === nm.toLowerCase());
+      if (!sub) { const r = await api.insert("syl_subjects", { user_id: api.userId(), name: nm, color: HEX.test(a.color || "") ? a.color : PALETTE[c.subjects.length % PALETTE.length], sort: c.subjects.length }); sub = (Array.isArray(r) ? r[0] : r) || (await api.select("syl_subjects", `select=*&name=eq.${encodeURIComponent(nm)}`))[0]; if (sub) c.subjects.push(sub); }
+      const t = (a.chapters || []).map(x => String(x).trim().slice(0, 120)).filter(Boolean);
+      if (sub && t.length) await api.insert("syl_chapters", t.map((title, i) => ({ user_id: api.userId(), subject_id: sub.id, title, sort: i })));
+      return;
+    }
+    case "edit_subject": return api.update("syl_subjects", `id=eq.${a.subject_id}`, { name: String(a.name).trim().slice(0, 80) });
+    case "remove_subject": return api.remove("syl_subjects", `id=eq.${a.subject_id}`);
+    case "add_chapters": { const base = c.chapters.filter(x => x.subject_id === a.subject_id).length;
+      return api.insert("syl_chapters", a.titles.map(x => String(x).trim().slice(0, 120)).filter(Boolean).map((title, i) => ({ user_id: api.userId(), subject_id: a.subject_id, title, sort: base + i }))); }
+    case "edit_chapter": { const ch = c.chapters.find(y => y.id === a.chapter_id); const row = {};
+      if (a.title) row.title = String(a.title).trim().slice(0, 120);
+      if (a.done === true && !ch.done_on) row.done_on = todayStr(); if (a.done === false) row.done_on = null;
+      if (+a.revised_add > 0) row.revised = (ch.revised || 0) + Math.min(10, Math.round(+a.revised_add));
+      return api.update("syl_chapters", `id=eq.${ch.id}`, row); }
+    case "remove_chapter": return api.remove("syl_chapters", `id=eq.${a.chapter_id}`);
+    case "add_syl_exam": {
+      const r = await api.insert("syl_exams", { user_id: api.userId(), name: String(a.name).trim().slice(0, 80), exam_date: DATE.test(a.date || "") ? a.date : null });
+      const id = (Array.isArray(r) ? r[0] : r)?.id;
+      if (id) for (const ch of c.chapters.filter(x => (a.chapter_ids || []).includes(x.id))) await api.update("syl_chapters", `id=eq.${ch.id}`, { exam_ids: [...(ch.exam_ids || []), id] });
+      return;
+    }
+    case "edit_syl_exam": { const row = {}; if (a.name) row.name = String(a.name).trim().slice(0, 80); if (DATE.test(a.date || "")) row.exam_date = a.date;
+      if (Object.keys(row).length) await api.update("syl_exams", `id=eq.${a.exam_id}`, row);
+      for (const ch of c.chapters.filter(x => (a.add_chapter_ids || []).includes(x.id) && !(x.exam_ids || []).includes(a.exam_id))) await api.update("syl_chapters", `id=eq.${ch.id}`, { exam_ids: [...(ch.exam_ids || []), a.exam_id] });
+      return; }
+    case "remove_syl_exam": return api.remove("syl_exams", `id=eq.${a.exam_id}`);
+    // ---- timetable
+    case "add_class": {
+      if (a.kind !== "custom" && !c.ttTabs.some(t => t.kind === a.kind)) {
+        const r = await api.insert("timetable_tabs", { user_id: api.userId(), kind: a.kind, name: { university: "University", coaching: "Coaching", meal: "Meal plan" }[a.kind], icon: { university: "🎓", coaching: "📚", meal: "🍽️" }[a.kind], merge: a.kind === "university" ? "weekly" : "none" });
+        const t = Array.isArray(r) ? r[0] : r; c.ttTabs.push(t || { kind: a.kind, merge: a.kind === "university" ? "weekly" : "none" });
+      }
+      await api.insert("timetable_items", { user_id: api.userId(), kind: a.kind, tab_id: a.kind === "custom" ? a.tab_id : null, title: String(a.title).trim().slice(0, 80), code: a.code ? String(a.code).trim().slice(0, 20) : null, detail: a.detail || null, days: dayNums(a.days), start_time: HHMM.test(a.start || "") ? a.start : null, end_time: HHMM.test(a.end || "") ? a.end : null, mine: a.mine !== false });
+      c.ttChanged = true; return;
+    }
+    case "edit_class": { const row = {};
+      if (a.title) row.title = String(a.title).trim().slice(0, 80); if (a.code !== undefined && a.code !== null) row.code = String(a.code).trim().slice(0, 20) || null;
+      if ((a.days || []).length) row.days = dayNums(a.days); if (HHMM.test(a.start || "")) row.start_time = a.start; if (HHMM.test(a.end || "")) row.end_time = a.end;
+      if (a.detail) row.detail = a.detail; if (typeof a.mine === "boolean") row.mine = a.mine;
+      await api.update("timetable_items", `id=eq.${a.item_id}`, row); c.ttChanged = true; return; }
+    case "remove_class": await api.remove("timetable_items", `id=eq.${a.item_id}`); c.ttChanged = true; return;
+    case "skip_class": await api.insert("timetable_skips", { user_id: api.userId(), item_id: a.item_id, day: a.date }); return;
+    // ---- notes
+    case "note_done": return api.update("notes", `id=eq.${a.note_id}`, { done: a.done !== false, done_at: a.done === false ? null : new Date().toISOString() });
+    case "remove_note": return api.remove("notes", `id=eq.${a.note_id}`);
+    // ---- other edits
+    case "unmark_task": return api.rpc("unmark_task", { p_task: a.task_id });
+    case "edit_event": { const row = {}; if (a.title) row.title = a.title; if (DATE.test(a.date || "")) row.date = a.date; if (HHMM.test(a.time || "")) row.time = a.time; if (typeof a.yearly === "boolean") row.yearly = a.yearly;
+      return api.update("events", `id=eq.${a.event_id}`, row); }
+    case "edit_goal": return api.update("goals", `id=eq.${a.goal_id}`, { title: a.title });
+    case "remove_habit": return api.update("bad_habits", `id=eq.${a.habit_id}`, { archived: true });
+    case "edit_due": { const row = {}; if (a.person) row.person = a.person; if (+a.amount > 0) row.amount = +a.amount; if (a.note) row.note = a.note; return api.update("dues", `id=eq.${a.due_id}`, row); }
+    case "remove_due": return api.remove("dues", `id=eq.${a.due_id}`);
+    case "edit_bill": { const row = {}; if (a.title) row.title = a.title; if (a.amount != null && +a.amount >= 0) row.amount = +a.amount; if (+a.due_day >= 1 && +a.due_day <= 31) row.due_day = +a.due_day; return api.update("bills", `id=eq.${a.bill_id}`, row); }
+    case "edit_category": { const row = {}; if (+a.dp > 0) row.dp = Math.min(50, Math.max(1, Math.round(+a.dp))); if (HEX.test(a.color || "")) row.color = a.color;
+      await api.update("user_categories", `id=eq.${a.category_id}`, row); await loadBasics(); return; }
+    case "add_saving": return api.insert("savings_goals", { user_id: api.userId(), title: String(a.title).trim(), target: +a.target, deadline: DATE.test(a.deadline || "") ? a.deadline : null });
+    case "remove_saving": return api.remove("savings_goals", `id=eq.${a.saving_id}`);
+    case "add_fixed_cost": return api.insert("recurring_costs", { user_id: api.userId(), title: String(a.title).trim(), amount: +a.amount, category: expCats().includes(a.category) ? a.category : "Bills", day_of_month: Math.min(28, Math.max(1, +a.day || 1)) });
+    case "toggle_fixed_cost": return api.update("recurring_costs", `id=eq.${a.cost_id}`, { active: a.on });
+    case "log_life": {
+      const row = {}; if (a.water != null && +a.water >= 0) row.water = Math.min(30, Math.round(+a.water)); if (HHMM.test(a.slept_at || "")) row.slept_at = a.slept_at; if (HHMM.test(a.woke_at || "")) row.woke_at = a.woke_at; if (["great", "okay", "bad"].includes(a.mood)) row.mood = a.mood;
+      const has = (await api.select("life_logs", `select=day&day=eq.${todayStr()}`)).length;
+      return has ? api.update("life_logs", `day=eq.${todayStr()}`, row) : api.insert("life_logs", { user_id: api.userId(), day: todayStr(), ...row });
+    }
+    case "mark_attendance":
+      await api.remove("attendance", `student_id=eq.${a.student_id}&date=eq.${a.date}`).catch(() => {});
+      if (a.present !== false) await api.insert("attendance", { user_id: api.userId(), student_id: a.student_id, date: a.date, present: true });
+      return;
     case "add_note": await api.insert("notes", { user_id: api.userId(), text: String(a.text).trim().slice(0, 500), day: DATE.test(a.date || "") ? a.date : todayStr() }); return;
   }
 }
@@ -274,7 +425,7 @@ export function askSheet(opts = {}) {
     const yes = h("button.btn.primary", "Yes, do it");
     const no = h("button.btn", "Cancel");
     const doIt = async () => {
-      const FIRST = ["add_category", "add_student", "edit_student"];
+      const FIRST = ["add_category", "add_student", "edit_student", "add_subject"];
       const chosen = items.filter(x => x.on).sort((p, q) => (FIRST.includes(q.a.type) ? 1 : 0) - (FIRST.includes(p.a.type) ? 1 : 0));
       if (!chosen.length) { toast("Tick at least one.", "bad"); return; }
       pending = null; yes.disabled = no.disabled = true; list.querySelectorAll("input").forEach(i => i.disabled = true);
@@ -285,6 +436,7 @@ export function askSheet(opts = {}) {
         catch (e) { line.replaceChildren("✗ ", x.d.text, " — ", e.message || "failed"); line.style.color = "var(--red)"; }
         if (/routine|task/.test(x.d.area)) needTasks = true; if (x.d.area === "cat") needBasics = true;
       }
+      if (c.ttChanged) { const { syncWeekly } = await import("./timetable.js"); await syncWeekly(); }
       try { if (needTasks) await api.rpc("ensure_tasks", { p_from: todayStr(), p_to: addDays(todayStr(), 7) }); if (needBasics) await loadBasics(); } catch { /* next open fixes it */ }
       log.append(h("div", { style: { marginTop: "6px", fontWeight: 700 } }, `${ok}/${chosen.length}টা হয়ে গেছে ✓`));
       yes.remove(); no.remove();
