@@ -18,6 +18,7 @@ route("more", page => {
   page.append(h("div.list",
     li("#/settings", "gear", t("Settings"), "PIN, theme, language, privacy"),
     li("#/download", "download", "Get the app", "Install on your phone"),
+    h("button.li", { onclick: () => reportProblem() }, h("div.ic", "🛠️"), h("div.grow", h("b", "Report a problem"), h("div.small.muted", "Something not working? Tell the admin")), icon("chev", "chev")),
     li("#/about", "info", t("About Us")),
     h("button.li", { onclick: () => import("./tour.js").then(m => m.showTour(true)) }, h("div.ic", "📖"), h("div.grow", h("b", "How to use"), h("div.small.muted", "A short guide to every part")), icon("chev", "chev")),
     li("#/privacy", "shield", "Privacy Policy")));
@@ -391,19 +392,28 @@ route("about", page => {
 }, { public: true });
 
 // complaint, idea or anything — goes straight to the admin panel; the reply comes to 🔔 Alerts
-function messageAdminCard() {
-  let kind = "message";
+export function reportProblem() {
+  sheet("Report a problem", [messageAdminCard("bug", true)], { actions: close => [h("button.btn.block", { onclick: () => close() }, "Close")] });
+}
+function messageAdminCard(start = "message", bare = false) {
+  let kind = start;
   const K = [["message", "Message"], ["complaint", "Complaint"], ["idea", "Idea"], ["bug", "Problem"]];
   const seg = h("div.row.wrap", { style: { gap: "6px" } });
   const draw = () => seg.replaceChildren(...K.map(([k, l]) => h("button.chip" + (k === kind ? ".on" : ""), { type: "button", onclick: () => { kind = k; draw(); } }, l)));
   draw();
-  const txt = h("textarea.input", { placeholder: "Write to the admin…", maxlength: "2000", style: { minHeight: "96px", marginTop: "8px" } });
+  const txt = h("textarea.input", { placeholder: start === "bug" ? "What went wrong? Where in the app, and what did you tap? (e.g. Money → Add: the Save button does nothing)" : "Write to the admin…", maxlength: "2000", style: { minHeight: "96px", marginTop: "8px" } });
   const send = h("button.btn.primary.block", { style: { marginTop: "8px" } }, "Send");
   send.onclick = busy(send, async () => {
-    await api.rpc("send_admin_message", { p_body: txt.value, p_kind: kind });
+    // for problems the admin also gets the phone / browser and the page, so it can be found and fixed
+    const ua = navigator.userAgent, dev = /android/i.test(ua) ? "Android" : /iphone|ipad/i.test(ua) ? "iPhone/iPad" : "Computer";
+    const br = /edg\//i.test(ua) ? "Edge" : /samsungbrowser/i.test(ua) ? "Samsung Internet" : /crios|chrome/i.test(ua) ? "Chrome" : /safari/i.test(ua) ? "Safari" : /firefox/i.test(ua) ? "Firefox" : "Browser";
+    const info = ["bug", "complaint"].includes(kind) && txt.value.trim().length > 1 ? `\n\n— ${dev} · ${br}${matchMedia("(display-mode: standalone)").matches ? " · Home Screen app" : ""} · ${innerWidth}×${innerHeight} · ${navigator.onLine ? "online" : "offline"}` : "";
+    await api.rpc("send_admin_message", { p_body: txt.value.trim() + info, p_kind: kind });
     txt.value = ""; toast("Sent ✓ — the reply comes to 🔔 Alerts", "ok");
+    if (bare) [...document.querySelectorAll(".backdrop")].pop()?.click();
   });
-  return h("div.card.mt", { id: "msg-admin" }, h("h3", "✉️ Message the admin"), h("p.hint", "Complaints, ideas, anything — goes straight to the admin."), seg, txt, send);
+  if (bare) return h("div", h("p.hint", "Goes straight to the admin. Your phone type is added so it's easier to fix. The reply comes to 🔔 Alerts."), seg, txt, send);
+  return h("div.card.mt", { id: "msg-admin" }, h("h3", "✉️ Message the admin"), h("p.hint", "Problems, complaints, ideas, anything — goes straight to the admin."), seg, txt, send);
 }
 
 // ---------- download / install

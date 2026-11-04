@@ -37,6 +37,11 @@ function render() {
       tabBar, body);
   }
   tabBar.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === tab));
+  // number of unread messages / problems on the Messages tab
+  api.rpc("admin_messages_list", { p_limit: 200 }).then(l => {
+    const n = (l || []).filter(m => !m.read).length, b = tabBar.querySelector('[data-k="messages"]');
+    if (b) b.textContent = n ? `Messages (${n})` : "Messages";
+  }).catch(() => {});
   const on = tabBar.querySelector("button.on");
   if (on) { const L = on.offsetLeft - (tabBar.clientWidth - on.offsetWidth) / 2; tabBar.scrollTo({ left: Math.max(0, L), behavior: "smooth" }); }
   const box = h("div"); body.replaceChildren(box);
@@ -357,7 +362,7 @@ async function research(b) {
 async function messages(b) {
   const l = await api.rpc("admin_messages_list", { p_limit: 200 });
   const K = { complaint: "😟 Complaint", idea: "💡 Idea", bug: "🐞 Problem", message: "💬 Message" };
-  b.append(h("p.small.muted", "Your reply goes to the person's 🔔 Alerts."));
+  b.append(h("p.small.muted", "Problems from More → Report a problem and messages from About. Your reply goes to the person's 🔔 Alerts."));
   b.append(l.length ? h("div.list", l.map(m => {
     const row = h("button.li", { style: { textAlign: "left", alignItems: "flex-start", opacity: m.read ? .75 : 1 } }, h("div.grow",
       h("div.small.muted", K[m.kind] || m.kind, " · ", m.name || "—", " · ", new Date(m.created_at).toLocaleString("en-GB")),

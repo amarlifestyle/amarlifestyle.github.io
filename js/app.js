@@ -139,8 +139,10 @@ async function render() {
   } else app.replaceChildren(page);
   if (!same) window.scrollTo(0, 0);
   api.resetStale();
+  const fastRun = !booted && !r.public; booted = true; // first screen after opening: saved copy first
+  api.setFast(fastRun);
   try {
-    await r.render(page, ...args); if (api.isStale && !r.public) page.prepend(offlineNote());
+    await r.render(page, ...args); api.setFast(false); if (api.isStale && !r.public) page.prepend(offlineNote());
     const tb = page.querySelector(":scope > header.topbar");
     if (["more", "about", "login", "register", "home", "privacy", "settings"].includes(path)) { const { copyright } = await import("./ui.js"); page.append(copyright()); }
     if (!r.public && tb && MAIN.has(path)) {
@@ -152,6 +154,7 @@ async function render() {
     }
   }
   catch (e) { page.replaceChildren(h("div.empty", icon("info"), h("p", e.message || "Could not load."), h("button.btn", { onclick: render }, "Try again"))); }
+  api.setFast(false);
   if (myTurn !== renderTurn) return; // user already moved on
   page.removeAttribute("style"); page.classList.add(snap ? "swap" : "fresh");
   app.replaceChildren(page);
@@ -159,6 +162,12 @@ async function render() {
   snapshots.set(key, page);
   window.__splashDone?.();
   dragFab();
+  // then swap in fresh data quietly (only if something changed and nothing is open)
+  if (fastRun) api.fastDone().then(changed => {
+    if (!changed || myTurn !== renderTurn) return;
+    const again = () => { if (myTurn !== renderTurn) return; if (document.querySelector(".backdrop") || document.activeElement?.matches("input,textarea")) return setTimeout(again, 1500); render(); };
+    again();
+  });
   if (!r.public) { daily(); checkUnread(); }
 }
 function navBar(active) {
@@ -187,6 +196,7 @@ async function checkUnread() {
   } catch { /* offline */ }
 }
 export const rerender = () => render();
+let booted = false;
 
 // the round ＋ button can be dragged anywhere so it never covers what you want to tap
 let lastY = 0;

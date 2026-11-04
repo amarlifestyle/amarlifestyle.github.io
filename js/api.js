@@ -144,8 +144,21 @@ export async function setNewPassword(accessToken, password) {
 
 // ---- data (reads are remembered so every page still opens offline)
 const READ_RPCS = new Set(["my_stats", "list_people", "public_profile", "has_pin", "is_admin"]);
-const cacheKey = p => "al_c:" + p;
+// times inside a query (e.g. "due after now") are left out of the key, so the saved copy is found next time
+const cacheKey = p => "al_c:" + p.replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, "T");
+// fast open: the first screen after opening the app comes from the saved copy at once (net or no net);
+// fresh data is fetched at the same time and the screen updates itself when it differs
+let fast = false, fastJobs = [];
+export const setFast = v => { fast = v; };
+export const fastDone = () => { const l = fastJobs; fastJobs = []; return Promise.all(l).then(r => r.some(Boolean)); };
 async function cachedRead(path, run) {
+  if (fast) {
+    const raw = (() => { try { return localStorage.getItem(cacheKey(path)); } catch { return null; } })();
+    if (raw !== null) {
+      fastJobs.push(run().then(d => { const j = JSON.stringify(d); try { localStorage.setItem(cacheKey(path), j); } catch { pruneCache(); } return j !== raw; }).catch(() => false));
+      return JSON.parse(raw);
+    }
+  }
   try {
     const d = await run();
     try { localStorage.setItem(cacheKey(path), JSON.stringify(d)); } catch { pruneCache(); }

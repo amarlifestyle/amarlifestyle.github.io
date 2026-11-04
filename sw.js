@@ -1,6 +1,7 @@
 /* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — offline support: app files are cached, data always comes fresh from the server.
-const CACHE = "amarlifestyle-v81";
+const CACHE = "amarlifestyle-v82";
+const FONTS = "amarlifestyle-fonts";
 const FILES = [
   "./", "index.html", "manifest.json", "css/app.css",
   "js/main.js", "js/app.js", "js/api.js", "js/ui.js", "js/auth.js", "js/today.js", "js/week.js", "js/money.js", "js/me.js", "js/more.js", "js/voice.js", "js/aicoach.js", "js/quotes.js", "js/assistant.js", "js/timetable.js", "js/prayer.js", "js/tour.js", "js/exams.js", "js/dayreport.js", "js/spots.js", "js/install.js", "js/pin.js", "js/widget.js", "js/undo.js", "js/timepick.js", "js/period.js", "js/syllabus.js", "js/notes.js", "tasks/", "tasks/index.html", "tasks/manifest.json", "assets/tasks-192.png",
@@ -8,11 +9,17 @@ const FILES = [
 ];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: "reload" })))).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== FONTS).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.origin !== location.origin) return; // API calls go straight to the network
+  if (e.request.method !== "GET") return;
+  // fonts: from the phone after the first time (kept across app versions)
+  if (url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com") {
+    e.respondWith(caches.open(FONTS).then(async c => (await c.match(e.request)) || fetch(e.request).then(r => { if (r.ok || r.type === "opaque") c.put(e.request, r.clone()); return r; })));
+    return;
+  }
+  if (url.origin !== location.origin) return; // API calls go straight to the network
   // fast open: answer from the phone at once, and refresh the copy in the background.
   // A new version still arrives: a changed sw.js installs fresh files and the app reloads once.
   e.respondWith(caches.open(CACHE).then(async c => {
