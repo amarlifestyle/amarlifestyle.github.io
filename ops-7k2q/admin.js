@@ -237,7 +237,7 @@ async function capacity(b) {
   };
   const lo = Math.floor(Math.min(...Object.values(est).map(x => x[0]))), hi = Math.floor(Math.min(...Object.values(est).map(x => x[1])));
   const neck = Object.entries(est).sort((p, q) => p[1][0] - q[1][0])[0][0];
-  const NAME = { ai: "AI (Gemini daily limit)", db: "Database size", fn: "Server function calls", mau: "Monthly users (auth)" };
+  const NAME = { ai: "AI daily limit", db: "Database size", fn: "Server function calls", mau: "Monthly users (auth)" };
   const pct = (u, l) => Math.min(100, Math.round(u / l * 1000) / 10);
   const meter = (label, used, limit, sub) => { const p = pct(used, limit); return h("div.li", { style: { display: "block" } },
     h("div.row.between", h("b", label), h("span.small", `${p}%`)),
@@ -261,7 +261,7 @@ async function capacity(b) {
   const capIn = h("input.input", { type: "number", min: "50", value: aiCap, style: { maxWidth: "140px" } });
   const save = h("button.btn.small", "Save");
   save.onclick = busy(save, async () => { await api.rpc("admin_set_config", { p_key: "cap_ai_day", p_value: Number(capIn.value) }); toast("Saved ✓", "ok"); });
-  b.append(h("div.card", h("h3", "Gemini daily limit"), h("p.small.muted", "Google AI Studio → your API key → Rate limits. Put the requests-per-day number here so the estimate is right."), h("div.row", { style: { gap: "8px" } }, capIn, save)));
+  b.append(h("div.card", h("h3", "AI daily limit"), h("p.small.muted", "How many AI requests a day you allow (Grok is paid per use; Gemini free has its own limit). The estimate uses this number."), h("div.row", { style: { gap: "8px" } }, capIn, save)));
   b.append(h("p.small.faint", "Not counted here: download traffic (Supabase free: 5 GB/month) — check it in the Supabase dashboard → Usage. The website files themselves are served free by GitHub Pages."));
 }
 
