@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — profile, stats, badges, heatmap, life tracking
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, busy, todayStr, addDays, fmtDate, barChart, donut, PALETTE } from "./ui.js";

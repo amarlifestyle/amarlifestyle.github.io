@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — entry point
 import { start } from "./app.js";
 import "./auth.js";

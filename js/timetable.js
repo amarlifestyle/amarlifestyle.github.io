@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — timetables under Routine: University classes, Coaching classes, Meal plan.
 // These only show the day's plan (no DP). Meals also remind you on the Today page.
 import * as api from "./api.js";

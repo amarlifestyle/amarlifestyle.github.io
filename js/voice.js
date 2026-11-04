@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — voice: speak a routine line and the form fills itself.
 // e.g. "শনিবার বিকাল ৫টা সিপি টিউশন ১ ঘণ্টা প্রতি সপ্তাহে" or "Monday 9 pm study 2 hours this week"
 import { h, icon, toast, pad } from "./ui.js";

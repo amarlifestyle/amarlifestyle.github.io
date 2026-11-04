@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — Ask AI: answer questions AND do things in the app by text, voice or photo.
 // The AI only proposes. The user sees exactly what will change, and nothing happens until they tap "Yes".
 import * as api from "./api.js";
@@ -40,7 +41,7 @@ async function gather() {
   ]);
   const [subjects, chapters, sylExams, ttTabs, ttItems, notes, savings, fixed, cats, lifeToday] = await Promise.all([
     api.select("syl_subjects", "select=id,name,color&order=sort,created_at").catch(() => []),
-    api.select("syl_chapters", "select=id,subject_id,title,done_on,revised,exam_ids&order=sort,created_at&limit=400").catch(() => []),
+    api.select("syl_chapters", "select=id,subject_id,title,done_on,revised,exam_ids,stars,note&order=sort,created_at&limit=400").catch(() => []),
     api.select("syl_exams", "select=id,name,exam_date&order=exam_date.nullslast").catch(() => []),
     api.select("timetable_tabs", "select=id,kind,name,merge").catch(() => []),
     api.select("timetable_items", "select=id,kind,tab_id,title,code,days,start_time,end_time,detail,mine&order=start_time&limit=200").catch(() => []),
@@ -69,7 +70,7 @@ async function gather() {
     money_entries: entries.map(e => ({ id: e.id, kind: e.kind, category: e.category, amount: +e.amount, note: e.note, date: e.entry_date })),
     budgets_this_month: Object.fromEntries(budgets.map(b => [b.category, +b.amount])),
     all_bills: allBills.map(b => ({ id: b.id, title: b.title, amount: +b.amount, due_day: b.due_day, monthly: b.monthly })),
-    syllabus_subjects: subjects.map(x => ({ id: x.id, name: x.name, chapters: chapters.filter(c => c.subject_id === x.id).map(c => ({ id: c.id, title: c.title, done: !!c.done_on, revised: c.revised || 0, exams: (c.exam_ids || []).map(e => sylExams.find(y => y.id === e)?.name).filter(Boolean) })) })),
+    syllabus_subjects: subjects.map(x => ({ id: x.id, name: x.name, chapters: chapters.filter(c => c.subject_id === x.id).map(c => ({ id: c.id, title: c.title, done: !!c.done_on, revised: c.revised || 0, stars: c.stars || 0, note: c.note || null, exams: (c.exam_ids || []).map(e => sylExams.find(y => y.id === e)?.name).filter(Boolean) })) })),
     syllabus_exams: sylExams.map(e => ({ id: e.id, name: e.name, date: e.exam_date })),
     timetable_tabs: ttTabs.map(t => ({ id: t.id, kind: t.kind, name: t.name, adds_to_weekly_routine: t.merge === "weekly" || t.merge === "today" })),
     timetable_classes: ttItems.map(i => ({ id: i.id, kind: i.kind, tab_id: i.tab_id, title: i.title, code: i.code, days: (i.days || []).map(d => DAYS[d]), start: i.start_time?.slice(0, 5) || null, end: i.end_time?.slice(0, 5) || null, detail: i.detail, mine: i.mine })),
@@ -147,7 +148,7 @@ function describe(a, c) {
     case "add_chapters": { const x = c.subjects.find(y => y.id === a.subject_id); const t = (a.titles || []).filter(Boolean); return x && t.length ? { ic: "📖", area: "syllabus", text: `${x.name}: +${t.length} chapter(s) — ${t.slice(0, 8).join(", ")}${t.length > 8 ? "…" : ""}` } : null; }
     case "edit_chapter": { const ch = c.chapters.find(y => y.id === a.chapter_id); if (!ch) return null;
       const sub = c.subjects.find(y => y.id === ch.subject_id)?.name || "";
-      const w = [a.title && `Name → ${a.title}`, a.done === true && "Done ✓", a.done === false && "Not done", +a.revised_add > 0 && `Revised +${+a.revised_add}`].filter(Boolean);
+      const w = [a.title && `Name → ${a.title}`, a.done === true && "Done ✓", a.done === false && "Not done", +a.revised_add > 0 && `Revised +${+a.revised_add}`, a.stars != null && +a.stars >= 0 && +a.stars <= 3 && `Importance → ${+a.stars ? "★".repeat(+a.stars) : "none"}`, a.note && `Note → ${String(a.note).slice(0, 60)}`].filter(Boolean);
       return w.length ? { ic: a.done ? "✅" : "✏️", area: "syllabus", text: `${sub} · ${ch.title} — ${w.join(", ")}` } : null; }
     case "remove_chapter": { const ch = c.chapters.find(y => y.id === a.chapter_id); return ch ? { ic: "🗑️", area: "syllabus", text: `Remove chapter: ${ch.title}` } : null; }
     case "add_syl_exam": if (!a.name) return null;
@@ -314,6 +315,8 @@ async function run(a, c) {
       if (a.title) row.title = String(a.title).trim().slice(0, 120);
       if (a.done === true && !ch.done_on) row.done_on = todayStr(); if (a.done === false) row.done_on = null;
       if (+a.revised_add > 0) row.revised = (ch.revised || 0) + Math.min(10, Math.round(+a.revised_add));
+      if (a.stars != null && +a.stars >= 0 && +a.stars <= 3) row.stars = Math.round(+a.stars);
+      if (a.note) row.note = String(a.note).trim().slice(0, 500);
       return api.update("syl_chapters", `id=eq.${ch.id}`, row); }
     case "remove_chapter": return api.remove("syl_chapters", `id=eq.${a.chapter_id}`);
     case "add_syl_exam": {

@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — "Today's tasks" widget page (its own home-screen icon): today's list, what's on now and next
 import * as api from "./api.js";
 

@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — "add to Home Screen" first: the app works best (and iPhone notifications only work) when opened from the home screen
 import * as api from "./api.js";
 import { h, sheet, toast } from "./ui.js";

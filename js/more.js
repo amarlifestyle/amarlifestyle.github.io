@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — More: routine, calendar, goals, reports, settings, about, download
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";

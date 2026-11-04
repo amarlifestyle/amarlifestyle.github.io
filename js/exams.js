@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — Exams: class tests, lab reports, assignments. Reminders get more frequent as the day comes.
 import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, confirmBox, todayStr, addDays, fmtDate, pad, swipeAway } from "./ui.js";

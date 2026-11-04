@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — Notes: quick important things for today; kept by day, reminded until done or removed.
 import * as api from "./api.js";
 import { h, icon, toast, busy, todayStr, fmtDate, swipeAway } from "./ui.js";

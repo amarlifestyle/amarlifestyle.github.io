@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — Syllabus: subjects → chapters. Tick a chapter with the day you finished it; see how much is done, per subject and per exam.
 import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtDate, ring, PALETTE, barChart, swipeAway } from "./ui.js";
@@ -85,9 +86,11 @@ route("syllabus", async (page, examArg) => {
     const d = list.filter(c => c.done_on).length;
     const card = h("details.syl" + (d === list.length && list.length ? ".full" : ""), { open: list.length <= 12, style: { "--c": s.color || "var(--brand)" } },
       h("summary", h("div.grow", h("b", s.name), h("div.syl-bar", h("i", { style: { width: pct(d, list.length) + "%" } }))), h("span.syl-p", `${pct(d, list.length)}%`), h("small.muted", ` ${d}/${list.length}`)),
-      h("div.syl-list", list.map(c => chapterRow(c, exams)),
-        h("div.row", { style: { gap: "6px", marginTop: "8px" } },
+      h("div.syl-list", list.map((c, i) => chapterRow(c, exams, ex ? null : list, i)),
+        h("div.row.wrap", { style: { gap: "6px", marginTop: "8px" } },
           h("button.btn.small", { onclick: () => chapterSheet(s, null, exams, ex) }, icon("plus"), "Chapter"),
+          h("button.btn.small.ghost", { onclick: () => import("./assistant.js").then(m => m.askSheet({ photo: true, text: `এই ছবি (বইয়ের সূচিপত্র বা সিলেবাস) থেকে "${s.name}" সাবজেক্টের সব চ্যাপ্টার ক্রমানুসারে যোগ করো` })) }, icon("camera"), "From photo"),
+          !ex && list.length > 1 ? h("button.btn.small.ghost" + (reorderSub === s.id ? ".on" : ""), { onclick: () => { reorderSub = reorderSub === s.id ? null : s.id; rerender(); } }, reorderSub === s.id ? "✓ Done" : "↕ Reorder") : null,
           h("button.btn.small.ghost", { onclick: () => subjectSheet(s) }, icon("edit"), "Rename"),
           (() => { const b = h("button.btn.small.ghost.syl-del", { "aria-label": "Remove subject" }, icon("trash"), "Remove"); b.onclick = busy(b, async () => { if (!(await confirmBox("Remove subject?", `${s.name} and its ${chs.filter(c => c.subject_id === s.id).length} chapter(s). You can Undo.`, "Remove", true))) return; await removeSubject(s, chs); rerender(); }); return b; })())));
     page.append(card);
@@ -98,7 +101,15 @@ route("syllabus", async (page, examArg) => {
 }, { tab: "week" });
 
 const daysLeft = d => { const n = Math.round((new Date(d + "T00:00:00") - new Date(todayStr() + "T00:00:00")) / 864e5); return n < 0 ? "over" : n === 0 ? "today" : `${n} days left`; };
-function chapterRow(c, exams) {
+const STAR = n => n > 0 ? h("span.syl-star", "★".repeat(n)) : null;
+let reorderSub = null; // subject id whose chapters show ↑ ↓
+async function moveChapter(list, i, dir) {
+  const j = i + dir; if (j < 0 || j >= list.length) return;
+  const arr = [...list]; [arr[i], arr[j]] = [arr[j], arr[i]];
+  await Promise.all(arr.map((c, k) => c.sort === k ? null : api.update("syl_chapters", `id=eq.${c.id}`, { sort: k })).filter(Boolean));
+  rerender();
+}
+function chapterRow(c, exams, list = null, idx = 0) {
   const tick = h("button.syl-tick" + (c.done_on ? ".on" : ""), { type: "button", "aria-label": c.done_on ? "Not finished" : "Finished" }, c.done_on ? "✓" : "");
   tick.onclick = busy(tick, async () => {
     await api.update("syl_chapters", `id=eq.${c.id}`, { done_on: c.done_on ? null : todayStr() });
@@ -109,10 +120,17 @@ function chapterRow(c, exams) {
   const gone = async () => { await removeChapter(c); rerender(); };
   const x = h("button.s-x", { type: "button", "aria-label": "Remove chapter" }, "✕");
   x.onclick = busy(x, gone);
-  const row = h("div.syl-row" + (c.done_on ? ".done" : ""), tick,
-    h("button.grow", { type: "button", onclick: () => chapterSheet(null, c, exams), style: { textAlign: "left", background: "none", border: 0, color: "inherit", font: "inherit", padding: 0, minWidth: 0 } },
-      h("div", c.title), h("div.small.muted", [c.done_on ? "✓ " + fmtDate(c.done_on, { day: "numeric", month: "short" }) : null, c.revised ? `revised ×${c.revised}` : null, names.length ? "🎓 " + names.join(", ") : null].filter(Boolean).join(" · "))), x);
-  swipeAway(row, gone);
+  const ordering = list && reorderSub === c.subject_id;
+  const arrows = ordering ? h("div.syl-move",
+    h("button.icon-btn", { type: "button", "aria-label": "Move up", disabled: idx === 0, onclick: e => { e.currentTarget.disabled = true; moveChapter(list, idx, -1).catch(er => toast(er.message, "bad")); } }, "↑"),
+    h("button.icon-btn", { type: "button", "aria-label": "Move down", disabled: idx === list.length - 1, onclick: e => { e.currentTarget.disabled = true; moveChapter(list, idx, 1).catch(er => toast(er.message, "bad")); } }, "↓")) : null;
+  const row = h("div.syl-row" + (c.done_on ? ".done" : ""), ordering ? null : tick,
+    h("button.grow", { type: "button", onclick: () => !ordering && chapterSheet(null, c, exams), style: { textAlign: "left", background: "none", border: 0, color: "inherit", font: "inherit", padding: 0, minWidth: 0 } },
+      h("div", STAR(c.stars), c.title),
+      c.note ? h("div.small.syl-note", c.note) : null,
+      h("div.small.muted", [c.done_on ? "✓ " + fmtDate(c.done_on, { day: "numeric", month: "short" }) : null, c.revised ? `revised ×${c.revised}` : null, names.length ? "🎓 " + names.join(", ") : null].filter(Boolean).join(" · "))),
+    ordering ? arrows : x);
+  if (!ordering) swipeAway(row, gone);
   return row;
 }
 
@@ -149,14 +167,21 @@ function chapterSheet(s, c, exams, ex = null) {
   draw();
   const done = h("input.input", { type: "date", value: c?.done_on || "", max: todayStr() });
   const rev = h("input.input", { type: "number", min: "0", max: "50", value: c?.revised || 0, inputmode: "numeric" });
+  let stars = c?.stars || 0;
+  const starBox = h("div.row", { style: { gap: "6px" } });
+  const drawStars = () => starBox.replaceChildren(...[0, 1, 2, 3].map(n => h("button.chip" + (stars === n ? ".on" : ""), { type: "button", onclick: () => { stars = n; drawStars(); } }, n ? "★".repeat(n) : "None")));
+  drawStars();
+  const note = h("textarea.input", { placeholder: "Note — e.g. formulas, important for CT, page 45–60", maxlength: "500", style: { minHeight: "64px" } }); note.value = c?.note || "";
   sheet(c ? "Chapter" : "New chapter", [h("label.f", h("span", "Name"), title),
+    h("label.f", h("span", "Importance"), starBox),
+    h("label.f", h("span", "Note"), note),
     exams.length ? h("label.f", h("span", "In exams"), exBox) : h("p.small.muted", "Add an exam to link chapters."),
     c ? h("div.grid2", h("label.f", h("span", "Finished on"), done), h("label.f", h("span", "Revisions"), rev)) : null], {
     actions: close => {
       const save = h("button.btn.primary", "Save");
       save.onclick = busy(save, async () => {
         if (!title.value.trim()) throw new Error("Write a name.");
-        const row = { title: title.value.trim(), exam_ids: [...picked] };
+        const row = { title: title.value.trim(), exam_ids: [...picked], stars, note: note.value.trim() || null };
         if (c) await api.update("syl_chapters", `id=eq.${c.id}`, { ...row, done_on: done.value || null, revised: Math.max(0, Number(rev.value) || 0) });
         else await api.insert("syl_chapters", { ...row, user_id: api.userId(), subject_id: s.id, sort: 999 });
         close(true); rerender();

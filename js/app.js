@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — app shell, router and shared state
 import * as api from "./api.js";
 import { h, icon, t, toast, todayStr, addDays, chime } from "./ui.js";
@@ -140,6 +141,7 @@ async function render() {
   try {
     await r.render(page, ...args); if (api.isStale && !r.public) page.prepend(offlineNote());
     const tb = page.querySelector(":scope > header.topbar");
+    if (["more", "about", "login", "register", "home", "privacy", "settings"].includes(path)) { const { copyright } = await import("./ui.js"); page.append(copyright()); }
     if (!r.public && tb && MAIN.has(path)) {
       // page's own controls (month / week arrows) move under the title so nothing squeezes or overlaps
       const ctrl = [...tb.children].find((c, i) => i > 0 && c.matches(".row"));

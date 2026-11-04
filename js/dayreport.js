@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — the day in one page: work, DP, money, prayers, habits, and the AI's verdict
 import * as api from "./api.js";
 import { h, icon, todayStr, addDays, fmtDate, durLabel, tk as money, busy, ring } from "./ui.js";

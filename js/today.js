@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — Today page, tasks, timer, Pomodoro
 import * as api from "./api.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, ring, todayStr, addDays, fmtTime, fmtHM, mins, durLabel, dhakaIso, pad, dhakaNow, fmtDate, chime, swipeAway } from "./ui.js";

@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — pick a time: "from – to" or "start + how long". Starts at the phone's current time.
 import { h, pad, durLabel } from "./ui.js";
 

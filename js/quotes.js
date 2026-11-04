@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — one short quote a day, picked for what you do
 const STUDY = [
   ["The beautiful thing about learning is that nobody can take it away from you.", "B.B. King"],

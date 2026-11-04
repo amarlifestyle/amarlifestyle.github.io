@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — undo / redo for routine and task changes (deleted by mistake? bring it back)
 import * as api from "./api.js";
 import { h, toast } from "./ui.js";

@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — AI Coach: daily advice, alerts, ask a question, build a routine by voice
 import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, todayStr, addDays, DAYS, PALETTE, dhakaIso, durLabel, fmtHM, fmtTime, fmtDate } from "./ui.js";

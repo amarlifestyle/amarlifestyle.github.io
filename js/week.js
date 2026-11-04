@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — weekly planner: build your week like a neon routine chart
 import * as api from "./api.js";
 import * as U from "./undo.js";

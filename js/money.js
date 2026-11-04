@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — money: income, expenses, budgets, history, tuition, dues, savings
 import * as api from "./api.js";
 import { pinGate, lockedCard } from "./pin.js";

@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — one honest page for any stretch of time: this week (Friday report), any month, or the whole history.
 // Every part can be ticked in or out, then saved as one PDF (Save PDF → "Save as PDF").
 import * as api from "./api.js";

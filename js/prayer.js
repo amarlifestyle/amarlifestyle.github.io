@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — prayer (namaz) times for Muslim users: calculated on the phone, no internet needed.
 // Method: University of Islamic Sciences, Karachi (Fajr & Isha 18°), Asr Hanafi — the method Islamic Foundation Bangladesh uses.
 import * as api from "./api.js";

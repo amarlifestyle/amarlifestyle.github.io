@@ -402,3 +402,7 @@ export function swipeAway(el, onGone) {
   };
   el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
 }
+
+// copyright line shown at the bottom of public pages, More and About
+export const COPYRIGHT = "© 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited.";
+export function copyright() { return h("footer.copy", COPYRIGHT); }

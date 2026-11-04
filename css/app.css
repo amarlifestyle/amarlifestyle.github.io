@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 /* Amar Lifestyle — design tokens */
 :root {
   --bg: #07090D;
@@ -935,3 +936,13 @@ header.topbar .sub.greet { font-size: 13px; margin-bottom: 1px; }
 /* money totals: same height, numbers never squeezed */
 .grid3 > .stat { display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
 .grid3 > .stat .v { font-size: clamp(16px, 4.6vw, 22px); white-space: nowrap; }
+
+/* syllabus: importance stars, note, reorder arrows */
+.syl-star { color: var(--amber); margin-right: 6px; letter-spacing: 1px; font-size: .92em; }
+.syl-note { color: var(--muted); margin: 2px 0 1px; white-space: pre-wrap; }
+.syl-move { display: flex; gap: 4px; flex-shrink: 0; }
+.syl-move .icon-btn { width: 34px; height: 34px; min-height: 34px; font-weight: 700; }
+.syl-move .icon-btn:disabled { opacity: .3; }
+
+/* copyright footer */
+footer.copy { margin: 28px 4px 8px; text-align: center; font-size: 12px; line-height: 1.5; color: var(--faint); }

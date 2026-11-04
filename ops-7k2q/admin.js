@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — Admin panel (hidden link). Every action is checked again on the server.
 import * as api from "../js/api.js";
 import { h, icon, toast, sheet, confirmBox, busy, askPin, tk, fmtDate, barChart, autoIconize } from "../js/ui.js";

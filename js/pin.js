@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — PIN lock for sensitive money parts (editing money, the full tuition sheet, backup)
 import * as api from "./api.js";
 import { h, sheet, toast, askPin } from "./ui.js";

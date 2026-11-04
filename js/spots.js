@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — "where is it?" marks: highlight each part of the screen with a short note
 import * as api from "./api.js";
 import { h } from "./ui.js";

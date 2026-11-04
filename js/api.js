@@ -1,3 +1,4 @@
+/* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — tiny Supabase client (REST + Auth + Storage), no external libraries.
 export const SB_URL = "https://njzqexdoajxlfvczpuqn.supabase.co";
 export const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qenFleGRvYWp4bGZ2Y3pwdXFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTQyNzcsImV4cCI6MjEwOTAzMDI3N30.OrlPb7sqKKDXQ6RZAsWQaLxX5XzoAtt1xiL-KXt7flE";
