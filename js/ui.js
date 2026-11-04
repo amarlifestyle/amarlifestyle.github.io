@@ -94,6 +94,7 @@ const P = {
   chart: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
   share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.6M8.2 13.2l7.6 4.6"/>',
   receipt: '<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  bus: '<rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M8 21v-3M16 21v-3"/><circle cx="8" cy="14.5" r=".6"/><circle cx="16" cy="14.5" r=".6"/>',
   food: '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 0-3 3-3 6s1 3 3 3v9"/>',
   box: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -120,7 +121,7 @@ const EMO = {
   "🍽️": "food", "🍵": "cup", "🎂": "gift", "🎁": "gift", "🤝": "people", "👥": "people", "📌": "pin", "✨": "spark", "🤖": "spark", "📷": "camera", "📸": "camera", "🎙️": "mic", "🎤": "mic",
   "💬": "chat", "✉️": "chat", "🚭": "habit", "🚬": "smoke", "📤": "share", "🔐": "lock", "🔒": "lock", "👤": "user", "🙂": "user", "👨": "user", "👩": "user", "🌙": "moon", "☀️": "sun",
   "📦": "box", "🩺": "health", "🛒": "shop", "🎉": "party", "🖨️": "report", "📽️": "video", "🔁": "repeat", "↻": "repeat", "⚡": "zap", "📴": "wifi", "🏠": "today", "⬇️": "download",
-  "💪": "fire", "👋": "", "😟": "chat", "🐞": "warn", "📁": "box", "🗂️": "box", "📚️": "book", "🎨": "edit", "🔄": "repeat", "1️⃣": "cal", "🧩": "info", "👎": "warn", "💤": "sleep", "😴": "sleep", "💧": "water",
+  "💪": "fire", "👋": "", "😟": "chat", "🐞": "warn", "📁": "box", "🗂️": "box", "📚️": "book", "🎨": "edit", "🔄": "repeat", "1️⃣": "cal", "🧩": "info", "👎": "warn", "💤": "sleep", "😴": "sleep", "💧": "water", "🚌": "bus", "🍞": "food", "🛍️": "shop", "🛍": "shop", "🎮": "party",
 };
 const EMO_RE = new RegExp([...Object.keys(EMO)].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + "|\\p{Extended_Pictographic}\\uFE0F?", "gu");
 const BADTXT = /(^|[\s·(:])(null|undefined|NaN)(?=$|[\s·),.])/g;

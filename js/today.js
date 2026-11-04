@@ -235,7 +235,9 @@ function taskCard(tk, queued, first = false) {
       if (!cd.isConnected && cd.dataset.on) return clearInterval(cdT);
       const now = Date.now(), s0 = new Date(tk.start_at).getTime(), e0 = new Date(tk.end_at).getTime();
       const fmt = ms => { const m = Math.max(1, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
-      cd.replaceChildren(now < s0 ? h("span", "Starts in ", h("b", fmt(s0 - now))) : now < e0 ? h("span.live", h("i"), h("b", fmt(e0 - now)), " left") : h("span", "Time's up — mark it"));
+      const soon = now < s0 && s0 - now <= 15 * 60000, low = now >= s0 && now < e0 && e0 - now <= 10 * 60000;
+      cd.className = "countdown " + (now < s0 ? (soon ? "cd-soon" : "cd-wait") : now < e0 ? (low ? "cd-low" : "cd-live") : "cd-late");
+      cd.replaceChildren(now < s0 ? h("span.cd-pill", icon("clock"), "Starts in ", h("b", fmt(s0 - now))) : now < e0 ? h("span.cd-pill", h("i"), h("b", fmt(e0 - now)), " left") : h("span.cd-pill", icon("warn"), "Time's up — mark it"));
       cd.dataset.on = 1;
     };
     const cdT = setInterval(tickCd, 30000); tickCd();

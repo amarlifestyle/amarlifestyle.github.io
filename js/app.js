@@ -140,7 +140,13 @@ async function render() {
   try {
     await r.render(page, ...args); if (api.isStale && !r.public) page.prepend(offlineNote());
     const tb = page.querySelector(":scope > header.topbar");
-    if (!r.public && tb && MAIN.has(path)) tb.append(topActions(path === "notifications" ? "alerts" : path));
+    if (!r.public && tb && MAIN.has(path)) {
+      // page's own controls (month / week arrows) move under the title so nothing squeezes or overlaps
+      const ctrl = [...tb.children].find((c, i) => i > 0 && c.matches(".row"));
+      const head = tb.firstElementChild;
+      if (ctrl && head) { ctrl.classList.add("tb-ctrl"); ctrl.remove(); head.append(ctrl); }
+      tb.append(topActions(path === "notifications" ? "alerts" : path));
+    }
   }
   catch (e) { page.replaceChildren(h("div.empty", icon("info"), h("p", e.message || "Could not load."), h("button.btn", { onclick: render }, "Try again"))); }
   if (myTurn !== renderTurn) return; // user already moved on
@@ -148,6 +154,7 @@ async function render() {
   app.replaceChildren(page);
   if (same) window.scrollTo(0, prevY);
   snapshots.set(key, page);
+  window.__splashDone?.();
   dragFab();
   if (!r.public) { daily(); checkUnread(); }
 }
