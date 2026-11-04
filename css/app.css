@@ -991,3 +991,11 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .note-grip { flex-shrink: 0; width: 18px; margin-left: -4px; color: var(--faint); font-size: 14px; letter-spacing: -3px; cursor: grab; user-select: none; -webkit-user-select: none; text-align: center; padding: 8px 0; }
 .note.dragging { position: relative; z-index: 5; background: var(--card2); box-shadow: var(--shadow-2); border-radius: 12px; transition: none; }
 .note.dragging .note-grip { color: var(--brand); cursor: grabbing; }
+
+/* finished / time over → black & white, so colour = still to do */
+.task.done { filter: grayscale(1); }
+.cell.over { filter: grayscale(1); opacity: .5; }
+.cal-chip.over { filter: grayscale(1); }
+.cal-c.past { filter: grayscale(1); }
+.li.over { filter: grayscale(1); opacity: .6; }
+.task.over { filter: grayscale(1); opacity: .6; }

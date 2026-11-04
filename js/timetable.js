@@ -304,7 +304,7 @@ export function classCard(c) {
   const x = h("button.icon-btn", { "aria-label": "Not going today", title: "Not going today", style: { width: "34px", height: "34px" } }, icon("x"));
   x.onclick = busy(x, async e => { e?.stopPropagation?.(); await api.insert("timetable_skips", { user_id: api.userId(), item_id: c.item.id, day: c.day }); toast("Removed for today ✓", "ok"); rerender(); });
   const now = Date.now(), live = now >= new Date(c.start_at) && now < new Date(c.end_at);
-  return h("div.task", { style: { "--c": CLASS_COLOR, cursor: "pointer" }, onclick: e => { if (!x.contains(e.target)) classSheet(c); } },
+  return h("div.task" + (now >= new Date(c.end_at) ? ".over" : ""), { style: { "--c": CLASS_COLOR, cursor: "pointer" }, onclick: e => { if (!x.contains(e.target)) classSheet(c); } },
     h("div.row.between", { style: { alignItems: "flex-start", gap: "8px" } },
       h("div.grow", h("b", "🎓 ", c.item.title, live ? h("span.badge.ok", { style: { marginLeft: "6px" } }, "Now") : null),
         h("div.small.muted", `${fmtHM(hm(c.item.start_time))}${c.item.end_time ? " – " + fmtHM(hm(c.item.end_time)) : ""} · Class (no DP)${c.detail ? " · " + c.detail : ""}`),

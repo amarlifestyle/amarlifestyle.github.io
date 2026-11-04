@@ -79,7 +79,7 @@ route("exams", async page => {
     const x = h("button.s-x", { type: "button", "aria-label": "Delete" }, "✕");
     x.onclick = busy(x, async ev => { ev?.stopPropagation?.(); await gone(); });
     const over = !e.done && new Date(e.due_at) <= now;
-    const r = h("div.li", { onclick: ev => { if (!x.contains(ev.target) && !r.dataset.swiped) examSheet(e); }, style: { cursor: "pointer", opacity: e.done || over ? .6 : 1 } },
+    const r = h("div.li" + (e.done || over ? ".over" : ""), { onclick: ev => { if (!x.contains(ev.target) && !r.dataset.swiped) examSheet(e); }, style: { cursor: "pointer" } },
       h("div.ic", EXAM_KINDS[e.kind][0]),
       h("div.grow", { style: { minWidth: 0 } }, h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.title), h("div.small.muted", [EXAM_KINDS[e.kind][1], e.course, when(e.due_at)].filter(Boolean).join(" · "))),
       e.marks_got != null && e.marks_total != null ? h("span.badge.ok", `${+Number(e.marks_got)}/${+Number(e.marks_total)}`) : e.done ? h("span.badge.ok", "✓ " + doneWord(e.kind)) : over ? h("span.small.muted", { style: { whiteSpace: "nowrap" } }, "Time over") : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)), x);
@@ -162,7 +162,7 @@ function resultsBlock(all) {
     const totG = marked.reduce((a, e) => a + Number(e.marks_got), 0), totT = marked.reduce((a, e) => a + Number(e.marks_total), 0);
     out.append(h("div.section-title", h("h2", "Results"), h("span.small.muted", `Overall ${Math.round(100 * totG / totT)}%`)),
       h("div.card", rows),
-      h("div.list", { style: { marginTop: "8px" } }, marked.slice(0, 12).map(e => h("button.li", { type: "button", style: { textAlign: "left" }, onclick: () => marksSheet(e) },
+      h("div.list", { style: { marginTop: "8px" } }, marked.slice(0, 12).map(e => h("button.li" + (e.done || new Date(e.due_at) <= new Date() ? ".over" : ""), { type: "button", style: { textAlign: "left" }, onclick: () => marksSheet(e) },
         h("div.ic", EXAM_KINDS[e.kind]?.[0] || "📌"), h("div.grow", { style: { minWidth: 0 } }, h("b.ell", e.title), h("div.small.muted", [e.course, new Date(e.due_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Dhaka" })].filter(Boolean).join(" · "))),
         h("div", { style: { textAlign: "right" } }, h("b", `${+Number(e.marks_got)}/${+Number(e.marks_total)}`), h("div.small", { style: { color: pctColor(pctOf(e)), fontWeight: 700 } }, pctOf(e) + "%"))))));
   }
@@ -196,12 +196,12 @@ async function examCalendar(all, openSheet) {
     const ds = `${m.slice(0, 8)}${pad(d)}`, items = (byDay[ds] || []).sort((a, b) => a.due_at.localeCompare(b.due_at)), ev = evDay[ds] || [];
     const c = h("button.cal-c" + (ds === today ? ".today" : "") + (ds < today ? ".past" : "") + (items.length ? ".has" : ""), { type: "button", "aria-label": fmtDate(ds) },
       h("span.cal-n", String(d)),
-      items.slice(0, 2).map(e => h("span.cal-chip" + (e.done ? ".done" : ""), { style: { "--k": KIND_COLOR[e.kind] || "var(--brand)" } }, shortKind(e))),
+      items.slice(0, 2).map(e => h("span.cal-chip" + (e.done ? ".done" : "") + (e.done || new Date(e.due_at) <= new Date() ? ".over" : ""), { style: { "--k": KIND_COLOR[e.kind] || "var(--brand)" } }, shortKind(e))),
       items.length > 2 ? h("span.cal-more", `+${items.length - 2}`) : null,
       ev.length ? h("i.cal-ev", { title: ev.map(x => x.title).join(", ") }) : null);
     if (items.length || ev.length) c.onclick = () => sheet(fmtDate(ds, { weekday: "long", day: "numeric", month: "long" }), [
       ev.length ? h("div.small.muted", { style: { marginBottom: "8px" } }, ev.map(x => "📌 " + x.title).join(" · ")) : null,
-      items.length ? h("div.list", items.map(e => h("button.li", { type: "button", style: { textAlign: "left" }, onclick: () => { [...document.querySelectorAll(".backdrop")].pop()?.click(); setTimeout(() => openSheet(e), 240); } },
+      items.length ? h("div.list", items.map(e => h("button.li" + (e.done || new Date(e.due_at) <= new Date() ? ".over" : ""), { type: "button", style: { textAlign: "left" }, onclick: () => { [...document.querySelectorAll(".backdrop")].pop()?.click(); setTimeout(() => openSheet(e), 240); } },
         h("div.ic", EXAM_KINDS[e.kind]?.[0] || "📌"), h("div.grow", h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.title),
           h("div.small.muted", [shortKind(e), e.course, new Date(e.due_at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Dhaka" })].filter(Boolean).join(" · ")))))) : null],
       { actions: close => [h("button.btn.block", { onclick: () => close() }, "Close")] });

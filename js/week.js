@@ -55,7 +55,8 @@ route("week", async (page, offset = "0") => {
     return h("div.wday" + (d < today ? ".past" : ""),
       h("div.h" + (d === today ? ".today" : ""), DAYS[dow], h("small", d < today ? "done" : fmtDate(d))),
       list.map(tk => {
-        const st = ["completed", "late_completed"].includes(tk.status) ? ".done" : ["missed", "not_completed"].includes(tk.status) ? ".missed" : "";
+        const st = (["completed", "late_completed"].includes(tk.status) ? ".done" : ["missed", "not_completed"].includes(tk.status) ? ".missed" : "")
+          + (d === today && new Date(tk.end_at) <= new Date() || /completed|missed/.test(tk.status) ? ".over" : ""); // finished / time over → black & white
         return h("div.cell" + st, { style: { "--c": colorOf(tk) }, role: "button", tabindex: "0", onclick: () => detail(tk, ctx, list) },
           h("span.tm", fmtTime(tk.start_at).replace(":00", "")), h("span.arr", " → "), h("span.tt", tk.title),
           h("small", durLabel(mins(tk.start_at, tk.end_at)), tk.routine_id ? " · ↻" : ""));
@@ -89,7 +90,7 @@ route("week", async (page, offset = "0") => {
   scroller.addEventListener("touchend", () => { pinch = null; }, { passive: true });
   page.append(h("div.zoombar", zl, zOut, zIn), scroller);
   setTimeout(() => setZoom(zoom), 0);
-  page.append(h("p.small.faint", "↻ = repeats every week. Tap a box to edit or remove. ✓ = done, faded = missed."));
+  page.append(h("p.small.faint", "↻ = repeats every week. Tap a box to edit or remove. Grey = finished or time over · colour = still to do."));
 
   const done = tasks.filter(x => ["completed", "late_completed"].includes(x.status));
   const byCat = {};
