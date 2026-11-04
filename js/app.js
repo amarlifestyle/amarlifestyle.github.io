@@ -132,7 +132,7 @@ async function render() {
   const page = h("div.page", { "data-key": key });
   const myTurn = ++renderTurn;
   if (snap) {
-    const ghost = snap.cloneNode(true); ghost.classList.add("ghost"); ghost.removeAttribute("data-key");
+    const ghost = snap.cloneNode(true); ghost.classList.add("page-ghost"); ghost.removeAttribute("data-key");
     Object.assign(page.style, { position: "absolute", left: "0", right: "0", top: "0", visibility: "hidden" });
     app.replaceChildren(ghost, page);
   } else app.replaceChildren(page);
