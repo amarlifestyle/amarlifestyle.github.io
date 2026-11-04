@@ -951,3 +951,7 @@ footer.copy { margin: 28px 4px 8px; text-align: center; font-size: 12px; line-he
 .code-box { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: var(--bg2); border-radius: 10px; padding: 10px 12px; margin-top: 6px; word-break: break-all; user-select: all; -webkit-user-select: all; color: var(--text); }
 .steps li { margin-bottom: 2px; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; background: var(--bg2); padding: 1px 5px; border-radius: 5px; }
+
+/* a note leaving the open list (done → History, or removed) */
+.note { transition: opacity .25s ease, transform .25s ease, max-height .25s ease; max-height: 200px; }
+.note.note-out { opacity: 0; transform: translateX(24px); max-height: 0; overflow: hidden; padding-top: 0; padding-bottom: 0; }

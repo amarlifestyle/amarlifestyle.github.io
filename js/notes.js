@@ -4,13 +4,29 @@ import * as api from "./api.js";
 import { h, icon, toast, busy, todayStr, fmtDate, swipeAway } from "./ui.js";
 import { route, rerender, backbar } from "./app.js";
 
-function row(n, after) {
+// one note line. Ticking it done moves it to History (it leaves the open list); ✕ removes it, with Undo.
+function row(n, after, { history = false } = {}) {
   const tick = h("button.note-tick" + (n.done ? ".on" : ""), { type: "button", "aria-label": n.done ? "Not done" : "Done" }, n.done ? "✓" : "");
-  tick.onclick = busy(tick, async () => { await api.update("notes", `id=eq.${n.id}`, { done: !n.done, done_at: n.done ? null : new Date().toISOString() }); after(); });
+  const el = h("div.note" + (n.done ? ".done" : ""));
+  const leave = () => new Promise(r => { el.classList.add("note-out"); setTimeout(r, 260); });
+  tick.onclick = busy(tick, async () => {
+    const done = !n.done;
+    await api.update("notes", `id=eq.${n.id}`, { done, done_at: done ? new Date().toISOString() : null });
+    if (!history) await leave();
+    import("./undo.js").then(U => U.record(done ? "Note done — moved to History" : "Note open again",
+      () => api.update("notes", `id=eq.${n.id}`, { done: !done, done_at: done ? null : new Date().toISOString() }).then(after),
+      () => api.update("notes", `id=eq.${n.id}`, { done, done_at: done ? new Date().toISOString() : null }).then(after)));
+    after();
+  });
   const del = h("button.s-x", { type: "button", "aria-label": "Remove" }, "✕");
-  const remove = async () => { await api.remove("notes", `id=eq.${n.id}`).catch(e => toast(e.message, "bad")); after(); };
-  del.onclick = busy(del, remove);
-  const el = h("div.note" + (n.done ? ".done" : ""), tick, h("div.note-t", n.text), del);
+  const remove = async () => {
+    try { await api.remove("notes", `id=eq.${n.id}`); } catch (e) { toast(e.message, "bad"); return; }
+    const { created_at, ...back } = n;
+    import("./undo.js").then(U => U.record("Note removed", () => api.insert("notes", back).then(after), () => api.remove("notes", `id=eq.${n.id}`).then(after)));
+    after();
+  };
+  del.onclick = busy(del, async () => { await leave(); await remove(); });
+  el.append(tick, h("div.note-t", n.text, history && n.done && n.done_at ? h("div.small.muted", "✓ " + fmtDate(n.done_at.slice(0, 10), { day: "numeric", month: "short" })) : null), del);
   swipeAway(el, remove);
   return el;
 }
@@ -40,14 +56,15 @@ export async function openNotes() {
   const list = h("div.note-list");
   const draw = async () => {
     let rows = [];
-    try { rows = await api.select("notes", `select=*&day=eq.${day}&order=sort,created_at`); } catch { /* offline */ }
-    list.replaceChildren(rows.length ? rows.map(n => row(n, draw)) : h("p.small.muted", { style: { margin: "6px 2px" } }, "Nothing noted today."));
+    try { rows = await api.select("notes", `select=*&done=eq.false&day=lte.${day}&order=day.desc,sort,created_at&limit=60`); } catch { /* offline */ }
+    list.replaceChildren(rows.length ? rows.map(n => n.day === day ? row(n, draw) : h("div", h("div.small.muted", { style: { margin: "4px 2px -2px" } }, fmtDate(n.day, { weekday: "short", day: "numeric", month: "short" })), row(n, draw)))
+      : h("p.small.muted", { style: { margin: "6px 2px" } }, "No open notes. Done notes are in History."));
     refreshNotesBadge();
   };
   await draw();
   sheet("📝 Notes", [list, adder(day, draw),
     h("div.row", { style: { gap: "8px", marginTop: "12px" } },
-      h("a.btn.small.grow", { href: "#/notes", onclick: () => [...document.querySelectorAll(".backdrop")].pop()?.click() }, icon("history"), "History"),
+      h("a.btn.small.grow", { href: "#/notes", onclick: () => [...document.querySelectorAll(".backdrop")].pop()?.click() }, icon("history"), "History · done notes"),
       h("button.btn.small.grow", { type: "button", onclick: () => { [...document.querySelectorAll(".backdrop")].pop()?.click(); setTimeout(() => import("./assistant.js").then(m => m.askSheet({ text: "নোট করে রাখো: " })), 260); } }, "✨ Note with AI"))],
     { actions: close => [h("button.btn.block", { onclick: () => close() }, "Done")] });
 }
@@ -66,7 +83,7 @@ export async function notesCard() {
   const draw = async () => {
     let list = [], older = 0;
     try {
-      list = await api.select("notes", `select=*&day=eq.${day}&order=sort,created_at`);
+      list = await api.select("notes", `select=*&day=eq.${day}&done=eq.false&order=sort,created_at`);
       older = (await api.select("notes", `select=id&day=lt.${day}&done=eq.false&limit=50`)).length;
     } catch { /* offline */ }
     box.replaceChildren(
@@ -78,19 +95,25 @@ export async function notesCard() {
   return box;
 }
 
-// all notes, day by day
+// History: open notes first, then every done note by the day it was done
 route("notes", async page => {
   page.append(backbar("Notes", "#/today"));
   const draw = async () => {
-    const all = await api.select("notes", "select=*&order=day.desc,sort,created_at&limit=500");
-    const open = all.filter(n => !n.done && n.day < todayStr());
+    const all = await api.select("notes", "select=*&order=day.desc,sort,created_at&limit=800");
+    const today = todayStr();
+    const open = all.filter(n => !n.done), done = all.filter(n => n.done);
     const body = h("div");
-    body.append(h("div.card.notes", h("h3", "Today"), h("div.note-list", all.filter(n => n.day === todayStr()).map(n => row(n, draw))), adder(todayStr(), draw)));
-    if (open.length) body.append(h("div.section-title", h("h2", "Still open")), h("div.card.notes", h("div.note-list", open.map(n => h("div", h("div.small.muted", fmtDate(n.day, { weekday: "short", day: "numeric", month: "short" })), row(n, draw))))));
-    const days = [...new Set(all.filter(n => n.day < todayStr()).map(n => n.day))];
-    days.forEach(d => body.append(h("div.section-title", h("h2", fmtDate(d, { weekday: "long", day: "numeric", month: "short" }))), h("div.card.notes", h("div.note-list", all.filter(n => n.day === d).map(n => row(n, draw))))));
+    body.append(h("div.card.notes", h("h3", "Open"),
+      open.length ? h("div.note-list", open.map(n => h("div", n.day !== today ? h("div.small.muted", fmtDate(n.day, { weekday: "short", day: "numeric", month: "short" })) : null, row(n, draw)))) : h("p.small.muted.keep", "Nothing open."),
+      adder(today, draw)));
+    const doneDay = n => (n.done_at ? new Date(new Date(n.done_at).getTime() + 6 * 3600e3).toISOString().slice(0, 10) : n.day);
+    const days = [...new Set(done.map(doneDay))].sort().reverse();
+    if (days.length) body.append(h("div.section-title", h("h2", `Done · ${done.length}`)));
+    days.forEach(d => body.append(h("div.small.muted", { style: { margin: "10px 4px 4px", fontWeight: 600 } }, d === today ? "Today" : fmtDate(d, { weekday: "long", day: "numeric", month: "short" })),
+      h("div.card.notes", h("div.note-list", done.filter(n => doneDay(n) === d).map(n => row(n, draw, { history: true }))))));
     if (!all.length) body.append(h("div.card.empty", h("p", "No notes yet.")));
     page.querySelector(".notes-body")?.replaceWith(body); body.className = "notes-body";
+    refreshNotesBadge();
   };
   page.append(h("div.notes-body"));
   await draw();
