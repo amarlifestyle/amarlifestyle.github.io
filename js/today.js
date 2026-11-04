@@ -8,7 +8,8 @@ import { showTour } from "./tour.js";
 import { timePicker, nowHM } from "./timepick.js";
 import { installFirst, isStandalone, showInstall } from "./install.js";
 import { examRows, examSheet, markExamDone, doneWord } from "./exams.js";
-const hideExam = (id, on) => { const l = new Set(api.LS.get("al_hide_ex", [])); on ? l.add(id) : l.delete(id); api.LS.set("al_hide_ex", [...l].slice(-100)); };
+// hidden from Today on every phone (saved on the server); reminders keep going until it's marked done
+const hideExam = (id, on) => api.update("exams", `id=eq.${id}`, { hide_home: on });
 import { quoteFor } from "./quotes.js";
 import { mealNow, classesBetween, classCard } from "./timetable.js";
 
@@ -24,7 +25,7 @@ route("today", async page => {
   const today = todayStr();
   const first = (store.profile?.name || "").split(" ")[0];
   page.append(h("header.topbar",
-    h("div", h("h1", `${greeting()}, ${first}`), h("div.sub", fmtDate(today, { weekday: "long", day: "numeric", month: "long" }))),
+    h("div", h("div.sub.greet", greeting() + ","), h("h1", first || "Today"), h("div.sub", fmtDate(today, { weekday: "long", day: "numeric", month: "long" }))),
     null));
 
   const body = h("div");
@@ -134,13 +135,14 @@ route("today", async page => {
   let classes = [];
   try { classes = await classesBetween(today, today); } catch { /* offline */ }
   try {
-    const hidden = new Set(api.LS.get("al_hide_ex", []));
-    (await examRows()).filter(x => !hidden.has(x.e.id)).forEach(x => {
+    const oldHidden = api.LS.get("al_hide_ex", []); // move hides made on this phone to the server once
+    if (oldHidden.length) { api.LS.set("al_hide_ex", []); await api.update("exams", `id=in.(${oldHidden.join(",")})`, { hide_home: true }).catch(() => {}); }
+    (await examRows()).forEach(x => {
       const ok = h("button.btn.small", { type: "button", title: doneWord(x.e.kind) }, "✓");
       ok.onclick = busy(ok, async ev => { ev?.stopPropagation?.(); await markExamDone(x.e, true); });
       const r = srow(x.ic, x.title, x.sub, [h("span.s-tag", { style: { color: x.color } }, x.left), ok], null);
       r.style.cursor = "pointer"; r.onclick = ev => { if (!ok.contains(ev.target) && !r.dataset.swiped) examSheet(x.e); };
-      swipeAway(r, () => { hideExam(x.e.id, true); import("./undo.js").then(U => U.record(`“${x.title}” hidden`, async () => hideExam(x.e.id, false), async () => hideExam(x.e.id, true))); });
+      swipeAway(r, async () => { await hideExam(x.e.id, true); import("./undo.js").then(U => U.record(`“${x.title}” hidden`, async () => hideExam(x.e.id, false), async () => hideExam(x.e.id, true))); });
       stack.append(r);
     });
   } catch { /* offline */ }

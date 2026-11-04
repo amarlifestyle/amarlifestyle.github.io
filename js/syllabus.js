@@ -1,8 +1,25 @@
 // Amar Lifestyle — Syllabus: subjects → chapters. Tick a chapter with the day you finished it; see how much is done, per subject and per exam.
 import * as api from "./api.js";
-import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtDate, ring, PALETTE, barChart } from "./ui.js";
+import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtDate, ring, PALETTE, barChart, swipeAway } from "./ui.js";
+import * as U from "./undo.js";
 import { route, rerender } from "./app.js";
 
+// remove with Undo: the rows are kept in memory and put back exactly if the user taps Undo
+const strip = r => { const { created_at, ...x } = r; return x; };
+export async function removeChapter(c) {
+  await api.remove("syl_chapters", `id=eq.${c.id}`);
+  U.record(`Chapter “${c.title}” removed`, () => api.insert("syl_chapters", strip(c)), () => api.remove("syl_chapters", `id=eq.${c.id}`));
+}
+export async function removeSubject(sb, chs) {
+  const mine = chs.filter(c => c.subject_id === sb.id);
+  await api.remove("syl_subjects", `id=eq.${sb.id}`);
+  U.record(`Subject “${sb.name}” removed`, async () => { await api.insert("syl_subjects", strip(sb)); if (mine.length) await api.insert("syl_chapters", mine.map(strip)); }, () => api.remove("syl_subjects", `id=eq.${sb.id}`));
+}
+export async function removeExam(e, chs) {
+  const linked = chs.filter(c => (c.exam_ids || []).includes(e.id));
+  await api.remove("syl_exams", `id=eq.${e.id}`);
+  U.record(`Exam “${e.name}” removed`, async () => { await api.insert("syl_exams", strip(e)); for (const c of linked) await api.update("syl_chapters", `id=eq.${c.id}`, { exam_ids: c.exam_ids }); }, () => api.remove("syl_exams", `id=eq.${e.id}`));
+}
 const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
 route("syllabus", async (page, examArg) => {
   const { routineTabsAsync } = await import("./timetable.js");
@@ -23,7 +40,8 @@ route("syllabus", async (page, examArg) => {
   page.append(h("div.hero", ring(pct(doneN, all.length) / 100, pct(doneN, all.length) + "%", ""),
     h("div.grow", h("div", h("b.mid", `${doneN}/${all.length}`), h("span.small.muted", " chapters done")),
       h("div.small.muted", ex ? `${ex.name}${ex.exam_date ? " · " + fmtDate(ex.exam_date, { day: "numeric", month: "short" }) + " · " + daysLeft(ex.exam_date) : ""}` : "All subjects"),
-      ex ? h("button.linkbtn.small", { onclick: () => examSheet(ex, subs, chs) }, "Edit exam") : null)));
+      ex ? h("div.row", { style: { gap: "14px" } }, h("button.linkbtn.small", { onclick: () => examSheet(ex, subs, chs) }, "Edit exam"),
+        (() => { const b = h("button.linkbtn.small", { style: { color: "var(--red)" } }, "Remove exam"); b.onclick = busy(b, async () => { if (!(await confirmBox("Remove exam?", ex.name + " — chapters stay.", "Remove", true))) return; await removeExam(ex, chs); location.hash = "#/syllabus"; }); return b; })()) : null)));
   // revise today: chapters finished 3, 7 or 30 days ago
   const tday = todayStr(), back = n => { const d = new Date(tday + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
   const due = chs.filter(c => c.done_on && [3, 7, 30].some(n => c.done_on === back(n)));
@@ -43,8 +61,22 @@ route("syllabus", async (page, examArg) => {
     });
     if (hrs.some(x => x.v > 0)) page.append(h("div.card", h("h3", "Study hours — last 7 days"), barChart(hrs, { fmt: v => v + "h" })));
   }
+  // classes in the routine that aren't subjects yet → one tap to add them all
+  const classes = await api.select("timetable_items", "select=title,code&kind=eq.university&mine=eq.true").catch(() => []);
+  const have = new Set(subs.map(x => x.name.trim().toLowerCase()));
+  const fresh = [...new Set(classes.map(c => (c.title || "").trim()).filter(Boolean))].filter(t => !have.has(t.toLowerCase()));
+  const fromClasses = fresh.length ? (() => {
+    const b = h("button.btn" + (subs.length ? ".block" : ".primary.block"), icon("plus"), `Add my ${fresh.length} class${fresh.length > 1 ? "es" : ""} as subjects`);
+    b.onclick = busy(b, async () => {
+      const r = await api.insert("syl_subjects", fresh.map((name, i) => ({ user_id: api.userId(), name: name.slice(0, 80), color: PALETTE[(subs.length + i) % PALETTE.length], sort: subs.length + i })));
+      const ids = (Array.isArray(r) ? r : [r]).map(x => x?.id).filter(Boolean);
+      U.record(`${fresh.length} subject(s) added`, () => ids.length && api.remove("syl_subjects", `id=in.(${ids.join(",")})`), () => {});
+      toast("Added ✓ — now add chapters to each", "ok"); rerender();
+    });
+    return h("div", { style: { margin: "0 0 12px" } }, b, h("div.small.muted", { style: { marginTop: "6px" } }, fresh.join(" · ")));
+  })() : null;
   if (!subs.length) {
-    page.append(h("div.card.empty", h("p", "Add a subject, then its chapters."), h("button.btn.primary", { onclick: () => subjectSheet() }, icon("plus"), "Add subject")));
+    page.append(h("div.card.empty", h("p", "Add a subject, then its chapters."), fromClasses, h("button.btn" + (fresh.length ? "" : ".primary"), { onclick: () => subjectSheet() }, icon("plus"), "Add subject")));
     return;
   }
   for (const s of subs) {
@@ -56,11 +88,13 @@ route("syllabus", async (page, examArg) => {
       h("div.syl-list", list.map(c => chapterRow(c, exams)),
         h("div.row", { style: { gap: "6px", marginTop: "8px" } },
           h("button.btn.small", { onclick: () => chapterSheet(s, null, exams, ex) }, icon("plus"), "Chapter"),
-          h("button.btn.small.ghost", { onclick: () => subjectSheet(s) }, icon("edit"), "Subject"))));
+          h("button.btn.small.ghost", { onclick: () => subjectSheet(s) }, icon("edit"), "Rename"),
+          (() => { const b = h("button.btn.small.ghost.syl-del", { "aria-label": "Remove subject" }, icon("trash"), "Remove"); b.onclick = busy(b, async () => { if (!(await confirmBox("Remove subject?", `${s.name} and its ${chs.filter(c => c.subject_id === s.id).length} chapter(s). You can Undo.`, "Remove", true))) return; await removeSubject(s, chs); rerender(); }); return b; })())));
     page.append(card);
   }
   page.append(h("button.btn.block.mt", { onclick: () => subjectSheet() }, icon("plus"), "New subject"));
-  page.append(h("p.hint.mt", "Tick a chapter when it's done."));
+  if (fromClasses) page.append(h("div.mt", fromClasses));
+  page.append(h("p.hint.keep.small.muted.mt", "Tick a chapter when it's done · swipe left or ✕ to remove (Undo shows below)."));
 }, { tab: "week" });
 
 const daysLeft = d => { const n = Math.round((new Date(d + "T00:00:00") - new Date(todayStr() + "T00:00:00")) / 864e5); return n < 0 ? "over" : n === 0 ? "today" : `${n} days left`; };
@@ -72,9 +106,14 @@ function chapterRow(c, exams) {
     rerender();
   });
   const names = exams.filter(e => c.exam_ids.includes(e.id)).map(e => e.name);
-  return h("div.syl-row" + (c.done_on ? ".done" : ""), tick,
+  const gone = async () => { await removeChapter(c); rerender(); };
+  const x = h("button.s-x", { type: "button", "aria-label": "Remove chapter" }, "✕");
+  x.onclick = busy(x, gone);
+  const row = h("div.syl-row" + (c.done_on ? ".done" : ""), tick,
     h("button.grow", { type: "button", onclick: () => chapterSheet(null, c, exams), style: { textAlign: "left", background: "none", border: 0, color: "inherit", font: "inherit", padding: 0, minWidth: 0 } },
-      h("div", c.title), h("div.small.muted", [c.done_on ? "✓ " + fmtDate(c.done_on, { day: "numeric", month: "short" }) : null, c.revised ? `revised ×${c.revised}` : null, names.length ? "🎓 " + names.join(", ") : null].filter(Boolean).join(" · "))));
+      h("div", c.title), h("div.small.muted", [c.done_on ? "✓ " + fmtDate(c.done_on, { day: "numeric", month: "short" }) : null, c.revised ? `revised ×${c.revised}` : null, names.length ? "🎓 " + names.join(", ") : null].filter(Boolean).join(" · "))), x);
+  swipeAway(row, gone);
+  return row;
 }
 
 function subjectSheet(s = null) {
@@ -96,7 +135,7 @@ function subjectSheet(s = null) {
         toast("Saved ✓", "ok"); close(true); rerender();
       });
       const out = [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
-      if (s) { const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash")); del.onclick = busy(del, async () => { if (!(await confirmBox("Delete subject?", "Its chapters are deleted too.", "Delete", true))) return; await api.remove("syl_subjects", `id=eq.${s.id}`); close(true); rerender(); }); out.unshift(del); }
+      if (s) { const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash")); del.onclick = busy(del, async () => { if (!(await confirmBox("Delete subject?", "Its chapters are deleted too.", "Delete", true))) return; const all = await api.select("syl_chapters", `select=*&subject_id=eq.${s.id}`).catch(() => []); await removeSubject(s, all); close(true); rerender(); }); out.unshift(del); }
       return out;
     },
   });
@@ -123,7 +162,7 @@ function chapterSheet(s, c, exams, ex = null) {
         close(true); rerender();
       });
       const out = [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
-      if (c) { const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash")); del.onclick = busy(del, async () => { await api.remove("syl_chapters", `id=eq.${c.id}`); close(true); rerender(); }); out.unshift(del); }
+      if (c) { const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash")); del.onclick = busy(del, async () => { await removeChapter(c); close(true); rerender(); }); out.unshift(del); }
       return out;
     },
   });
@@ -153,7 +192,7 @@ function examSheet(e, subs, chs) {
         toast("Saved ✓", "ok"); close(true); location.hash = `#/syllabus/${id}`; rerender();
       });
       const out = [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
-      if (e) { const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash")); del.onclick = busy(del, async () => { if (!(await confirmBox("Delete exam?", "Chapters stay.", "Delete", true))) return; await api.remove("syl_exams", `id=eq.${e.id}`); close(true); location.hash = "#/syllabus"; }); out.unshift(del); }
+      if (e) { const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash")); del.onclick = busy(del, async () => { if (!(await confirmBox("Delete exam?", "Chapters stay.", "Delete", true))) return; await removeExam(e, chs); close(true); location.hash = "#/syllabus"; }); out.unshift(del); }
       return out;
     },
   });

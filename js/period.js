@@ -61,15 +61,16 @@ function facts(D) {
 
 // the page itself — a clean paper-like document that prints well
 async function render(page, { from, to, title, sub, aiKey, aiAsk, back = "#/reports", nav = null, share = false }) {
-  page.append(h("header.topbar.noprint", h("div.row", { style: { gap: "10px" } }, h("a.icon-btn", { href: back, "aria-label": "Back" }, icon("back")), h("div", h("h1", title), h("div.sub", sub))),
-    h("button.btn.small.primary", { onclick: () => window.print() }, icon("download"), "Save PDF")));
+  // title on its own line; the buttons sit in a row under it so nothing covers the title
+  const acts = h("div.row.doc-acts.noprint", h("button.btn.small.primary", { onclick: () => window.print() }, icon("download"), "Save PDF"));
+  page.append(h("header.topbar.noprint", h("div.row", { style: { gap: "10px", minWidth: 0 } }, h("a.icon-btn", { href: back, "aria-label": "Back" }, icon("back")), h("div", { style: { minWidth: 0 } }, h("h1", title), h("div.sub", sub)))), acts);
   // money and habits are inside: PIN first (if one is set)
   const { pinGate, lockedCard } = await import("./pin.js");
   if (!(await pinGate("summary", "Enter PIN"))) { page.append(lockedCard(() => import("./app.js").then(m => m.rerender()))); return; }
   if (nav) page.append(nav);
   page.append(h("p.hint.noprint", "Untick parts you don't want, then Save PDF."));
   const D = await load(from, to);
-  if (share) page.querySelector("header.topbar")?.lastElementChild?.before(h("button.btn.small", { onclick: () => shareCard(D, title) }, "Share card"));
+  if (share) acts.prepend(h("button.btn.small", { onclick: () => shareCard(D, title) }, icon("share"), "Share card"));
   const doc = h("div.doc");
   page.append(doc);
   const p = store.profile;

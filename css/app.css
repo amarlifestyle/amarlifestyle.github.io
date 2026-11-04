@@ -925,3 +925,13 @@ header.topbar .sub { white-space: nowrap; overflow: hidden; text-overflow: ellip
 .top-notes { position: relative; }
 .top-notes .nav-badge, .nav-badge.soft { background: var(--brand); color: #04211d; top: -4px; left: auto; right: -4px; }
 .btn.grow { flex: 1; justify-content: center; }
+
+/* report pages: buttons under the title */
+.doc-acts { gap: 8px; margin: -2px 0 12px; flex-wrap: wrap; }
+/* Today: greeting small above the name, so a long name never gets cut */
+header.topbar .sub.greet { font-size: 13px; margin-bottom: 1px; }
+/* pages with the round + button: room at the bottom so it never covers the last row */
+.page:has(> .fab) { padding-bottom: calc(var(--nav-h) + 96px); }
+/* money totals: same height, numbers never squeezed */
+.grid3 > .stat { display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
+.grid3 > .stat .v { font-size: clamp(16px, 4.6vw, 22px); white-space: nowrap; }

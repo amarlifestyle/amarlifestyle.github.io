@@ -4,7 +4,7 @@ import { h, icon, toast, sheet, confirmBox, busy, askPin, tk, fmtDate, barChart,
 
 const app = document.getElementById("app");
 
-let tab = "overview";
+let tab = sessionStorage.getItem("al_admin_tab") || "overview";
 const UNLOCK_KEY = "al_admin_ok";
 
 async function boot() {
@@ -23,13 +23,31 @@ async function boot() {
   render();
 }
 
+const TABS = [["overview", "Overview"], ["traffic", "Visitors"], ["research", "Research"], ["messages", "Messages"], ["capacity", "Capacity & AI"], ["shares", "Shares"], ["wishes", "AI problems"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
+let tabBar = null, body = null;
+// the header and tab menu are made once; switching a tab only swaps the content below,
+// so the menu stays where it was (with the chosen tab in view) and sticks to the top while scrolling
 function render() {
-  const tabs = [["overview", "Overview"], ["traffic", "Visitors"], ["research", "Research"], ["messages", "Messages"], ["capacity", "Capacity & AI"], ["shares", "Shares"], ["wishes", "AI problems"], ["requests", "Edit requests"], ["users", "Users"], ["logins", "Logins"], ["rules", "Rules"], ["announce", "Announce"], ["verify", "Verify report"], ["apk", "APK"], ["logs", "Logs"]];
-  const body = h("div");
-  app.replaceChildren(
-    h("header.topbar", h("div.brandmark", h("img", { src: "../assets/icon-64.png", width: 30, alt: "", style: { borderRadius: "8px" } }), h("span", "Amar ", h("b", "Lifestyle"), h("span.muted", " · Control"))), h("a.btn.small", { href: "../" }, "Open app")),
-    h("div.tabs", tabs.map(([k, l]) => h("button" + (k === tab ? ".on" : ""), { onclick: () => { tab = k; render(); } }, l))), body);
-  ({ overview, traffic, research, messages, capacity, shares, wishes, requests, users, logins, rules, announce, verify, apk, logs })[tab](body).catch(e => body.replaceChildren(h("div.card.bad", e.message)));
+  if (!tabBar || !tabBar.isConnected) {
+    body = h("div.admin-body");
+    tabBar = h("div.tabs.admin-tabs", TABS.map(([k, l]) => h("button", { type: "button", "data-k": k, onclick: () => go(k) }, l)));
+    app.replaceChildren(
+      h("header.topbar", h("div.brandmark", h("img", { src: "../assets/icon-64.png", width: 30, alt: "", style: { borderRadius: "8px" } }), h("span", "Amar ", h("b", "Lifestyle"), h("span.muted", " · Control"))), h("a.btn.small", { href: "../" }, "Open app")),
+      tabBar, body);
+  }
+  tabBar.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === tab));
+  const on = tabBar.querySelector("button.on");
+  if (on) { const L = on.offsetLeft - (tabBar.clientWidth - on.offsetWidth) / 2; tabBar.scrollTo({ left: Math.max(0, L), behavior: "smooth" }); }
+  const box = h("div"); body.replaceChildren(box);
+  const fn = ({ overview, traffic, research, messages, capacity, shares, wishes, requests, users, logins, rules, announce, verify, apk, logs })[tab] || overview;
+  fn(box).catch(e => box.replaceChildren(h("div.card.bad", e.message)));
+}
+function go(k) {
+  tab = k; sessionStorage.setItem("al_admin_tab", k);
+  // keep the menu in sight: if the page was scrolled down, come back just to the menu (not to the very top)
+  const top = tabBar.getBoundingClientRect().top + scrollY - 8;
+  if (scrollY > top) scrollTo({ top, behavior: "instant" });
+  render();
 }
 
 async function overview(b) {
@@ -261,7 +279,14 @@ async function shares(b) {
 
 // things users asked the AI for that the app can't do, AI answers they marked wrong, and errors
 async function wishes(b) {
-  const l = await api.rpc("admin_ai_feedback", { p_limit: 300 });
+  // ask the AI (at most every 6 hours) which open wishes the app can do now; those leave the list by themselves
+  const last = Number(localStorage.getItem("al_wishcheck") || 0);
+  let checked = null;
+  if (Date.now() - last > 6 * 3600e3) {
+    try { checked = await api.ai("wishcheck", {}); localStorage.setItem("al_wishcheck", Date.now()); } catch { /* try next time */ }
+  }
+  const all = await api.rpc("admin_ai_feedback", { p_limit: 300 });
+  const l = all.filter(x => !x.resolved_at), solved = all.filter(x => x.resolved_at);
   const ROLE = { school: "School/college", student: "University", teacher: "Teacher", business: "Business", job: "Job", homemaker: "Homemaker" };
   const K = { missing: ["💡", "App can't do it yet"], wrong: ["👎", "AI got it wrong"], error: ["⚠️", "AI error"], partial: ["🧩", "Partly not done"] };
   let filter = "all";
@@ -274,10 +299,19 @@ async function wishes(b) {
     list.replaceChildren(rows.length ? h("div.list", rows.map(x => h("div.li", { style: { alignItems: "flex-start" } }, h("div.ic", (K[x.kind] || ["•"])[0]), h("div.grow",
       x.asked ? h("b", "“" + x.asked + "”") : null,
       x.wish ? h("div.small", x.wish) : null,
-      h("div.small.muted", [x.name || "—", (x.roles || []).filter(Boolean).map(r => ROLE[r] || r).join(" + "), x.gender, new Date(x.created_at).toLocaleString("en-GB")].filter(Boolean).join(" · "))))))
-      : h("div.card.small.muted", "Nothing here yet."));
+      h("div.small.muted", [x.name || "—", (x.roles || []).filter(Boolean).map(r => ROLE[r] || r).join(" + "), x.gender, new Date(x.created_at).toLocaleString("en-GB")].filter(Boolean).join(" · "))),
+      doneBtn(x, true))))
+      : h("div.card.small.muted", "Nothing open."));
   };
-  b.append(h("p.small.muted", "What people asked the AI that the app can't do, answers they marked 👎, and errors — with what kind of user they are."), seg, list);
+  const doneBtn = (x, done) => { const btn = h("button.btn.small" + (done ? "" : ".ghost"), { type: "button" }, done ? "✓ Fixed" : "Reopen");
+    btn.onclick = busy(btn, async () => { await api.rpc("admin_resolve_wish", { p_id: x.id, p_done: done }); render(); }); return btn; };
+  const check = h("button.btn.small", { type: "button" }, "Check again with AI");
+  check.onclick = busy(check, async () => { const r = await api.ai("wishcheck", {}); localStorage.setItem("al_wishcheck", Date.now()); toast(`${r.resolved || 0} of ${r.checked || 0} now possible ✓`, "ok"); render(); });
+  b.append(h("div.row.between", { style: { gap: "8px", marginBottom: "8px" } }, h("p.small.muted.mb0", "Open items only. When an update makes a wish possible, it moves to “Fixed” by itself."), check),
+    checked?.resolved ? h("div.card.small", { style: { color: "var(--green)" } }, `${checked.resolved} wish(es) are possible now and were moved to Fixed.`) : null, seg, list,
+    solved.length ? h("details.fold.mt", h("summary", `Fixed · ${solved.length}`), h("div.list", solved.map(x => h("div.li", { style: { alignItems: "flex-start", opacity: .75 } }, h("div.ic", "✓"), h("div.grow",
+      x.asked ? h("b", "“" + x.asked + "”") : null, x.wish ? h("div.small", x.wish) : null,
+      h("div.small.muted", [x.resolved_note, new Date(x.resolved_at).toLocaleDateString("en-GB")].filter(Boolean).join(" · "))), doneBtn(x, false))))) : null);
   draw();
 }
 

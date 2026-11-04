@@ -1,6 +1,6 @@
 // Amar Lifestyle — Exams: class tests, lab reports, assignments. Reminders get more frequent as the day comes.
 import * as api from "./api.js";
-import { h, icon, toast, sheet, busy, confirmBox, todayStr, addDays, fmtDate, pad } from "./ui.js";
+import { h, icon, toast, sheet, busy, confirmBox, todayStr, addDays, fmtDate, pad, swipeAway } from "./ui.js";
 import { route, rerender, store, myRoles } from "./app.js";
 
 export const EXAM_KINDS = {
@@ -39,7 +39,7 @@ export function leftLabel(iso) {
 const urgency = iso => { const hrs = (new Date(iso) - Date.now()) / 3600e3; return hrs <= 24 ? "var(--red)" : hrs <= 72 ? "var(--amber)" : "var(--brand)"; };
 
 export async function upcomingExams(days = 3) {
-  try { return await api.select("exams", `select=*&done=eq.false&due_at=gt.${new Date().toISOString()}&due_at=lt.${new Date(Date.now() + days * 864e5).toISOString()}&order=due_at`); } catch { return []; }
+  try { return await api.select("exams", `select=*&done=eq.false&hide_home=eq.false&due_at=gt.${new Date().toISOString()}&due_at=lt.${new Date(Date.now() + days * 864e5).toISOString()}&order=due_at`); } catch { return []; }
 }
 // Today page: small rows inside the shared box
 export async function examRows() {
@@ -63,21 +63,36 @@ route("exams", async page => {
   page.append(h("header.topbar", h("div", h("h1", "Routine"), h("div.sub", R.sub))), await routineTabsAsync("exams"));
   const all = await api.select("exams", "select=*&order=due_at");
   const now = Date.now();
-  const open = all.filter(e => !e.done && new Date(e.due_at) > now), past = all.filter(e => e.done || new Date(e.due_at) <= now).reverse().slice(0, 15);
+  // time over → it stays under "Done & past" for one day, then disappears by itself
+  const open = all.filter(e => !e.done && new Date(e.due_at) > now), past = all.filter(e => (e.done || new Date(e.due_at) <= now) && new Date(e.due_at) > now - 864e5).reverse().slice(0, 15);
   page.append(h("div.grid2", { style: { gap: "8px" } },
     h("button.btn.primary", { onclick: () => examSheet() }, icon("plus"), R.add),
     h("button.btn", { onclick: () => import("./assistant.js").then(m => m.askSheet({ photo: true, text: "এই ছবি দেখে সব CT / ল্যাব রিপোর্ট / পরীক্ষা / ডেডলাইন তারিখ-সময় সহ যোগ করো" })) }, "📷 From a photo (AI)")));
   if (isStudy()) page.append(h("a.li.syl-link", { href: "#/syllabus", style: { marginTop: "10px" } }, h("div.ic", "📚"), h("div.grow", h("b", "Syllabus"), h("div.small.muted", "Chapters per exam, % done")), icon("chev", "chev")));
-  const row = e => h("button.li", { onclick: () => examSheet(e), style: { textAlign: "left", opacity: e.done ? .6 : 1 } },
-    h("div.ic", EXAM_KINDS[e.kind][0]),
-    h("div.grow", { style: { minWidth: 0 } }, h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.title), h("div.small.muted", [EXAM_KINDS[e.kind][1], e.course, when(e.due_at)].filter(Boolean).join(" · "))),
-    e.done ? h("span.badge.ok", "✓ " + doneWord(e.kind)) : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)));
+  const row = e => {
+    const gone = async () => { await removeExamUndo(e); rerender(); };
+    const x = h("button.s-x", { type: "button", "aria-label": "Delete" }, "✕");
+    x.onclick = busy(x, async ev => { ev?.stopPropagation?.(); await gone(); });
+    const over = !e.done && new Date(e.due_at) <= now;
+    const r = h("div.li", { onclick: ev => { if (!x.contains(ev.target) && !r.dataset.swiped) examSheet(e); }, style: { cursor: "pointer", opacity: e.done || over ? .6 : 1 } },
+      h("div.ic", EXAM_KINDS[e.kind][0]),
+      h("div.grow", { style: { minWidth: 0 } }, h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.title), h("div.small.muted", [EXAM_KINDS[e.kind][1], e.course, when(e.due_at)].filter(Boolean).join(" · "))),
+      e.done ? h("span.badge.ok", "✓ " + doneWord(e.kind)) : over ? h("span.small.muted", { style: { whiteSpace: "nowrap" } }, "Time over") : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)), x);
+    swipeAway(r, gone);
+    return r;
+  };
   page.append(h("div.section-title", h("h2", "Coming up")));
   page.append(open.length ? h("div.list", open.map(row)) : h("div.card.empty", h("p", "Nothing due right now.")));
   page.append(h("p.hint.mt", "Reminders: daily → twice a day in the last week → 3 times in the last 3 days → every 3 hours in the last 2 days → every 2 hours on the last day → every hour in the last 3 hours."));
-  if (past.length) page.append(h("div.section-title", h("h2", "Done & past")), h("div.list", past.map(row)));
+  if (past.length) page.append(h("div.section-title", h("h2", "Done & past")), h("div.list", past.map(row)), h("p.small.muted.mt", "Items whose time is over disappear after one day · swipe left or ✕ to delete now."));
 }, { tab: "week" });
 
+// delete with Undo (the row is kept in memory to put it back)
+export async function removeExamUndo(e) {
+  await api.remove("exams", `id=eq.${e.id}`);
+  const { created_at, ...back } = e;
+  import("./undo.js").then(U => U.record(`“${e.title}” deleted`, () => api.insert("exams", back), () => api.remove("exams", `id=eq.${e.id}`)));
+}
 export const doneWord = k => ["lab", "assignment", "report", "paper", "result"].includes(k) ? "Submitted" : ["exam", "ct", "presentation"].includes(k) ? "Done" : "Done";
 export async function markExamDone(e, done = true) {
   await api.update("exams", `id=eq.${e.id}`, { done });

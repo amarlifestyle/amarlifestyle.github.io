@@ -13,6 +13,8 @@
     pre.json { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 12px; overflow: auto; max-height: 50vh; white-space: pre-wrap; word-break: break-word; }
     .tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; }
     .tabs button { flex-shrink: 0; min-height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line2); background: var(--card); color: var(--muted); font-weight: 600; cursor: pointer; }
+    .admin-tabs { position: sticky; top: calc(var(--sat, 0px) + 56px); z-index: 20; background: var(--bg); margin: 0 -16px 12px; padding: 8px 16px; scrollbar-width: none; box-shadow: 0 8px 14px -12px rgba(0,0,0,.6); }
+    .admin-tabs::-webkit-scrollbar { display: none; }
     .tabs button.on { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
     #app { padding-bottom: 40px; }
   </style>

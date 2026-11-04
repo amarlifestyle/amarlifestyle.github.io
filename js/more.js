@@ -269,7 +269,7 @@ route("settings", async (page, open) => {
   if (open === "profile") { const f = page.querySelector("details.fold"); if (f) { f.open = true; setTimeout(() => f.scrollIntoView({ block: "start", behavior: "smooth" }), 50); } }
 
   const seg = (opts, cur, on) => { const s = h("div.seg", opts.map(([v, l]) => h("button" + (v === cur ? ".on" : ""), { type: "button", onclick: async e => { s.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === e.target)); await on(v); } }, l))); return s; };
-  page.append(fold("sun", "Language", "English / বাংলা", [
+  page.append(fold("globe", "Language", "English / বাংলা", [
     h("label.f.mb0", h("span", "Language"), seg([["en", "English"], ["bn", "বাংলা"]], p.lang, async v => { await api.update("profiles", `id=eq.${p.id}`, { lang: v }); api.LS.set("al_lang", v); p.lang = v; rerender(); }))]));
 
   const hasPin = await api.rpc("has_pin");
@@ -507,7 +507,7 @@ async function alertFolds(p) {
     tgBody.push(h("p.hint.keep", "Forgot your password or PIN? Get a code here. Important reminders also come to Telegram with its own sound."), con,
       h("button.linkbtn.small", { onclick: () => rerender() }, "I've pressed START — refresh"));
   }
-  const f2 = fold("lock", "Telegram", hasTg ? "Connected" : "Not connected", tgBody);
+  const f2 = fold("send", "Telegram", hasTg ? "Connected" : "Not connected", tgBody);
   return [f1, f2];
 
 }
