@@ -955,3 +955,28 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 /* a note leaving the open list (done → History, or removed) */
 .note { transition: opacity .25s ease, transform .25s ease, max-height .25s ease; max-height: 200px; }
 .note.note-out { opacity: 0; transform: translateX(24px); max-height: 0; overflow: hidden; padding-top: 0; padding-bottom: 0; }
+
+/* exams: month calendar + week groups */
+.cal { padding: 12px 10px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-head span { text-align: center; font-size: 11px; color: var(--muted); font-weight: 600; padding-bottom: 2px; }
+.cal-c { position: relative; min-height: 62px; border: 0; border-radius: 10px; background: var(--bg2); color: var(--text); padding: 4px 3px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; font: inherit; text-align: left; cursor: default; overflow: hidden; }
+.cal-c.has { cursor: pointer; background: color-mix(in srgb, var(--brand) 7%, var(--bg2)); }
+.cal-c.blank { background: transparent; }
+.cal-c.past { opacity: .5; }
+.cal-c.today { box-shadow: inset 0 0 0 1.5px var(--brand); }
+.cal-n { font-size: 12px; font-weight: 700; padding-left: 2px; }
+.cal-c.today .cal-n { color: var(--brand); }
+.cal-chip { display: block; font-size: 9.5px; font-weight: 700; line-height: 1.25; padding: 1px 3px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--k); background: color-mix(in srgb, var(--k) 18%, transparent); }
+.cal-chip.done { text-decoration: line-through; opacity: .6; }
+.cal-more { font-size: 9.5px; color: var(--muted); padding-left: 2px; }
+.cal-ev { position: absolute; top: 6px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 11.5px; color: var(--muted); }
+.cal-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 4px; vertical-align: 0; }
+.cal-legend .cal-ev-dot { border-radius: 50%; background: var(--muted); }
+.ex-week { margin-bottom: 14px; }
+.ex-week-h { display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px 6px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.ex-day { margin-bottom: 8px; }
+.ex-day-h { font-size: 12.5px; color: var(--muted); font-weight: 600; margin: 0 4px 4px; display: flex; gap: 8px; align-items: center; }
+.ex-today { font-size: 10.5px; color: var(--brand-ink); background: var(--brand); border-radius: 6px; padding: 1px 6px; }

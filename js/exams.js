@@ -82,8 +82,25 @@ route("exams", async page => {
     swipeAway(r, gone);
     return r;
   };
-  page.append(h("div.section-title", h("h2", "Coming up")));
-  page.append(open.length ? h("div.list", open.map(row)) : h("div.card.empty", h("p", "Nothing due right now.")));
+  // month calendar (week starts Saturday) — the whole month at a glance
+  page.append(await examCalendar(all, examSheet));
+  // then week by week
+  page.append(h("div.section-title", h("h2", "Coming up — week by week")));
+  if (!open.length) page.append(h("div.card.empty", h("p", "Nothing due right now.")));
+  const dk = e => new Date(new Date(e.due_at).getTime() + 6 * 3600e3).toISOString().slice(0, 10);
+  const wkStart = d => { const x = new Date(d + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 1) % 7)); return x.toISOString().slice(0, 10); };
+  const thisWk = wkStart(todayStr());
+  const weeks = [...new Set(open.map(e => wkStart(dk(e))))].sort();
+  for (const w of weeks) {
+    const items = open.filter(e => wkStart(dk(e)) === w);
+    const we = addDays(w, 6);
+    const label = w === thisWk ? "This week" : w === addDays(thisWk, 7) ? "Next week" : "Week of " + fmtDate(w, { day: "numeric", month: "short" });
+    const days = [...new Set(items.map(dk))].sort();
+    page.append(h("div.ex-week",
+      h("div.ex-week-h", h("b", label), h("span.small.muted", `${fmtDate(w, { day: "numeric", month: "short" })} – ${fmtDate(we, { day: "numeric", month: "short" })} · ${items.length}`)),
+      days.map(d => h("div.ex-day", h("div.ex-day-h", fmtDate(d, { weekday: "short", day: "numeric", month: "short" }), d === todayStr() ? h("span.ex-today", "today") : null),
+        h("div.list", items.filter(e => dk(e) === d).map(row))))));
+  }
   page.append(h("p.hint.mt", "Reminders: daily → twice a day in the last week → 3 times in the last 3 days → every 3 hours in the last 2 days → every 2 hours on the last day → every hour in the last 3 hours."));
   if (past.length) page.append(h("div.section-title", h("h2", "Done & past")), h("div.list", past.map(row)), h("p.small.muted.mt", "Items whose time is over disappear after one day · swipe left or ✕ to delete now."));
 }, { tab: "week" });
@@ -93,6 +110,52 @@ export async function removeExamUndo(e) {
   await api.remove("exams", `id=eq.${e.id}`);
   const { created_at, ...back } = e;
   import("./undo.js").then(U => U.record(`“${e.title}” deleted`, () => api.insert("exams", back), () => api.remove("exams", `id=eq.${e.id}`)));
+}
+// ---------- calendar view
+const KIND_COLOR = { ct: "var(--amber)", lab: "var(--cyan)", assignment: "var(--pink)", exam: "var(--red)", presentation: "var(--green)" };
+const shortKind = e => /quiz/i.test(e.title) ? "Quiz" : ({ ct: "CT", lab: "Lab", assignment: "Assign.", exam: "Exam", presentation: "Present." }[e.kind] || EXAM_KINDS[e.kind]?.[1] || "Due");
+let calMonth = null; // YYYY-MM-01 shown in the calendar
+async function examCalendar(all, openSheet) {
+  const today = todayStr();
+  if (!calMonth) calMonth = today.slice(0, 8) + "01";
+  const m = calMonth, y = +m.slice(0, 4), mo = +m.slice(5, 7);
+  const days = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const first = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay(); // 0 Sun
+  const lead = (first + 1) % 7; // Saturday first
+  const dk = e => new Date(new Date(e.due_at).getTime() + 6 * 3600e3).toISOString().slice(0, 10);
+  const byDay = {};
+  all.forEach(e => { const d = dk(e); if (d.startsWith(m.slice(0, 7))) (byDay[d] = byDay[d] || []).push(e); });
+  let events = [];
+  try { events = await api.select("events", `select=title,date,yearly&date=gte.${m}&date=lte.${m.slice(0, 8)}${pad(days)}`); } catch { /* offline */ }
+  const evDay = {}; events.forEach(e => (evDay[e.date] = evDay[e.date] || []).push(e));
+  const shift = n => { const d = new Date(Date.UTC(y, mo - 1 + n, 1)); calMonth = d.toISOString().slice(0, 10); rerender(); };
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push(h("div.cal-c.blank"));
+  for (let d = 1; d <= days; d++) {
+    const ds = `${m.slice(0, 8)}${pad(d)}`, items = (byDay[ds] || []).sort((a, b) => a.due_at.localeCompare(b.due_at)), ev = evDay[ds] || [];
+    const c = h("button.cal-c" + (ds === today ? ".today" : "") + (ds < today ? ".past" : "") + (items.length ? ".has" : ""), { type: "button", "aria-label": fmtDate(ds) },
+      h("span.cal-n", String(d)),
+      items.slice(0, 2).map(e => h("span.cal-chip" + (e.done ? ".done" : ""), { style: { "--k": KIND_COLOR[e.kind] || "var(--brand)" } }, shortKind(e))),
+      items.length > 2 ? h("span.cal-more", `+${items.length - 2}`) : null,
+      ev.length ? h("i.cal-ev", { title: ev.map(x => x.title).join(", ") }) : null);
+    if (items.length || ev.length) c.onclick = () => sheet(fmtDate(ds, { weekday: "long", day: "numeric", month: "long" }), [
+      ev.length ? h("div.small.muted", { style: { marginBottom: "8px" } }, ev.map(x => "📌 " + x.title).join(" · ")) : null,
+      items.length ? h("div.list", items.map(e => h("button.li", { type: "button", style: { textAlign: "left" }, onclick: () => { [...document.querySelectorAll(".backdrop")].pop()?.click(); setTimeout(() => openSheet(e), 240); } },
+        h("div.ic", EXAM_KINDS[e.kind]?.[0] || "📌"), h("div.grow", h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.title),
+          h("div.small.muted", [shortKind(e), e.course, new Date(e.due_at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Dhaka" })].filter(Boolean).join(" · ")))))) : null],
+      { actions: close => [h("button.btn.block", { onclick: () => close() }, "Close")] });
+    cells.push(c);
+  }
+  const monthName = new Date(Date.UTC(y, mo - 1, 1)).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+  const count = Object.values(byDay).flat().filter(e => !e.done).length;
+  return h("div.card.cal",
+    h("div.row.between", { style: { marginBottom: "8px" } },
+      h("button.icon-btn", { type: "button", "aria-label": "Previous month", onclick: () => shift(-1) }, icon("back")),
+      h("div.center", h("b", monthName), h("div.small.muted", count ? `${count} due this month` : "Nothing due")),
+      h("button.icon-btn", { type: "button", "aria-label": "Next month", onclick: () => shift(1) }, icon("chev"))),
+    h("div.cal-grid.cal-head", ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"].map(d => h("span", d))),
+    h("div.cal-grid", cells),
+    h("div.cal-legend", [["CT", "ct"], ["Lab", "lab"], ["Assign.", "assignment"], ["Exam", "exam"]].map(([l, k]) => h("span", h("i", { style: { background: KIND_COLOR[k] } }), l)), h("span", h("i.cal-ev-dot"), "Calendar")));
 }
 export const doneWord = k => ["lab", "assignment", "report", "paper", "result"].includes(k) ? "Submitted" : ["exam", "ct", "presentation"].includes(k) ? "Done" : "Done";
 export async function markExamDone(e, done = true) {
