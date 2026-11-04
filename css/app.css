@@ -946,3 +946,8 @@ header.topbar .sub.greet { font-size: 13px; margin-bottom: 1px; }
 
 /* copyright footer */
 footer.copy { margin: 28px 4px 8px; text-align: center; font-size: 12px; line-height: 1.5; color: var(--faint); }
+
+/* connect to Claude */
+.code-box { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: var(--bg2); border-radius: 10px; padding: 10px 12px; margin-top: 6px; word-break: break-all; user-select: all; -webkit-user-select: all; color: var(--text); }
+.steps li { margin-bottom: 2px; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; background: var(--bg2); padding: 1px 5px; border-radius: 5px; }

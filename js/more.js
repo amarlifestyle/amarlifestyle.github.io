@@ -317,7 +317,49 @@ route("settings", async (page, open) => {
   exp.textContent = "Data file (JSON, for importing later)"; exp.className = "btn small ghost block";
   const pdf = h("a.btn.primary.block", { href: "#/summary/all" }, icon("download"), "Full history — PDF");
   page.append(fold("download", "Backup", "Your full history as a PDF", [h("p.hint", "Everything in one PDF. Your data is also backed up daily."), pdf, h("div", { style: { marginTop: "8px" } }, exp)]));
+  page.append(await claudeFold());
 }, { tab: "more" });
+
+// ---------- connect your own Claude (or any MCP app) to your own account
+const MCP_URL = `${api.SB_URL}/functions/v1/mcp`;
+const copyBtn = (text, label = "Copy") => h("button.btn.small", { type: "button", onclick: () => navigator.clipboard?.writeText(text).then(() => toast("Copied ✓", "ok"), () => toast("Couldn't copy — select and copy it", "bad")) }, icon("copy"), label);
+async function claudeFold() {
+  let keys = [];
+  try { keys = await api.select("mcp_tokens", "select=id,name,hint,created_at,last_used,revoked&order=created_at.desc"); } catch { /* offline */ }
+  const live = keys.filter(k => !k.revoked);
+  const box = h("div");
+  const newKey = h("div");
+  const make = h("button.btn.primary.block", { type: "button" }, icon("plus"), "Create a key");
+  make.onclick = busy(make, async () => {
+    const k = await api.rpc("create_mcp_token", { p_name: "Claude" });
+    const withKey = `${MCP_URL}?key=${k}`;
+    newKey.replaceChildren(h("div.card", { style: { borderColor: "color-mix(in srgb, var(--amber) 50%, transparent)", marginTop: "10px" } },
+      h("b", "Your key — copy it now, it is shown only once"),
+      h("div.code-box", k), h("div.row", { style: { gap: "8px", marginTop: "6px" } }, copyBtn(k, "Copy key"), copyBtn(withKey, "Copy link with key")),
+      h("p.small.muted.keep", { style: { marginTop: "8px" } }, "Anyone with this key can use your account through Claude. Don't share it. If it leaks, turn it off below.")));
+    const list = await api.select("mcp_tokens", "select=id,name,hint,created_at,last_used,revoked&order=created_at.desc").catch(() => []);
+    drawList(list.filter(x => !x.revoked));
+  });
+  const listBox = h("div");
+  const drawList = rows => listBox.replaceChildren(rows.length ? h("div.list", { style: { marginTop: "10px" } }, rows.map(k => {
+    const off = h("button.btn.small", { type: "button" }, "Turn off");
+    off.onclick = busy(off, async () => { if (!(await confirmBox("Turn off this key?", "Claude will lose access with it.", "Turn off", true))) return; await api.update("mcp_tokens", `id=eq.${k.id}`, { revoked: true }); toast("Key turned off", "ok"); rerender(); });
+    return h("div.li", h("div.ic", icon("lock")), h("div.grow", h("b", `${k.name} · …${k.hint || ""}`), h("div.small.muted", `Made ${fmtDate(k.created_at.slice(0, 10))} · ${k.last_used ? "last used " + fmtDate(k.last_used.slice(0, 10)) : "not used yet"}`)), off);
+  })) : null);
+  drawList(live);
+  box.append(
+    h("p.small.keep", "Let your own Claude read and update your Amar Lifestyle — tasks, routine, exams, syllabus, money, notes and more. It works only on your account and follows the same rules as the app (locked months stay locked, DP only by marking, money edits need your PIN)."),
+    h("ol.small.keep.steps", { style: { paddingLeft: "18px", lineHeight: "1.7", margin: "8px 0" } },
+      h("li", "Tap ", h("b", "Create a key"), " below and copy it."),
+      h("li", "In Claude: ", h("b", "Customize → Connectors → + Add → Add custom connector"), "."),
+      h("li", "Name: ", h("b", "Amar Lifestyle"), ". URL: the server address below."),
+      h("li", "Under ", h("b", "Request headers"), " add ", h("code", "Authorization"), " = ", h("code", "Bearer YOUR_KEY"), ". (If your app has no headers box, paste the ", h("b", "link with key"), " as the URL instead.)"),
+      h("li", "In a chat, tap ", h("b", "+ → Connectors"), " and turn Amar Lifestyle on. Then ask e.g. “আজ আমার কী কী টাস্ক?”")),
+    h("div.small.muted", "Server address"), h("div.code-box", MCP_URL), h("div", { style: { margin: "6px 0 12px" } }, copyBtn(MCP_URL, "Copy address")),
+    make, newKey, listBox,
+    h("p.small.muted.keep", { style: { marginTop: "10px" } }, "Claude can't change your PIN or password, delete your account, or wipe your data. Works with any app that supports MCP connectors."));
+  return fold("spark", "Connect to Claude", live.length ? `${live.length} key${live.length > 1 ? "s" : ""} on` : "Use your own Claude with your data", [box]);
+}
 
 // ---------- about us
 export function aboutContent() {
