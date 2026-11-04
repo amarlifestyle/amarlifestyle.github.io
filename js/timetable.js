@@ -73,7 +73,7 @@ function addTabSheet() {
   const opt = (kind, nm, ic, sub) => {
     if (kind !== "custom" && hasTab(kind)) return null;
     const b = h("button.li", { style: { textAlign: "left" } }, h("div.ic", ic), h("div.grow", h("b", nm), h("div.small.muted", sub)));
-    b.onclick = busy(b, async () => { await pick(kind, nm, ic); document.querySelector(".backdrop")?.click(); });
+    b.onclick = busy(b, async () => { await pick(kind, nm, ic); [...document.querySelectorAll(".backdrop")].pop()?.click(); });
     return b;
   };
   sheet("Add a tab to Routine", [
@@ -109,7 +109,7 @@ const MERGE = [["weekly", "📅 Add to routine", "Each class becomes a task with
 function mergeSheet(tab, after) {
   sheet(`“${tab.name}” — রুটিনের সাথে মেলাবেন?`, [h("p.hint", "Add these classes to your weekly routine?"),
     h("div.list", MERGE.map(([k, l, sub]) => { const b = h("button.li", { style: { textAlign: "left" } }, h("div.grow", h("b", l, tab.merge === k ? " ✓" : ""), h("div.small.muted", sub)));
-      b.onclick = busy(b, async () => { await api.update("timetable_tabs", `id=eq.${tab.id}`, { merge: k }); tab.merge = k; await loadTabs(); await syncWeekly(); document.querySelector(".backdrop")?.click(); after?.(); });
+      b.onclick = busy(b, async () => { await api.update("timetable_tabs", `id=eq.${tab.id}`, { merge: k }); tab.merge = k; await loadTabs(); await syncWeekly(); [...document.querySelectorAll(".backdrop")].pop()?.click(); after?.(); });
       return b; }))], { actions: close => [h("button.btn", { onclick: () => close(null) }, "Later")] });
 }
 

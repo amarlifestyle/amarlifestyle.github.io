@@ -176,7 +176,7 @@ function evRow(e, today = todayStr()) {
   return h("div.li", h("div.ic", { birthday: "🎂", meeting: "🤝", countdown: "⏳", other: "📌", class: "🏫" }[e.kind]),
     h("div.grow", h("b", e.title), h("div.small.muted", fmtDate(d, { day: "numeric", month: "short", year: "numeric" }), e.time ? " · " + fmtHM(e.time.slice(0, 5)) : "", e.yearly ? " · every year" : "")),
     h("span.badge" + (left <= 3 ? ".warn" : ""), left === 0 ? "Today" : left > 0 ? `${left}d` : "Past"),
-    h("button.icon-btn", { "aria-label": "Delete", onclick: async ev => { ev.stopPropagation(); if (await confirmBox("Delete?", e.title, "Delete", true)) { await api.remove("events", `id=eq.${e.id}`); if (e.task_id) await api.remove("tasks", `id=eq.${e.task_id}&status=eq.pending`).catch(() => {}); document.querySelector(".backdrop")?.remove(); rerender(); } } }, icon("trash")));
+    h("button.icon-btn", { "aria-label": "Delete", onclick: async ev => { ev.stopPropagation(); if (await confirmBox("Delete?", e.title, "Delete", true)) { await api.remove("events", `id=eq.${e.id}`); if (e.task_id) await api.remove("tasks", `id=eq.${e.task_id}&status=eq.pending`).catch(() => {}); [...document.querySelectorAll(".backdrop")].pop()?.remove(); rerender(); } } }, icon("trash")));
 }
 async function addEvent(day) {
   const students = await api.select("students", "select=id,name&active=eq.true&order=name").catch(() => []);

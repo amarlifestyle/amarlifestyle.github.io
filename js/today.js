@@ -257,7 +257,7 @@ function pctSheet(tk, late) {
   sheet("How much did you finish?", [h("p.hint", `“${tk.title}”`),
     h("div.grid2", { style: { gap: "8px" } }, [25, 50, 75, 100].map(p => {
       const b = h("button.btn" + (p === 100 ? ".primary" : ""), { style: { flexDirection: "column", padding: "12px 6px", height: "auto" } }, h("b", { style: { fontSize: "20px" } }, p + "%"), h("span.small", late ? "0 DP (late)" : `+${Math.round(full * p / 100)} DP`));
-      b.onclick = busy(b, async () => { document.querySelector(".backdrop")?.click(); await mark(tk, "completed", p); });
+      b.onclick = busy(b, async () => { [...document.querySelectorAll(".backdrop")].pop()?.click(); await mark(tk, "completed", p); });
       return b;
     }))], { actions: close => [h("button.btn", { onclick: () => close(null) }, "Cancel")] });
 }
@@ -537,7 +537,7 @@ export async function editChoice(tk, routines) {
   const r = (routines || await api.select("routines", `select=*&id=eq.${tk.routine_id}`).catch(() => []))
     .find?.(x => x.id === tk.routine_id);
   if (!r) return addTask(tk);
-  const opt = (ic, title, sub, fn) => { const b = h("button.li", { style: { textAlign: "left" } }, h("div.ic", ic), h("div.grow", h("b", title), h("div.small.muted", sub))); b.onclick = () => { document.querySelector(".backdrop")?.click(); setTimeout(fn, 230); }; return b; };
+  const opt = (ic, title, sub, fn) => { const b = h("button.li", { style: { textAlign: "left" } }, h("div.ic", ic), h("div.grow", h("b", title), h("div.small.muted", sub))); b.onclick = () => { [...document.querySelectorAll(".backdrop")].pop()?.click(); setTimeout(fn, 230); }; return b; };
   sheet("Edit “" + tk.title + "”", [h("div.list",
     opt("1️⃣", "Only this week", `Change just ${fmtDate(tk.day, { weekday: "long", day: "numeric", month: "short" })}. Other weeks stay the same.`, () => addTask(tk)),
     r.source === "timetable"

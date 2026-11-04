@@ -47,8 +47,8 @@ export async function openNotes() {
   await draw();
   sheet("📝 Notes", [list, adder(day, draw),
     h("div.row", { style: { gap: "8px", marginTop: "12px" } },
-      h("a.btn.small.grow", { href: "#/notes", onclick: () => document.querySelector(".backdrop")?.click() }, icon("history"), "History"),
-      h("button.btn.small.grow", { type: "button", onclick: () => { document.querySelector(".backdrop")?.click(); setTimeout(() => import("./assistant.js").then(m => m.askSheet({ text: "নোট করে রাখো: " })), 260); } }, "✨ Note with AI"))],
+      h("a.btn.small.grow", { href: "#/notes", onclick: () => [...document.querySelectorAll(".backdrop")].pop()?.click() }, icon("history"), "History"),
+      h("button.btn.small.grow", { type: "button", onclick: () => { [...document.querySelectorAll(".backdrop")].pop()?.click(); setTimeout(() => import("./assistant.js").then(m => m.askSheet({ text: "নোট করে রাখো: " })), 260); } }, "✨ Note with AI"))],
     { actions: close => [h("button.btn.block", { onclick: () => close() }, "Done")] });
 }
 // open notes count on the 📝 button

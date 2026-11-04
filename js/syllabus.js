@@ -51,16 +51,26 @@ route("syllabus", async (page, examArg) => {
     b.onclick = busy(b, async () => { await api.update("syl_chapters", `id=eq.${c.id}`, { revised: (c.revised || 0) + 1 }); toast("Nice ✓", "ok"); rerender(); });
     return h("div.li", h("div.grow", h("b", c.title), h("div.small.muted", subs.find(s => s.id === c.subject_id)?.name || "")), b);
   }))));
-  // study hours by subject (last 7 days): tasks whose name matches the subject
+  // study hours by subject (last 7 days) — only finished study tasks whose name really names the subject:
+  // the course code (e.g. "PHY 105" = "phy105") or the whole subject name. Tuition / teaching tasks never count.
   if (subs.length) {
-    const tasks = await api.select("tasks", `select=title,start_at,end_at,status,done_pct&day=gte.${back(6)}&status=in.(completed,late_completed)`).catch(() => []);
-    const key = x => String(x || "").toLowerCase().replace(/[^a-z0-9ঀ-৿]+/g, " ").trim();
+    const tasks = await api.select("tasks", `select=title,category,start_at,end_at,status,done_pct&day=gte.${back(6)}&status=in.(completed,late_completed)`).catch(() => []);
+    const flat = x => String(x || "").toLowerCase().replace(/[^a-z0-9ঀ-৿]+/g, "");
+    const STUDY = /study|class|skill|learning|reading|lab/i;
+    const studyTasks = tasks.filter(t => STUDY.test(t.category || "") && !/tuition|teach/i.test(t.category || ""));
+    const keysOf = sb => {
+      const full = flat(sb.name);
+      const codes = (String(sb.name).match(/[A-Za-z]{2,5}\s*-?\s*\d{3}/g) || []).map(flat); // PHY 105, IRE-101, PROG102
+      return [...new Set([...codes, full.length >= 4 ? full : null].filter(Boolean))];
+    };
     const hrs = subs.map(sb => {
-      const words = key(sb.name).split(" ").filter(w => w.length > 2 && !["paper", "1st", "2nd", "the"].includes(w));
-      const m = tasks.filter(t => words.some(w => key(t.title).includes(w))).reduce((a, t) => a + (new Date(t.end_at) - new Date(t.start_at)) / 36e5 * (t.done_pct || 100) / 100, 0);
+      const keys = keysOf(sb);
+      const m = studyTasks.filter(t => keys.some(k => flat(t.title).includes(k))).reduce((a, t) => a + (new Date(t.end_at) - new Date(t.start_at)) / 36e5 * (t.done_pct || 100) / 100, 0);
       return { l: sb.name.length > 10 ? sb.name.slice(0, 9) + "…" : sb.name, v: +m.toFixed(1), c: sb.color };
     });
-    if (hrs.some(x => x.v > 0)) page.append(h("div.card", h("h3", "Study hours — last 7 days"), barChart(hrs, { fmt: v => v + "h" })));
+    if (hrs.some(x => x.v > 0)) page.append(h("div.card", h("h3", "Study hours — last 7 days"),
+      h("p.small.muted.keep", { style: { margin: "-4px 0 8px" } }, "From finished study tasks whose name has the subject code or name (e.g. “PHY 105 revision”)."),
+      barChart(hrs, { fmt: v => v + "h" })));
   }
   // classes in the routine that aren't subjects yet → one tap to add them all
   const classes = await api.select("timetable_items", "select=title,code&kind=eq.university&mine=eq.true").catch(() => []);

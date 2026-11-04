@@ -141,7 +141,7 @@ async function adminEdit(f, u) {
   const ok = await sheet("Admin edit", [h("p.hint", "Works even on locked entries. It will show as “Special edit (approved by Admin)” in history and reports."), h("label.f", h("span", "Amount (৳)"), amt), h("label.f", h("span", "Note"), note)], {
     actions: close => [h("button.btn", { onclick: () => close(null) }, "Cancel"), h("button.btn.primary", { onclick: () => close(true) }, "Save")] });
   if (!ok) return;
-  try { await api.rpc("admin_edit_finance", { p_entry: f.id, p_amount: Number(amt.value), p_note: note.value }); toast("Special edit saved ✓", "ok"); document.querySelector(".backdrop")?.remove(); dataCheck(u); }
+  try { await api.rpc("admin_edit_finance", { p_entry: f.id, p_amount: Number(amt.value), p_note: note.value }); toast("Special edit saved ✓", "ok"); [...document.querySelectorAll(".backdrop")].pop()?.remove(); dataCheck(u); }
   catch (e) { toast(e.message, "bad"); }
 }
 
