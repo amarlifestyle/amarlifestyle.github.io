@@ -537,8 +537,8 @@ async function alertFolds(p) {
     const off = h("button.btn.block.danger", "Disconnect Telegram");
     off.onclick = busy(off, async () => { await api.rpc("telegram_unlink"); toast("Disconnected"); rerender(); });
     const tgOn = { ...(p.notify || {}) }.tg !== false;
-    tgBody.push(h("p.hint.keep", "✅ Connected. Reset codes come here, and important reminders (15 min before, at start, exams, night report) also come with Telegram's sound."),
-      h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", "Send reminders to Telegram"),
+    tgBody.push(h("p.hint.keep", "✅ Connected. Password / PIN reset codes always come here. Reminders come here too only if the switch below is on."),
+      h("label.check", { style: { justifyContent: "space-between", alignItems: "center" } }, h("span", "Send reminders to Telegram", h("small.muted", { style: { display: "block" } }, "Off = only password / PIN reset codes")),
         h("input", { type: "checkbox", checked: tgOn, onchange: async e => { const nt = { ...(p.notify || {}), tg: e.target.checked }; await api.update("profiles", `id=eq.${p.id}`, { notify: nt }); p.notify = nt; } })), off);
   } else {
     const con = h("button.btn.primary.block", "Connect Telegram");

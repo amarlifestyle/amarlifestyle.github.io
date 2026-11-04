@@ -999,3 +999,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .cal-c.past { filter: grayscale(1); }
 .li.over { filter: grayscale(1); opacity: .6; }
 .task.over { filter: grayscale(1); opacity: .6; }
+/* ＋ button: drag anywhere; when moved it fades (not slides) while scrolling, so it never slides over things */
+.fab { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.fab.fab-drag { transform: scale(1.1); opacity: .9; box-shadow: 0 14px 34px rgba(0,0,0,.45); }
+body.fab-away .fab.fab-placed { transform: scale(.6); opacity: 0; }

@@ -115,6 +115,7 @@ async function render() {
   const [path, ...args] = (location.hash.replace(/^#\/?/, "") || "today").split("/");
   const r = routes[path] || routes.today;
   const app = document.getElementById("app");
+  if (document.body.dataset.fabFor !== path) { document.querySelectorAll("body > .fab").forEach(x => x.remove()); document.body.dataset.fabFor = path; } // another page → its ＋ goes
   if (!r.public && !api.getSession()) return go("#/home");
   if (!r.public && !store.profile) {
     const cached = api.LS.get("al_basics");
@@ -197,29 +198,51 @@ addEventListener("scroll", () => {
 }, { passive: true });
 function dragFab() {
   document.body.classList.remove("fab-away"); lastY = scrollY;
-  const fab = document.querySelector(".fab");
+  // the page's slide-in animation would make the button sit inside the page (not on the screen) and cover things,
+  // so it lives directly on <body>; the old page's button is removed
+  const fab = document.querySelector(".page .fab");
+  document.querySelectorAll("body > .fab").forEach(x => { if (x !== fab) x.remove(); });
   if (!fab) return;
-  const place = pos => {
-    const w = innerWidth, hgt = innerHeight, sz = fab.offsetWidth || 52;
-    const x = Math.min(w - sz - 6, Math.max(6, pos.x * w)), y = Math.min(hgt - sz - 6, Math.max(6, pos.y * hgt));
-    Object.assign(fab.style, { left: x + "px", top: y + "px", right: "auto", bottom: "auto" });
+  document.body.append(fab);
+  // keep it inside the screen, below the top bar and above the bottom menu
+  const box = () => {
+    const sz = fab.offsetWidth || 52, nav = document.querySelector(".nav")?.getBoundingClientRect().top || innerHeight;
+    return { sz, minX: 8, maxX: innerWidth - sz - 8, minY: 64, maxY: Math.min(innerHeight, nav) - sz - 10 };
   };
+  const clamp = (x, y) => { const b = box(); return { x: Math.min(b.maxX, Math.max(b.minX, x)), y: Math.min(b.maxY, Math.max(b.minY, y)) }; };
+  const put = (x, y) => Object.assign(fab.style, { left: x + "px", top: y + "px", right: "auto", bottom: "auto" });
   const saved = api.LS.get("al_fab_pos");
-  if (saved) place(saved);
+  if (saved?.side) { const b = box(); const p = clamp(saved.side === "l" ? b.minX : b.maxX, saved.y * innerHeight); put(p.x, p.y); fab.classList.add("fab-placed"); }
   fab.style.touchAction = "none";
-  let start = null, moved = false;
-  fab.addEventListener("pointerdown", e => { start = { x: e.clientX, y: e.clientY, r: fab.getBoundingClientRect() }; moved = false; fab.setPointerCapture(e.pointerId); });
+  let start = null, moved = false, timer = 0;
+  const end = () => {
+    clearTimeout(timer); fab.classList.remove("fab-drag");
+    if (moved) {
+      // snap to the nearer side, smoothly
+      const r = fab.getBoundingClientRect(), b = box(), side = r.left + r.width / 2 < innerWidth / 2 ? "l" : "r";
+      const p = clamp(side === "l" ? b.minX : b.maxX, r.top);
+      fab.style.transition = "left .28s cubic-bezier(.2,.8,.2,1), top .28s cubic-bezier(.2,.8,.2,1)";
+      put(p.x, p.y); fab.classList.add("fab-placed");
+      setTimeout(() => { fab.style.transition = ""; }, 320);
+      api.LS.set("al_fab_pos", { side, y: p.y / innerHeight });
+    }
+    start = null;
+  };
+  fab.addEventListener("pointerdown", e => {
+    const r = fab.getBoundingClientRect();
+    start = { x: e.clientX, y: e.clientY, l: r.left, t: r.top }; moved = false;
+    try { fab.setPointerCapture(e.pointerId); } catch { /* fine */ }
+  });
   fab.addEventListener("pointermove", e => {
     if (!start) return;
     const dx = e.clientX - start.x, dy = e.clientY - start.y;
-    if (!moved && Math.hypot(dx, dy) < 8) return;
-    moved = true; fab.style.transition = "none"; fab.style.opacity = ".85";
-    place({ x: (start.r.left + dx) / innerWidth, y: (start.r.top + dy) / innerHeight });
+    if (!moved && Math.hypot(dx, dy) < 7) return;
+    if (!moved) { moved = true; fab.style.transition = "none"; fab.classList.add("fab-drag"); navigator.vibrate?.(8); }
+    const p = clamp(start.l + dx, start.t + dy); put(p.x, p.y);
   });
-  fab.addEventListener("pointerup", () => {
-    if (moved) { const r = fab.getBoundingClientRect(); api.LS.set("al_fab_pos", { x: r.left / innerWidth, y: r.top / innerHeight }); fab.style.opacity = ""; }
-    start = null;
-  });
+  fab.addEventListener("pointerup", end);
+  fab.addEventListener("pointercancel", end);
+  fab.addEventListener("touchmove", e => { if (start) e.preventDefault(); }, { passive: false }); // the page doesn't scroll while moving it
   fab.addEventListener("click", e => { if (moved) { e.stopImmediatePropagation(); e.preventDefault(); moved = false; } }, true);
 }
 function offlineNote() {
