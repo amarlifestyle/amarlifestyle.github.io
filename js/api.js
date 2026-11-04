@@ -101,6 +101,13 @@ export async function disablePush() {
   const sub = reg && await reg.pushManager.getSubscription();
   if (sub) { await remove("push_subs", `endpoint=eq.${encodeURIComponent(sub.endpoint)}`).catch(() => {}); await sub.unsubscribe(); }
 }
+// admin only (the server checks): one notification to one person
+export async function notifyUser(user, title, body, url) {
+  const r = await fetch(`${SB_URL}/functions/v1/push?action=one`, { method: "POST", headers: { apikey: SB_KEY, ...(await authHeader()), "Content-Type": "application/json" }, body: JSON.stringify({ user, title, body, url }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.error) throw new ApiError(d.error || "Could not send.");
+  return d;
+}
 export async function pushTest() {
   const r = await fetch(`${SB_URL}/functions/v1/push?action=test`, { method: "POST", headers: { apikey: SB_KEY, ...(await authHeader()), "Content-Type": "application/json" }, body: "{}" });
   const d = await r.json().catch(() => ({}));

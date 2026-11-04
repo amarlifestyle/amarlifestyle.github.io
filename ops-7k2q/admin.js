@@ -96,19 +96,56 @@ async function users(b) {
     const text = "\ufeff" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     h("a", { download: `amar-lifestyle-users-${new Date().toISOString().slice(0, 10)}.csv`, href: URL.createObjectURL(new Blob([text], { type: "text/csv" })) }).click();
   };
-  b.append(h("div.row.between", { style: { marginBottom: "10px" } }, h("b", `${list.length} user${list.length === 1 ? "" : "s"}`), csv));
-  b.append(h("div.list", list.map(u => h("div.li", { style: { alignItems: "flex-start" } },
+  const count = h("b", `${list.length} user${list.length === 1 ? "" : "s"}`);
+  b.append(h("div.row.between", { style: { marginBottom: "10px" } }, count, csv));
+  // search by name, phone or email
+  const q = h("input.input", { type: "search", placeholder: "🔍 Search name, phone or email…", value: sessionStorage.getItem("al_admin_q") || "", style: { marginBottom: "10px" } });
+  const box = h("div.list");
+  const draw = () => {
+    const s = q.value.trim().toLowerCase(); try { sessionStorage.setItem("al_admin_q", q.value); } catch { /* fine */ }
+    const shown = s ? list.filter(u => [u.name, u.phone, u.email].some(v => String(v || "").toLowerCase().includes(s))) : list;
+    count.textContent = s ? `${shown.length} of ${list.length} users` : `${list.length} user${list.length === 1 ? "" : "s"}`;
+    box.replaceChildren(...(shown.length ? shown.map(row) : [h("div.card.small.muted", "No one matches.")]));
+  };
+  q.oninput = draw;
+  b.append(q, box);
+  draw();
+  function row(u) { return h("div.li", { style: { alignItems: "flex-start" } },
     h("div.grow", h("b", u.name, u.is_admin ? " (admin)" : "", u.blocked ? h("span.bad", " · blocked") : null),
       h("div.small", "📞 ", h("a", { href: `tel:${u.phone}` }, u.phone), "  ✉️ ", h("a", { href: `mailto:${u.email}` }, u.email)),
       h("div.small.muted", `Last login: ${when(u.last_login)}${u.last_device ? " · " + u.last_device : ""} · ${u.logins} login${u.logins === 1 ? "" : "s"}`),
       h("div.small.muted", `Joined ${when(u.created_at)} · Telegram ${u.telegram ? "✅" : "—"} · ${u.level} · ${u.month_dp} DP`)),
     h("div.row", { style: { flexDirection: "column", gap: "6px" } },
+      h("button.btn.small.primary", { onclick: () => notifySheet(u) }, "🔔 Notify"),
       h("button.btn.small", { onclick: () => loginsOf(u) }, "Logins"),
       h("button.btn.small", { onclick: () => dataCheck(u) }, "Data"),
       u.is_admin ? null : h("button.btn.small" + (u.blocked ? "" : ".danger"), { onclick: async () => {
         if (!(await confirmBox(u.blocked ? "Unblock user?" : "Block user?", u.blocked ? `${u.name} can use Amar Lifestyle again.` : `${u.name} won't be able to log in.`, u.blocked ? "Unblock" : "Block", !u.blocked))) return;
         try { await api.rpc("admin_set_blocked", { p_user: u.id, p_blocked: !u.blocked }); toast("Done ✓", "ok"); render(); } catch (e) { toast(e.message, "bad"); }
-      } }, u.blocked ? "Unblock" : "Block"))))));
+      } }, u.blocked ? "Unblock" : "Block"))); }
+}
+
+// a notification to one person: on their phone + in their 🔔 Alerts
+function notifySheet(u) {
+  const title = h("input.input", { placeholder: "Title (e.g. 💌 Rimon-এর পক্ষ থেকে)", maxlength: "120" });
+  const body = h("textarea.input", { placeholder: "Message", maxlength: "600", style: { minHeight: "100px", marginTop: "8px" } });
+  const PAGES = [["#/today", "Today"], ["#/routine", "Routine"], ["#/exams", "Exams"], ["#/money/overview", "Money"], ["#/notes", "Notes"], ["#/notifications", "Alerts"]];
+  let url = "#/today";
+  const seg = h("div.row.wrap", { style: { gap: "6px", marginTop: "8px" } });
+  const drawSeg = () => seg.replaceChildren(h("span.small.muted", "Opens:"), ...PAGES.map(([k, l]) => h("button.chip" + (k === url ? ".on" : ""), { type: "button", onclick: () => { url = k; drawSeg(); } }, l)));
+  drawSeg();
+  sheet(`Notify · ${u.name}`, [h("p.hint", `Goes only to ${u.name} — as a phone notification (if they turned notifications on) and in their 🔔 Alerts.`), title, body, seg], {
+    actions: close => {
+      const send = h("button.btn.primary", "Send");
+      send.onclick = busy(send, async () => {
+        if (!title.value.trim()) throw new Error("Write a title first.");
+        const r = await api.notifyUser(u.id, title.value, body.value, url);
+        toast(r.sent ? `Sent ✓ — reached ${r.sent} phone${r.sent > 1 ? "s" : ""}` : "Saved in their Alerts ✓ (phone notifications are off for them)", "ok");
+        close();
+      });
+      return [h("button.btn", { onclick: () => close() }, "Cancel"), send];
+    },
+  });
 }
 
 async function loginsOf(u) {
