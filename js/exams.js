@@ -82,7 +82,7 @@ route("exams", async page => {
     const r = h("div.li", { onclick: ev => { if (!x.contains(ev.target) && !r.dataset.swiped) examSheet(e); }, style: { cursor: "pointer", opacity: e.done || over ? .6 : 1 } },
       h("div.ic", EXAM_KINDS[e.kind][0]),
       h("div.grow", { style: { minWidth: 0 } }, h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.title), h("div.small.muted", [EXAM_KINDS[e.kind][1], e.course, when(e.due_at)].filter(Boolean).join(" · "))),
-      e.done ? h("span.badge.ok", "✓ " + doneWord(e.kind)) : over ? h("span.small.muted", { style: { whiteSpace: "nowrap" } }, "Time over") : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)), x);
+      e.marks_got != null && e.marks_total != null ? h("span.badge.ok", `${+Number(e.marks_got)}/${+Number(e.marks_total)}`) : e.done ? h("span.badge.ok", "✓ " + doneWord(e.kind)) : over ? h("span.small.muted", { style: { whiteSpace: "nowrap" } }, "Time over") : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)), x);
     swipeAway(r, gone);
     return r;
   };
@@ -106,6 +106,7 @@ route("exams", async page => {
         h("div.list", items.filter(e => dk(e) === d).map(row))))));
   }
   page.append(h("p.hint.mt", "Reminders: daily → twice a day in the last week → 3 times in the last 3 days → every 3 hours in the last 2 days → every 2 hours on the last day → every hour in the last 3 hours."));
+  if (isStudy()) page.append(resultsBlock(all));
   if (past.length) page.append(h("div.section-title", h("h2", "Done & past")), h("div.list", past.map(row)), h("p.small.muted.mt", "Items whose time is over disappear after one day · swipe left or ✕ to delete now."));
 }, { tab: "week" });
 
@@ -115,6 +116,62 @@ export async function removeExamUndo(e) {
   const { created_at, ...back } = e;
   import("./undo.js").then(U => U.record(`“${e.title}” deleted`, () => api.insert("exams", back), () => api.remove("exams", `id=eq.${e.id}`)));
 }
+// ---------- marks
+function readMarks(got, tot) {
+  const g = got.value === "" ? null : Number(got.value), t = tot.value === "" ? null : Number(tot.value);
+  if ((g === null) !== (t === null)) throw new Error("Write both: marks got and out of.");
+  if (t !== null && !(t > 0)) throw new Error("“Out of” must be more than 0.");
+  if (g !== null && (g < 0 || g > t)) throw new Error("Marks got can't be more than the total.");
+  return { marks_got: g, marks_total: t };
+}
+const pctOf = e => Math.round(100 * Number(e.marks_got) / Number(e.marks_total));
+const pctColor = p => p >= 80 ? "var(--green)" : p >= 60 ? "var(--amber)" : "var(--red)";
+export function marksSheet(e) {
+  const got = h("input.input", { type: "number", inputmode: "decimal", min: "0", step: "0.25", placeholder: "e.g. 17", value: e.marks_got ?? "" });
+  const tot = h("input.input", { type: "number", inputmode: "decimal", min: "1", step: "0.25", placeholder: "e.g. 20", value: e.marks_total ?? (e.kind === "ct" ? 20 : "") });
+  setTimeout(() => got.focus(), 300);
+  sheet("Marks · " + e.title, [h("div.grid2", h("label.f", h("span", "Marks got"), got), h("label.f", h("span", "Out of"), tot))], {
+    actions: close => {
+      const save = h("button.btn.primary", "Save");
+      save.onclick = busy(save, async () => {
+        const m = readMarks(got, tot);
+        await api.update("exams", `id=eq.${e.id}`, { ...m, ...(m.marks_got !== null ? { done: true } : {}) });
+        toast("Marks saved ✓", "ok"); close(true); rerender();
+      });
+      return [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
+    },
+  });
+}
+const MARKABLE = ["ct", "exam", "lab", "assignment", "presentation"];
+// results by course + the ones still waiting for marks
+function resultsBlock(all) {
+  const now = Date.now();
+  const marked = all.filter(e => e.marks_got != null && e.marks_total != null).sort((a, b) => b.due_at.localeCompare(a.due_at));
+  const waiting = all.filter(e => MARKABLE.includes(e.kind) && e.marks_got == null && (e.done || new Date(e.due_at) <= now) && new Date(e.due_at) > now - 120 * 864e5)
+    .sort((a, b) => b.due_at.localeCompare(a.due_at));
+  const out = h("div");
+  if (marked.length) {
+    const courses = {};
+    marked.forEach(e => { const k = e.course || "Other"; (courses[k] = courses[k] || []).push(e); });
+    const rows = Object.entries(courses).map(([c, l]) => {
+      const sg = l.reduce((a, e) => a + Number(e.marks_got), 0), st = l.reduce((a, e) => a + Number(e.marks_total), 0), p = Math.round(100 * sg / st);
+      return h("div.res-c", h("div.row.between", h("b", c), h("span", { style: { color: pctColor(p), fontWeight: 700 } }, p + "%")),
+        h("div.res-bar", h("i", { style: { width: p + "%", background: pctColor(p) } })),
+        h("div.small.muted", `${l.length} result${l.length > 1 ? "s" : ""} · ${+sg.toFixed(2)}/${+st.toFixed(2)}`));
+    });
+    const totG = marked.reduce((a, e) => a + Number(e.marks_got), 0), totT = marked.reduce((a, e) => a + Number(e.marks_total), 0);
+    out.append(h("div.section-title", h("h2", "Results"), h("span.small.muted", `Overall ${Math.round(100 * totG / totT)}%`)),
+      h("div.card", rows),
+      h("div.list", { style: { marginTop: "8px" } }, marked.slice(0, 12).map(e => h("button.li", { type: "button", style: { textAlign: "left" }, onclick: () => marksSheet(e) },
+        h("div.ic", EXAM_KINDS[e.kind]?.[0] || "📌"), h("div.grow", { style: { minWidth: 0 } }, h("b.ell", e.title), h("div.small.muted", [e.course, new Date(e.due_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Dhaka" })].filter(Boolean).join(" · "))),
+        h("div", { style: { textAlign: "right" } }, h("b", `${+Number(e.marks_got)}/${+Number(e.marks_total)}`), h("div.small", { style: { color: pctColor(pctOf(e)), fontWeight: 700 } }, pctOf(e) + "%"))))));
+  }
+  if (waiting.length) out.append(h("details.fold.mt", { open: !marked.length }, h("summary", `Waiting for marks · ${waiting.length}`),
+    h("div.list", waiting.map(e => h("div.li", h("div.ic", EXAM_KINDS[e.kind]?.[0] || "📌"), h("div.grow", { style: { minWidth: 0 } }, h("b.ell", e.title), h("div.small.muted", [e.course, new Date(e.due_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Dhaka" })].filter(Boolean).join(" · "))),
+      h("button.btn.small", { type: "button", onclick: () => marksSheet(e) }, icon("plus"), "Marks"))))));
+  return out;
+}
+
 // ---------- calendar view
 const KIND_COLOR = { ct: "var(--amber)", lab: "var(--cyan)", assignment: "var(--pink)", exam: "var(--red)", presentation: "var(--green)" };
 const shortKind = e => /quiz/i.test(e.title) ? "Quiz" : ({ ct: "CT", lab: "Lab", assignment: "Assign.", exam: "Exam", presentation: "Present." }[e.kind] || EXAM_KINDS[e.kind]?.[1] || "Due");
@@ -178,10 +235,13 @@ export function examSheet(e) {
   const date = h("input.input", { type: "date", value: d0 ? d0.toISOString().slice(0, 10) : addDays(todayStr(), 3) });
   const time = h("input.input", { type: "time", value: d0 ? `${pad(d0.getUTCHours())}:${pad(d0.getUTCMinutes())}` : "10:00" });
   const note = h("textarea.input", { placeholder: myRoles().some(k => ["student", "school"].includes(k)) ? "Syllabus, chapters… (optional)" : "Details (optional)", style: { minHeight: "56px" } }, e?.note || "");
+  const got = h("input.input", { type: "number", inputmode: "decimal", min: "0", step: "0.25", placeholder: "e.g. 17", value: e?.marks_got ?? "" });
+  const tot = h("input.input", { type: "number", inputmode: "decimal", min: "1", step: "0.25", placeholder: "e.g. 20", value: e?.marks_total ?? "" });
   sheet(e ? "Edit" : R.add, [
     h("label.f", h("span", "Type"), seg), h("label.f", h("span", "Title"), title), isStudy() ? h("label.f", h("span", myRoles()[0] === "teacher" ? "Class / subject" : "Course"), course) : h("label.f", h("span", "With / where (optional)"), course),
     h("div.grid2", h("label.f", h("span", "Due date"), date), h("label.f", h("span", "Time"), time)),
-    h("label.f", h("span", "Notes"), note)], {
+    h("label.f", h("span", "Notes"), note),
+    e && isStudy() ? h("div.grid2", h("label.f", h("span", "Marks got"), got), h("label.f", h("span", "Out of"), tot)) : null], {
     actions: close => {
       const save = h("button.btn.primary", "Save");
       save.onclick = busy(save, async () => {
@@ -189,6 +249,7 @@ export function examSheet(e) {
         const due = new Date(`${date.value}T${time.value || "10:00"}:00+06:00`);
         if (!e && due < new Date()) throw new Error("Pick a time in the future.");
         const row = { kind, title: title.value.trim(), course: course.value.trim() || null, due_at: due.toISOString(), note: note.value.trim() || null };
+        if (e && isStudy()) Object.assign(row, readMarks(got, tot));
         if (e) await api.update("exams", `id=eq.${e.id}`, row); else await api.insert("exams", { ...row, user_id: api.userId() });
         toast("Saved ✓ — reminders are set", "ok"); close(true); rerender();
       });
