@@ -119,8 +119,8 @@ async function render() {
   if (!r.public && !api.getSession()) return go("#/home");
   if (!r.public && !store.profile) {
     const cached = api.LS.get("al_basics");
-    if (cached) Object.assign(store, cached);
-    try { await loadBasics(); } catch (e) { if (!cached) { app.replaceChildren(h("div.empty", e.message)); return; } }
+    if (cached?.profile) { Object.assign(store, cached); loadBasics().catch(() => {}); } // open at once with the saved copy; refresh it in the background
+    else { try { await loadBasics(); } catch (e) { app.replaceChildren(h("div.empty", e.message)); return; } }
   }
   document.querySelector(".nav")?.remove();
   document.body.classList.toggle("no-nav", !!r.public);

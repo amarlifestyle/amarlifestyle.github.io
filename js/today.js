@@ -32,6 +32,18 @@ route("today", async page => {
   const body = h("div");
   page.append(body, h("button.fab", { onclick: () => addTask(), "aria-label": t("Add task") }, icon("plus")));
 
+  // start every request at once (not one after another) — the page waits only for the slowest one, not the sum
+  const pre = f => { try { const p = Promise.resolve(f()); p.catch(() => {}); return p; } catch (e) { const p = Promise.reject(e); p.catch(() => {}); return p; } };
+  const mo0 = today.slice(0, 8) + "01";
+  const P = {
+    bills: pre(() => Promise.all([api.select("bills", "select=id,title,amount,due_day,monthly,start_month&active=eq.true&due_day=not.is.null"), api.select("bill_payments", `select=bill_id&month=eq.${mo0}`)])),
+    meal: pre(() => mealNow(true)),
+    classes: pre(() => classesBetween(today, today)),
+    exams: pre(() => examRows()),
+    syl: pre(() => import("./syllabus.js")),
+    chs: pre(() => api.select("syl_chapters", "select=id,subject_id,title,done_on,revised&done_on=not.is.null&revised=lt.4")),
+    prayer: pre(() => prayerNow()),
+  };
   let tasks, stats, events;
   try {
     [tasks, stats, events] = await Promise.all([
@@ -116,12 +128,12 @@ route("today", async page => {
   // bills due in the next 3 days (not paid yet)
   try {
     const mo = today.slice(0, 8) + "01", dnum = Number(today.slice(8));
-    const [bl, bp] = await Promise.all([api.select("bills", "select=id,title,amount,due_day,monthly,start_month&active=eq.true&due_day=not.is.null"), api.select("bill_payments", `select=bill_id&month=eq.${mo}`)]);
+    const [bl, bp] = await P.bills;
     const soon = bl.filter(b => (b.monthly ? b.start_month <= mo : b.start_month === mo) && !bp.some(p => p.bill_id === b.id) && b.due_day - dnum <= 3);
     if (soon.length) stack.append(srow("🧾", soon.map(b => b.title).join(", "), soon.map(b => b.due_day < dnum ? "late" : b.due_day === dnum ? "due today" : "due " + b.due_day + "th").join(" · "), h("span.s-tag.warn", "Pay"), "#/money/overview"));
   } catch { /* offline: skip */ }
   // meal reminder (from your meal plan)
-  try { const meal = await mealNow(true); if (meal) stack.append(srow("🍽️", meal.title, meal.when, null, "#/schedule/meal")); } catch { /* offline */ }
+  try { const meal = await P.meal; if (meal) stack.append(srow("🍽️", meal.title, meal.when, null, "#/schedule/meal")); } catch { /* offline */ }
   // one line that changes every few seconds: today's AI advice + a quote (tap → AI)
   body.append(tipTicker(today));
 
@@ -134,11 +146,11 @@ route("today", async page => {
   // task list
   // university classes from the timetable sit in the list by time (no DP)
   let classes = [];
-  try { classes = await classesBetween(today, today); } catch { /* offline */ }
+  try { classes = await P.classes; } catch { /* offline */ }
   try {
     const oldHidden = api.LS.get("al_hide_ex", []); // move hides made on this phone to the server once
     if (oldHidden.length) { api.LS.set("al_hide_ex", []); await api.update("exams", `id=in.(${oldHidden.join(",")})`, { hide_home: true }).catch(() => {}); }
-    (await examRows()).forEach(x => {
+    (await P.exams).forEach(x => {
       const ok = h("button.btn.small", { type: "button", title: doneWord(x.e.kind) }, "✓");
       ok.onclick = busy(ok, async ev => { ev?.stopPropagation?.(); await markExamDone(x.e, true); });
       const hideX = h("button.s-x", { type: "button", "aria-label": "Hide from Today" }, "✕");
@@ -152,8 +164,8 @@ route("today", async page => {
   } catch { /* offline */ }
   // chapters due for revision (day 1 / 7 / 15 / 30 after finishing)
   try {
-    const { revNext, revDay, markRevised } = await import("./syllabus.js");
-    const chs = await api.select("syl_chapters", "select=id,subject_id,title,done_on,revised&done_on=not.is.null&revised=lt.4");
+    const { revNext, revDay, markRevised } = await P.syl;
+    const chs = await P.chs;
     const due = chs.filter(c => { const n = revNext(c); return n && n <= today; });
     if (due.length) {
       const subs = await api.select("syl_subjects", "select=id,name").catch(() => []);
@@ -172,7 +184,7 @@ route("today", async page => {
       });
     }
   } catch { /* offline */ }
-  try { const pn = await prayerNow(); if (pn) (pn.classList.contains("pchip") ? pslot.append(pn) : stack.prepend(pn)); } catch { /* offline */ }
+  try { const pn = await P.prayer; if (pn) (pn.classList.contains("pchip") ? pslot.append(pn) : stack.prepend(pn)); } catch { /* offline */ }
   if (!isStandalone() && Date.now() - (api.LS.get("al_inst_strip") || 0) > 864e5) {
     const r = srow("📱", "Add to Home Screen", "for reliable reminders", [h("button.btn.small.primary", { onclick: () => showInstall() }, "Add"), dismiss("al_inst_strip", () => r, Date.now())], null, ".setup");
     stack.append(r);

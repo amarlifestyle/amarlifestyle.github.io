@@ -1,6 +1,6 @@
 /* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — offline support: app files are cached, data always comes fresh from the server.
-const CACHE = "amarlifestyle-v80";
+const CACHE = "amarlifestyle-v81";
 const FILES = [
   "./", "index.html", "manifest.json", "css/app.css",
   "js/main.js", "js/app.js", "js/api.js", "js/ui.js", "js/auth.js", "js/today.js", "js/week.js", "js/money.js", "js/me.js", "js/more.js", "js/voice.js", "js/aicoach.js", "js/quotes.js", "js/assistant.js", "js/timetable.js", "js/prayer.js", "js/tour.js", "js/exams.js", "js/dayreport.js", "js/spots.js", "js/install.js", "js/pin.js", "js/widget.js", "js/undo.js", "js/timepick.js", "js/period.js", "js/syllabus.js", "js/notes.js", "tasks/", "tasks/index.html", "tasks/manifest.json", "assets/tasks-192.png",
@@ -13,10 +13,14 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin) return; // API calls go straight to the network
-  // network first so updates show up quickly; cache when offline
-  e.respondWith(fetch(url.href, { cache: "no-cache" }).then(r => {
-    if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r;
-  }).catch(() => caches.match(e.request).then(r => r || caches.match("index.html"))));
+  // fast open: answer from the phone at once, and refresh the copy in the background.
+  // A new version still arrives: a changed sw.js installs fresh files and the app reloads once.
+  e.respondWith(caches.open(CACHE).then(async c => {
+    const hit = await c.match(e.request, { ignoreSearch: url.pathname.endsWith("/") || url.pathname.endsWith(".html") });
+    const net = fetch(url.href, { cache: "no-cache" }).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; });
+    if (hit) { e.waitUntil(net.catch(() => {})); return hit; }
+    return net.catch(() => c.match("index.html"));
+  }));
 });
 
 // phone notifications

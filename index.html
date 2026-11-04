@@ -60,8 +60,8 @@
     // the splash stays at least a moment (so it doesn't flash) and never longer than 5 s
     (function () { var t0 = Date.now(), done = false;
       window.__splashDone = function () { if (done) return; done = true; var s = document.getElementById("splash"); if (!s) return;
-        setTimeout(function () { s.classList.add("out"); setTimeout(function () { s.remove(); }, 500); }, Math.max(0, 900 - (Date.now() - t0))); };
-      setTimeout(window.__splashDone, 5000); })();
+        setTimeout(function () { s.classList.add("out"); setTimeout(function () { s.remove(); }, 500); }, Math.max(0, 350 - (Date.now() - t0))); };
+      setTimeout(window.__splashDone, 3500); })();
   </script>
   <main id="app" aria-live="polite"></main>
   <noscript>Please turn on JavaScript to use Amar Lifestyle.</noscript>
