@@ -2,6 +2,7 @@
 // Amar Lifestyle — money: income, expenses, budgets, history, tuition, dues, savings
 import * as api from "./api.js";
 import { pinGate, lockedCard } from "./pin.js";
+import { swipeAway, monthCalendar } from "./ui.js";
 import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtTime, donut, PALETTE, pad, colorPicker, barChart } from "./ui.js";
 import { route, store, rerender, backbar, role, showTuition } from "./app.js";
 
@@ -64,12 +65,20 @@ async function billsCard(body, m, savedNow) {
     const p = paidOf(b);
     const tick = h("button", { "aria-label": p ? "Paid" : "Mark as paid", disabled: !!p || m > cur, style: { width: "28px", height: "28px", borderRadius: "8px", border: `2px solid ${p ? "var(--green)" : "var(--line2)"}`, background: p ? "var(--green)" : "transparent", color: "#04211D", fontWeight: 800, flexShrink: 0, cursor: p ? "default" : "pointer" } }, p ? "✓" : "");
     tick.onclick = () => payBill(b, m);
-    card.append(h("div.row", { style: { gap: "10px", padding: "10px 0", borderTop: "1px solid var(--line)", alignItems: "center" } }, tick,
+    const row = h("div.row", { style: { gap: "10px", padding: "10px 0", borderTop: "1px solid var(--line)", alignItems: "center", background: "var(--card)" } }, tick,
       h("div.grow", { role: "button", tabindex: "0", style: { cursor: "pointer" }, onclick: () => billSheet(b, m) },
         h("b", { style: { textDecoration: p ? "line-through" : "", opacity: p ? .7 : 1 } }, b.title),
         h("div.small.muted", p ? `Paid ${fmtDate(p.paid_on)}` : [b.due_day ? `Due by ${b.due_day} ${monthLabel(m).split(" ")[0]}` : "Not paid yet", b.monthly ? " · every month" : " · one time"].join(""))),
-      h("b" + (p ? ".ok" : ""), tk(p ? p.amount : b.amount))));
+      h("b" + (p ? ".ok" : ""), tk(p ? p.amount : b.amount)));
+    // swipe left = remove the bill (money already paid stays in expenses) · Undo brings it back
+    swipeAway(row, async () => {
+      await api.update("bills", `id=eq.${b.id}`, { active: false });
+      import("./undo.js").then(U => U.record(`“${b.title}” removed`, () => api.update("bills", `id=eq.${b.id}`, { active: true }).then(() => rerender()), () => api.update("bills", `id=eq.${b.id}`, { active: false })));
+      rerender();
+    });
+    card.append(row);
   });
+  if (list.length) card.append(h("p.small.faint", { style: { margin: "6px 0 0" } }, "Swipe a bill left to remove it (↶ Undo brings it back)."));
   body.append(card);
 }
 function payBill(b, m) {
@@ -541,21 +550,26 @@ route("student", async (page, id) => {
   page.append(h("div.card", h("h3", "Days taught by month"),
     barChart(shown.map(m => ({ l: lbl(m), v: days[m.slice(0, 7)] || 0 })), { color: "var(--cyan)" }),
     h("p.hint.mb0", "Counted automatically when a tuition task with this student is marked Completed, or when you tap “Came today”.")));
+  // calendar: every day taught (green dot per session, hours under the date) — tap a day for the times
+  const dayMins = d => (byDay[d] || []).reduce((a, x) => a + x.min, 0);
+  page.append(h("div.section-title", h("h2", "Days taught")));
+  page.append(monthCalendar({
+    month: today,
+    day: d => byDay[d] ? { has: true, dots: byDay[d].map(x => x.manual ? "var(--muted)" : s.color || "var(--green)"), sub: dayMins(d) ? hrs(dayMins(d)) : "✓" } : null,
+    summary: m => { const k = m.slice(0, 7), n = Object.keys(byDay).filter(d => d.startsWith(k)).length; return n ? `${n} day${n === 1 ? "" : "s"}${hrsOf(k) ? " · " + hrs(hrsOf(k)) : ""}` : "No classes taught"; },
+    onTap: d => sheet(new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }), h("div.list", byDay[d].map(x => h("div.li", h("div.grow",
+      x.manual ? h("b", "✓ Came") : h("b", `${fmtTime(x.start_at)} – ${fmtTime(x.end_at)}`),
+      h("div.small.muted", x.manual ? "Marked by hand (no time)" : [x.title, x.status === "late_completed" ? "marked late" : "", x.done_pct && x.done_pct < 100 ? x.done_pct + "% done" : ""].filter(Boolean).join(" · "))),
+      x.min ? h("b", hrs(x.min)) : null)))),
+    legend: [["Taught (tuition task)", s.color || "var(--green)"], ["Marked by hand", "var(--muted)"]],
+  }));
   page.append(h("div.section-title", h("h2", "Month by month")));
-  page.append(h("p.hint", "Tap a month to see every day you taught — date, time and hours."));
   page.append(h("div.list", shown.slice().reverse().map(m => {
     const k = m.slice(0, 7), p = pays.find(x => x.month.slice(0, 7) === k);
-    const dl = Object.keys(byDay).filter(d => d.startsWith(k)).sort().reverse();
-    const head = h("summary.li", { style: { cursor: dl.length ? "pointer" : "default", listStyle: "none" } },
-      h("div.grow", h("b", new Date(m + "T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" })),
-        h("div.small.muted", `${dl.length || days[k] || 0} day${(dl.length || days[k]) === 1 ? "" : "s"} taught${hrsOf(k) ? " · " + hrs(hrsOf(k)) : ""}`, p ? ` · paid on ${fmtDate(p.paid_on)}` : "")),
-      p ? h("b.ok", tk(p.amount)) : k < thisM ? h("span.badge.bad", "Due") : h("span.badge", "This month"), dl.length ? h("span.small.muted", { style: { marginLeft: "6px" } }, "▾") : null);
-    const body = h("div.taught", dl.map(d => h("div.taught-row",
-      h("div.taught-d", h("b", new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric" })), h("span.small.muted", new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short" }))),
-      h("div.grow", byDay[d].map(x => x.manual ? h("div.small.muted", "✓ Came (marked by hand — no time)")
-        : h("div", h("span", `${fmtTime(x.start_at)} – ${fmtTime(x.end_at)}`), h("span.small.muted", ` · ${x.title}${x.status === "late_completed" ? " · marked late" : ""}${x.done_pct && x.done_pct < 100 ? ` · ${x.done_pct}% done` : ""}`)))),
-      h("b.small", byDay[d].reduce((a, x) => a + x.min, 0) ? hrs(byDay[d].reduce((a, x) => a + x.min, 0)) : "—"))));
-    return h("details", { open: k === thisM && dl.length > 0 }, head, dl.length ? body : null);
+    const n = Object.keys(byDay).filter(d => d.startsWith(k)).length || days[k] || 0;
+    return h("div.li", h("div.grow", h("b", new Date(m + "T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" })),
+      h("div.small.muted", `${n} day${n === 1 ? "" : "s"} taught${hrsOf(k) ? " · " + hrs(hrsOf(k)) : ""}`, p ? ` · paid on ${fmtDate(p.paid_on)}` : "")),
+      p ? h("b.ok", tk(p.amount)) : k < thisM ? h("span.badge.bad", "Due") : h("span.badge", "This month"));
   })));
 }, { tab: "money" });
 

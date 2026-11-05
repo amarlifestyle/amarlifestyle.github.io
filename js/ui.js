@@ -419,3 +419,35 @@ export function swipeAway(el, onGone) {
 // copyright line shown at the bottom of public pages, More and About
 export const COPYRIGHT = "© 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited.";
 export function copyright() { return h("footer.copy", COPYRIGHT); }
+
+// ---------- a month calendar (Saturday first) for attendance-like views
+// day(ds) → null | { dots: ["#color", …], sub: "1h", has: true }; summary(month) → small line under the title; onTap(ds)
+export function monthCalendar({ month, day, summary, onTap, legend = [] }) {
+  const box = h("div.card.cal.mcal");
+  const today = todayStr();
+  const draw = m => {
+    const y = +m.slice(0, 4), mo = +m.slice(5, 7), days = new Date(Date.UTC(y, mo, 0)).getUTCDate(), lead = (new Date(Date.UTC(y, mo - 1, 1)).getUTCDay() + 1) % 7;
+    const shift = n => { const d = new Date(Date.UTC(y, mo - 1 + n, 1)); draw(d.toISOString().slice(0, 10)); };
+    const cells = [...Array(lead)].map(() => h("div.cal-c.blank"));
+    for (let d = 1; d <= days; d++) {
+      const ds = `${m.slice(0, 8)}${String(d).padStart(2, "0")}`, info = day(ds);
+      const c = h("button.cal-c" + (ds === today ? ".today" : "") + (info?.has ? ".has" : "") + (ds > today ? ".future" : ""), { type: "button", "aria-label": ds },
+        h("span.cal-n", String(d)),
+        info?.dots?.length ? h("span.mcal-dots", info.dots.slice(0, 6).map(col => h("i", { style: { background: col } }))) : null,
+        info?.sub ? h("span.mcal-sub", info.sub) : null);
+      if (info?.has && onTap) c.onclick = () => onTap(ds);
+      cells.push(c);
+    }
+    const name = new Date(Date.UTC(y, mo - 1, 1)).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+    box.replaceChildren(
+      h("div.row.between", { style: { marginBottom: "8px" } },
+        h("button.icon-btn", { type: "button", "aria-label": "Previous month", onclick: () => shift(-1) }, icon("back")),
+        h("div.center", h("b", name), summary ? h("div.small.muted", summary(m)) : null),
+        h("button.icon-btn", { type: "button", "aria-label": "Next month", onclick: () => shift(1) }, icon("chev"))),
+      h("div.cal-grid.cal-head", ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"].map(x => h("span", x))),
+      h("div.cal-grid", cells),
+      legend.length ? h("div.cal-legend", legend.map(([l, col]) => h("span", h("i", { style: { background: col } }), l))) : null);
+  };
+  draw((month || today).slice(0, 8) + "01");
+  return box;
+}

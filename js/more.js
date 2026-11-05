@@ -16,7 +16,7 @@ route("more", page => {
     li("#/notes", "edit", "Notes", "All your notes, day by day"),
     li("#/reports", "report", t("Reports"), "PDF with QR verification")));
   page.append(h("div.list",
-    li("#/settings", "gear", t("Settings"), "PIN, theme, language, privacy"),
+    li("#/settings", "gear", t("Settings"), "PIN, language, privacy"),
     li("#/download", "download", "Get the app", "Install on your phone"),
     h("button.li", { onclick: () => reportProblem() }, h("div.ic", "🛠️"), h("div.grow", h("b", "Report a problem"), h("div.small.muted", "Something not working? Tell the admin")), icon("chev", "chev")),
     li("#/about", "info", t("About Us")),

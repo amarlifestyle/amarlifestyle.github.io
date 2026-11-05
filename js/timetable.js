@@ -2,7 +2,7 @@
 // Amar Lifestyle — timetables under Routine: University classes, Coaching classes, Meal plan.
 // These only show the day's plan (no DP). Meals also remind you on the Today page.
 import * as api from "./api.js";
-import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtHM, dhakaNow, pickPhoto } from "./ui.js";
+import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtHM, dhakaNow, pickPhoto, monthCalendar } from "./ui.js";
 import { route, store, rerender, backbar, myRoles } from "./app.js";
 import { shrink } from "./assistant.js";
 import { isMuslim } from "./prayer.js";
@@ -358,7 +358,7 @@ export async function attendanceStats() {
     return { title, present, absent, off, held: present + absent, pct: present + absent ? Math.round(present * 100 / (present + absent)) : null };
   }).sort((a, b) => a.title.localeCompare(b.title));
   const P = rows.reduce((s, r) => s + r.present, 0), A = rows.reduce((s, r) => s + r.absent, 0), O = rows.reduce((s, r) => s + r.off, 0);
-  return { rows, present: P, absent: A, off: O, held: P + A, pct: P + A ? Math.round(P * 100 / (P + A)) : null };
+  return { rows, by, present: P, absent: A, off: O, held: P + A, pct: P + A ? Math.round(P * 100 / (P + A)) : null };
 }
 export async function attendanceCard() {
   const st = await attendanceStats().catch(() => null);
@@ -374,5 +374,19 @@ export async function attendanceCard() {
       h("div.row.between", h("b", r.title), h("span", { style: { color: col(r.pct), fontWeight: 700 } }, r.pct == null ? "—" : r.pct + "%")),
       bar(r.pct),
       h("div.small.muted", `${r.present}/${r.held} present${r.absent ? ` · ${r.absent} absent` : ""}${r.off ? ` · ${r.off} no class` : ""}`)))),
-    h("p.hint", { style: { marginTop: "8px" } }, "Completed = present · Not completed / missed = absent · ✕ No class = not counted."));
+    h("p.hint", { style: { marginTop: "8px" } }, "Completed = present · Not completed / missed = absent · ✕ No class = not counted."),
+    attCalendar(st.by));
+}
+// calendar: one dot per class that day — green present, red absent, grey no class
+const ATT_COL = { in: "var(--green)", out: "var(--red)", off: "var(--muted)", wait: "var(--line2)" };
+const ATT_WORD = { in: "Present", out: "Absent", off: "No class", wait: "Not marked yet" };
+function attCalendar(by) {
+  const perDay = {};
+  Object.entries(by).forEach(([title, days]) => Object.entries(days).forEach(([d, st]) => (perDay[d] = perDay[d] || []).push({ title, st })));
+  return h("div", { style: { marginTop: "12px" } }, monthCalendar({
+    day: d => perDay[d] ? { has: true, dots: perDay[d].map(x => ATT_COL[x.st]) } : null,
+    summary: m => { const l = Object.entries(perDay).filter(([d]) => d.startsWith(m.slice(0, 7))).flatMap(([, v]) => v); const p = l.filter(x => x.st === "in").length, a = l.filter(x => x.st === "out").length; return p + a ? `${p} present · ${a} absent · ${Math.round(p * 100 / (p + a))}%` : "No classes marked"; },
+    onTap: d => sheet(new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }), h("div.list", perDay[d].map(x => h("div.li", h("i", { style: { width: "10px", height: "10px", borderRadius: "50%", background: ATT_COL[x.st], flexShrink: 0 } }), h("div.grow", h("b", x.title)), h("span.small", ATT_WORD[x.st]))))),
+    legend: [["Present", ATT_COL.in], ["Absent", ATT_COL.out], ["No class", ATT_COL.off]],
+  }));
 }

@@ -1014,3 +1014,8 @@ details > summary::-webkit-details-marker { display: none; }
 .taught-row { display: flex; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--bg2); }
 .taught-d { display: flex; flex-direction: column; align-items: center; min-width: 34px; line-height: 1.15; }
 .taught-d b { font-size: 17px; }
+.mcal .cal-c { min-height: 54px; }
+.mcal .cal-c.future { opacity: .45; }
+.mcal-dots { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px 2px 0; }
+.mcal-dots i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.mcal-sub { font-size: 10px; font-weight: 700; color: var(--brand); padding-left: 2px; margin-top: auto; }
