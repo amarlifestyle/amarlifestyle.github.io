@@ -178,15 +178,20 @@ async function cachedRead(path, run) {
 function pruneCache() { try { Object.keys(localStorage).filter(k => k.startsWith("al_c:")).slice(0, 40).forEach(k => localStorage.removeItem(k)); } catch {} }
 export let isStale = false;
 export const resetStale = () => { isStale = false; };
-export const rpc = (fn, args = {}) => READ_RPCS.has(fn)
+const TASK_RPCS = new Set(["complete_task", "complete_task_pct", "unmark_task", "add_task", "emergency_task"]); // user changes only (not the daily housekeeping)
+export const rpc = (fn, args = {}) => (TASK_RPCS.has(fn) && forgetTasks(), READ_RPCS.has(fn))
   ? cachedRead(`rpc/${fn}/${JSON.stringify(args)}`, () => req(`/rest/v1/rpc/${fn}`, { method: "POST", body: args }))
   : req(`/rest/v1/rpc/${fn}`, { method: "POST", body: args });
 export const select = (table, query = "") => cachedRead(`${table}?${query}`, () => req(`/rest/v1/${table}?${query}`));
 // when the routine (or money) changes, today's AI advice is made again next time
 const STALE = new Set(["routines", "timetable_items", "timetable_tabs", "students", "bills", "finance_entries", "exams"]);
-const touch = t => { if (STALE.has(t)) try { localStorage.setItem("al_coach_stale", "1"); } catch {} };
+// a task removed / moved / marked: forget the saved copy of the task lists and counts, so the Today card
+// (done / total) can never show an old number when the app is opened again
+const TASKY = new Set(["tasks", "routine_skips", "routines", "timetable_items", "timetable_skips"]);
+const forgetTasks = () => { try { Object.keys(localStorage).filter(k => k.startsWith("al_c:tasks?") || k.startsWith("al_c:rpc/my_stats") || k === "al_today").forEach(k => localStorage.removeItem(k)); } catch {} };
+const touch = t => { if (STALE.has(t)) try { localStorage.setItem("al_coach_stale", "1"); } catch {} if (TASKY.has(t)) forgetTasks(); };
 export const insert = (table, rows) => (touch(table), req(`/rest/v1/${table}`, { method: "POST", body: rows, headers: { Prefer: "return=representation" } }));
-export const upsert = (table, rows, onConflict) => req(`/rest/v1/${table}${onConflict ? `?on_conflict=${onConflict}` : ""}`, { method: "POST", body: rows, headers: { Prefer: "return=representation,resolution=merge-duplicates" } });
+export const upsert = (table, rows, onConflict) => (touch(table), 0) || req(`/rest/v1/${table}${onConflict ? `?on_conflict=${onConflict}` : ""}`, { method: "POST", body: rows, headers: { Prefer: "return=representation,resolution=merge-duplicates" } });
 export const update = (table, match, patch) => (touch(table), req(`/rest/v1/${table}?${match}`, { method: "PATCH", body: patch, headers: { Prefer: "return=representation" } }));
 export const remove = (table, match) => (touch(table), req(`/rest/v1/${table}?${match}`, { method: "DELETE" }));
 

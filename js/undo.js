@@ -56,7 +56,7 @@ const skipDel = (rid, day) => api.remove("routine_skips", `routine_id=eq.${rid}&
 export function removedTask(tk) { // a task removed from one day
   record(`“${tk.title}” removed`,
     async () => {
-      if (tk.routine_id) { await skipDel(tk.routine_id, tk.day); return; } // the routine makes it again
+      if (tk.routine_id) { await skipDel(tk.routine_id, tk.day); await api.rpc("ensure_tasks", { p_from: tk.day, p_to: tk.day }).catch(() => {}); return; } // the routine makes it again, now
       await api.rpc("add_task", { p_title: tk.title, p_category: tk.category, p_start: tk.start_at, p_end: tk.end_at, p_student: tk.student_id || null });
     },
     async () => {
