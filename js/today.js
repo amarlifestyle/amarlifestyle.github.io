@@ -12,7 +12,7 @@ import { examRows, examSheet, markExamDone, doneWord } from "./exams.js";
 // hidden from Today on every phone (saved on the server); reminders keep going until it's marked done
 const hideExam = (id, on) => api.update("exams", `id=eq.${id}`, { hide_home: on });
 import { quoteFor } from "./quotes.js";
-import { mealNow, classesBetween, classCard } from "./timetable.js";
+import { mealNow, classesBetween, classCard, loadClassIds, isClassTask, noClass } from "./timetable.js";
 
 const unlockAt = tk => new Date(new Date(tk.start_at).getTime() + (new Date(tk.end_at) - new Date(tk.start_at)) * Number(store.cfg.unlock_fraction ?? 0.75));
 const lateEnd = tk => new Date(new Date(tk.end_at).getTime() + Number(store.cfg.late_window_min ?? 300) * 60000);
@@ -43,6 +43,7 @@ route("today", async page => {
     syl: pre(() => import("./syllabus.js")),
     chs: pre(() => api.select("syl_chapters", "select=id,subject_id,title,done_on,revised&done_on=not.is.null&revised=lt.4")),
     prayer: pre(() => prayerNow()),
+    classIds: pre(() => loadClassIds()),
   };
   let tasks, stats, events;
   try {
@@ -57,6 +58,7 @@ route("today", async page => {
     if (!c || c.day !== today) throw e;
     ({ tasks, stats, events } = c);
   }
+  await P.classIds.catch(() => {});
   const queued = new Set(api.pendingMarks().map(m => m.taskId));
   // tasks added while offline (not on the server yet)
   tasks = [...tasks, ...api.pendingTasks().filter(o => o.start && fmtDay(o.start) === today).map(o => ({
@@ -239,16 +241,19 @@ function taskCard(tk, queued, first = false) {
     missed: h("span.badge.bad", "Missed · " + tk.dp_awarded + " DP"),
   }[tk.status];
   const acts = h("div.acts");
+  const cls = isClassTask(tk);
+  // university class: ✕ = no class today (holiday / cancelled) — not absent, no DP change
+  const noCls = cls && tk.status === "pending" && !queued && tk.day === todayStr() ? (() => { const b = h("button.btn.small.nocls", { type: "button", title: "No class today" }, "✕ No class"); b.onclick = busy(b, async ev => { ev?.stopPropagation?.(); await noClass(tk, rerender); }); return b; })() : null;
   if (queued) acts.append(h("span.badge.warn", "Saved offline — will sync"));
   else if (tk.status === "pending") {
-    if (nowD < ul) acts.append(h("div.lockline", icon("lock"), `Buttons open at ${fmtTime(ul.toISOString())}`));
+    if (nowD < ul) acts.append(h("div.lockline", icon("lock"), `Buttons open at ${fmtTime(ul.toISOString())}`), noCls || "");
     else {
       const late = nowD > le;
       const bC = h("button.btn.small.primary", icon("check"), t("Completed"));
       const bN = h("button.btn.small", icon("x"), t("Not Completed"));
       bC.onclick = () => pctSheet(tk, late);
       bN.onclick = busy(bN, async () => { if (await confirmBox("Not completed?", `Marking it now costs nothing (0 DP). Leaving it unmarked costs −${tk.dp_value} DP at 12 AM.`, "Yes, not completed")) await mark(tk, "not_completed"); });
-      acts.append(bC, bN);
+      acts.append(bC, bN, noCls || "");
       if (late) acts.append(h("div.lockline", icon("info"), "Late now: marking Completed gives 0 DP, but counts as done."));
       else if (nowD > new Date(tk.end_at)) acts.append(h("div.lockline", icon("info"), `Full DP until ${fmtTime(le.toISOString())}.`));
     }
@@ -265,7 +270,7 @@ function taskCard(tk, queued, first = false) {
   }
   el.append(h("div.grow",
     h("div.row.between", h("div.t", ["completed", "late_completed"].includes(tk.status) ? h("span.mark.ok", "✓") : ["not_completed", "missed"].includes(tk.status) ? h("span.mark.bad", "✕") : null, tk.pinned ? h("span.pin", "📌 ") : null, tk.title), status || h("span.dp", `${tk.is_timer ? "" : tk.dp_value + " DP"}`)),
-    h("div.meta", h("span", `${fmtTime(tk.start_at)} – ${fmtTime(tk.end_at)}`), h("span", "·"), h("span", tk.category), tk.is_timer ? h("span", "· timer") : null),
+    h("div.meta", h("span", `${fmtTime(tk.start_at)} – ${fmtTime(tk.end_at)}`), h("span", "·"), h("span", cls ? "🎓 Class" : tk.category), tk.is_timer ? h("span", "· timer") : null),
     acts));
   if (tk.offlineNew) el.querySelector(".meta")?.append(h("span.warn", "· saved offline"));
   // the first open task counts down: "starts in 25m" → "40m left"

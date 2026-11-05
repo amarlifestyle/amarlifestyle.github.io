@@ -10,7 +10,7 @@ import { route, store, catColor, catNames, catDp, rerender } from "./app.js";
 import { addTask, editChoice } from "./today.js";
 import { editRoutine } from "./more.js";
 import { aiPlanSheet } from "./aicoach.js";
-import { routineTabsAsync } from "./timetable.js";
+import { routineTabsAsync, loadClassIds, isClassTask, noClass } from "./timetable.js";
 
 function weekStart(s) { const back = (new Date(s + "T00:00:00").getDay() + 1) % 7; return addDays(s, -back); } // week starts Saturday
 
@@ -30,6 +30,7 @@ route("week", async (page, offset = "0") => {
     api.select("tasks", `select=*&day=gte.${ws}&day=lte.${we}&order=start_at`),
     api.select("routines", "select=*&active=eq.true"),
     api.select("students", "select=id,name,color&active=eq.true&order=name"),
+    loadClassIds(),
   ]);
   // a day with no tasks yet (e.g. a day before the routine was made) shows the weekly routine itself
   const fromRoutine = [];
@@ -187,6 +188,8 @@ function detail(tk, ctx, dayList = []) {
       if (!canChange) return [h("button.btn", { onclick: () => close() }, "Close")];
       const editB = h("button.btn.small", icon("edit"), "Edit");
       editB.onclick = () => { close(); setTimeout(() => routine ? editChoice(tk, ctx.routines) : addTask(tk), 230); };
+      const noCls = isClassTask(tk) ? h("button.btn.small", "✕ No class") : null;
+      if (noCls) noCls.onclick = busy(noCls, async () => { close(); await noClass(tk, rerender); });
       const rmWeek = h("button.btn.small", icon("trash"), routine ? "Remove this week" : "Remove");
       rmWeek.onclick = busy(rmWeek, async () => {
         if (routine) await api.insert("routine_skips", { routine_id: routine.id, day: tk.day, user_id: api.userId() });
@@ -209,7 +212,7 @@ function detail(tk, ctx, dayList = []) {
       });
       const mv = new Date(tk.start_at) > new Date() ? h("button.btn.small", "↕ Move") : null;
       if (mv) mv.onclick = () => { close(); moveSheet(tk, ctx, dayList); };
-      return [h("div.row.wrap", { style: { gap: "6px", width: "100%" } }, mv, editB, rmWeek, rmAll)];
+      return [h("div.row.wrap", { style: { gap: "6px", width: "100%" } }, mv, editB, noCls, rmWeek, rmAll)];
     },
   });
 }

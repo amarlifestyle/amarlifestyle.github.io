@@ -150,6 +150,7 @@ route("schedule", async (page, key = "university", dayArg) => {
     return;
   }
 
+  if (kind === "university") { const box = h("div"); page.append(box); attendanceCard().then(c => box.replaceWith(c)).catch(() => {}); }
   if (kind !== "meal") {
     // day chips (Sat → Fri), today marked
     page.append(h("div.row", { style: { gap: "6px", overflowX: "auto", marginBottom: "10px", paddingBottom: "2px" } }, ORDER.map(d => {
@@ -309,4 +310,69 @@ export function classCard(c) {
       h("div.grow", h("b", "🎓 ", c.item.title, live ? h("span.badge.ok", { style: { marginLeft: "6px" } }, "Now") : null),
         h("div.small.muted", `${fmtHM(hm(c.item.start_time))}${c.item.end_time ? " – " + fmtHM(hm(c.item.end_time)) : ""} · Class (no DP)${c.detail ? " · " + c.detail : ""}`),
         h("div.small.faint", "No DP · tap ✕ if you're not going")), x));
+}
+
+
+// ---------- university class attendance
+// A class task = a task made by the weekly routine from the University tab (routine source "timetable").
+// Completed = present · Not completed / missed = absent · ✕ "No class today" = off (not counted).
+let CLASS_IDS = new Set(), CLASS_TITLES = new Set();
+export async function loadClassIds() {
+  try {
+    const [items, rts] = await Promise.all([
+      api.select("timetable_items", "select=title&kind=eq.university&mine=eq.true"),
+      api.select("routines", "select=id,title&source=eq.timetable"),
+    ]);
+    CLASS_TITLES = new Set(items.map(i => i.title));
+    CLASS_IDS = new Set(rts.filter(r => CLASS_TITLES.has(r.title)).map(r => r.id));
+  } catch { /* offline: keep the last */ }
+  return CLASS_IDS;
+}
+export const isClassTask = tk => !!tk?.routine_id && CLASS_IDS.has(tk.routine_id);
+// ✕ no class today (holiday / class cancelled): no DP change, not counted as absent
+export async function noClass(tk, after) {
+  if (!(await confirmBox("No class today?", `“${tk.title}” is off on this day. It is not counted as absent and no DP changes.`, "Yes, no class"))) return;
+  await api.insert("routine_skips", { routine_id: tk.routine_id, day: tk.day, user_id: api.userId() }).catch(() => {});
+  await api.remove("tasks", `id=eq.${tk.id}&status=eq.pending`);
+  import("./undo.js").then(U => U.removedTask(tk));
+  toast("Marked: no class ✓", "ok");
+  after?.();
+}
+export async function attendanceStats() {
+  await loadClassIds();
+  const ids = [...CLASS_IDS];
+  if (!ids.length) return null;
+  const today = todayStr();
+  const [rts, tasks, skips] = await Promise.all([
+    api.select("routines", `select=id,title&id=in.(${ids.join(",")})`),
+    api.select("tasks", `select=routine_id,day,status&routine_id=in.(${ids.join(",")})&day=lte.${today}`),
+    api.select("routine_skips", `select=routine_id,day&routine_id=in.(${ids.join(",")})&day=lte.${today}`),
+  ]);
+  const T = Object.fromEntries(rts.map(r => [r.id, r.title]));
+  const by = {}; // title → day → state
+  const put = (title, day, st) => { (by[title] = by[title] || {}); if (!by[title][day] || st !== "off") by[title][day] = st; };
+  skips.forEach(k => put(T[k.routine_id], k.day, "off"));
+  tasks.forEach(t => put(T[t.routine_id], t.day, ["completed", "late_completed"].includes(t.status) ? "in" : ["not_completed", "missed"].includes(t.status) ? "out" : "wait"));
+  const rows = Object.entries(by).map(([title, days]) => {
+    const v = Object.values(days), present = v.filter(x => x === "in").length, absent = v.filter(x => x === "out").length, off = v.filter(x => x === "off").length;
+    return { title, present, absent, off, held: present + absent, pct: present + absent ? Math.round(present * 100 / (present + absent)) : null };
+  }).sort((a, b) => a.title.localeCompare(b.title));
+  const P = rows.reduce((s, r) => s + r.present, 0), A = rows.reduce((s, r) => s + r.absent, 0), O = rows.reduce((s, r) => s + r.off, 0);
+  return { rows, present: P, absent: A, off: O, held: P + A, pct: P + A ? Math.round(P * 100 / (P + A)) : null };
+}
+export async function attendanceCard() {
+  const st = await attendanceStats().catch(() => null);
+  if (!st || !st.rows.length) return h("div.card.small.muted", "🎓 Attendance: mark your classes Completed / Not completed on Today (✕ when there is no class) — your attendance per course shows here.");
+  const LOW = 75, col = p => p == null ? "var(--muted)" : p >= 90 ? "var(--green)" : p >= LOW ? "var(--amber)" : "var(--red)";
+  const bar = p => h("div.att-bar", h("i", { style: { width: (p ?? 0) + "%", background: col(p) } }));
+  const low = st.rows.filter(r => r.pct != null && r.pct < LOW);
+  return h("div.card.att",
+    h("div.row.between", h("b", "🎓 Class attendance"), h("b", { style: { color: col(st.pct), fontSize: "20px" } }, st.pct == null ? "—" : st.pct + "%")),
+    h("div.small.muted", `Present ${st.present} of ${st.held} classes held · absent ${st.absent} · no class ${st.off}`),
+    low.length ? h("div.small", { style: { color: "var(--red)", marginTop: "6px" } }, `⚠️ Below ${LOW}%: ${low.map(r => r.title).join(", ")}`) : null,
+    h("div.att-list", st.rows.map(r => h("div.att-row",
+      h("div.row.between", h("b", r.title), h("span", { style: { color: col(r.pct), fontWeight: 700 } }, r.pct == null ? "—" : r.pct + "%")),
+      bar(r.pct),
+      h("div.small.muted", `${r.present}/${r.held} present${r.absent ? ` · ${r.absent} absent` : ""}${r.off ? ` · ${r.off} no class` : ""}`)))),
+    h("p.hint", { style: { marginTop: "8px" } }, "Completed = present · Not completed / missed = absent · ✕ No class = not counted."));
 }

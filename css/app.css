@@ -1003,3 +1003,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .fab { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .fab.fab-drag { transform: scale(1.1); opacity: .9; box-shadow: 0 14px 34px rgba(0,0,0,.45); }
 body.fab-away .fab.fab-placed { transform: scale(.6); opacity: 0; }
+/* class attendance */
+.att-list { display: grid; gap: 10px; margin-top: 12px; }
+.att-bar { height: 6px; border-radius: 4px; background: var(--bg2); overflow: hidden; margin: 4px 0 3px; }
+.att-bar i { display: block; height: 100%; border-radius: 4px; }
+.btn.nocls { color: var(--muted); }
