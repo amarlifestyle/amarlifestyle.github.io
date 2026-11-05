@@ -1008,3 +1008,9 @@ body.fab-away .fab.fab-placed { transform: scale(.6); opacity: 0; }
 .att-bar { height: 6px; border-radius: 4px; background: var(--bg2); overflow: hidden; margin: 4px 0 3px; }
 .att-bar i { display: block; height: 100%; border-radius: 4px; }
 .btn.nocls { color: var(--muted); }
+/* student: every day taught */
+details > summary::-webkit-details-marker { display: none; }
+.taught { padding: 4px 12px 10px; display: grid; gap: 6px; }
+.taught-row { display: flex; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--bg2); }
+.taught-d { display: flex; flex-direction: column; align-items: center; min-width: 34px; line-height: 1.15; }
+.taught-d b { font-size: 17px; }

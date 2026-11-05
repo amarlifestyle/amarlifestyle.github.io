@@ -2,7 +2,7 @@
 // Amar Lifestyle — money: income, expenses, budgets, history, tuition, dues, savings
 import * as api from "./api.js";
 import { pinGate, lockedCard } from "./pin.js";
-import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, donut, PALETTE, pad, colorPicker, barChart } from "./ui.js";
+import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtTime, donut, PALETTE, pad, colorPicker, barChart } from "./ui.js";
 import { route, store, rerender, backbar, role, showTuition } from "./app.js";
 
 const INCOME_DEFAULT = ["Tuition", "Salary", "Video work", "Gift", "Other income"];
@@ -284,12 +284,17 @@ async function fixedCosts() {
 async function tuition(body, m) {
   const today = todayStr();
   const me = monthEnd(m);
-  const [students, pays, att, allPays] = await Promise.all([
+  const [students, pays, att, allPays, done] = await Promise.all([
     api.select("students", "select=*&active=eq.true&order=name"),
     api.select("tuition_payments", `select=*&month=eq.${m}`),
     api.select("attendance", `select=*&date=gte.${m}&date=lte.${me}`),
     api.select("tuition_payments", "select=student_id,month"),
+    api.select("tasks", `select=student_id,student_ids,start_at,end_at&status=in.(completed,late_completed)&day=gte.${m}&day=lte.${me}`).catch(() => []),
   ]);
+  // minutes taught this month per student (from finished tuition tasks)
+  const minsOf = {};
+  done.forEach(t => [t.student_id, ...(t.student_ids || [])].filter(Boolean).forEach(sid => { minsOf[sid] = (minsOf[sid] || 0) + Math.max(0, (new Date(t.end_at) - new Date(t.start_at)) / 60000); }));
+  const hrs = x => { x = Math.round(x || 0); return x >= 60 ? `${Math.floor(x / 60)}h${x % 60 ? " " + (x % 60) + "m" : ""}` : `${x}m`; };
   const paidSet = Object.fromEntries(pays.map(p => [p.student_id, p]));
   // a month becomes due only after it ends: during November, October and before are due
   const cur = monthStart(today);
@@ -315,8 +320,8 @@ async function tuition(body, m) {
       rerender();
     });
     body.append(h("div.task", { style: { "--c": s.color, cursor: "pointer" }, onclick: e => { if (!e.target.closest("button")) location.hash = `#/student/${s.id}`; } }, h("div.grow",
-      h("div.row.between", h("div.t", s.name, h("span.small.muted", "  · see graph ›")), h("span.dp", tk(s.monthly_fee) + "/mo")),
-      h("div.meta", `Attendance this month: ${present} day${present === 1 ? "" : "s"}`, p ? h("span.ok", ` · paid ${tk(p.amount)}`) : m < cur ? h("span.bad", " · due") : m === cur ? h("span.muted", " · this month (not due yet)") : h("span.muted", " · advance"),
+      h("div.row.between", h("div.t", s.name, h("span.small.muted", "  · details ›")), h("span.dp", tk(s.monthly_fee) + "/mo")),
+      h("div.meta", `Taught this month: ${present} day${present === 1 ? "" : "s"}${minsOf[s.id] ? " · " + hrs(minsOf[s.id]) : ""}`, p ? h("span.ok", ` · paid ${tk(p.amount)}`) : m < cur ? h("span.bad", " · due") : m === cur ? h("span.muted", " · this month (not due yet)") : h("span.muted", " · advance"),
         dueMonths(s).length ? h("div.bad", `Due: ${dueMonths(s).map(x => monthLabel(x).split(" ")[0]).join(", ")}`) : null),
       h("div.acts", m === monthStart(today) ? attBtn : null, payBtn, h("button.btn.small.ghost", { onclick: async () => { if (await pinGate("student", "স্টুডেন্টের ফি/তথ্য বদলাতে PIN দিন")) addStudent(s); } }, icon("edit"))))));
   });
@@ -491,10 +496,12 @@ export async function receivePayment(s, preMonth) {
 
 // ---------- one student: money and attendance month by month
 route("student", async (page, id) => {
-  const [rows, pays, att] = await Promise.all([
+  const [rows, pays, att, taught] = await Promise.all([
     api.select("students", `select=*&id=eq.${id}`),
     api.select("tuition_payments", `select=*&student_id=eq.${id}&order=month`),
     api.select("attendance", `select=date,present&student_id=eq.${id}&order=date`),
+    // every tuition task with this student that was done: the date, time and length
+    api.select("tasks", `select=id,day,start_at,end_at,title,status,done_pct&or=(student_id.eq.${id},student_ids.cs.{${id}})&status=in.(completed,late_completed)&order=start_at.desc`).catch(() => []),
   ]);
   const s = rows[0];
   if (!s) throw new Error("Student not found.");
@@ -514,10 +521,17 @@ route("student", async (page, id) => {
   const last = shown.length > 1 ? paid[shown[shown.length - 2].slice(0, 7)] || 0 : 0;
   const cur = paid[thisM] || 0;
 
+  // one line per day taught: from the finished tasks; a "Came today" tick without a task shows as a day without hours
+  const byDay = {};
+  taught.forEach(t => { const m = Math.max(0, (new Date(t.end_at) - new Date(t.start_at)) / 60000); (byDay[t.day] = byDay[t.day] || []).push({ ...t, min: m }); });
+  att.filter(a => a.present && !byDay[a.date]).forEach(a => { byDay[a.date] = [{ day: a.date, manual: true, min: 0 }]; });
+  const hrsOf = k => Object.entries(byDay).filter(([d]) => d.startsWith(k)).reduce((a, [, l]) => a + l.reduce((b, x) => b + x.min, 0), 0);
+  const hrs = m => { const x = Math.round(m); return x >= 60 ? `${Math.floor(x / 60)}h${x % 60 ? " " + (x % 60) + "m" : ""}` : `${x}m`; };
   page.append(h("div.grid3",
     h("div.stat", h("div.k", "Total received"), h("div.v.ok", tk(total))),
-    h("div.stat", h("div.k", "Monthly fee"), h("div.v", tk(s.monthly_fee))),
-    h("div.stat", h("div.k", "Days taught (this month)"), h("div.v", days[thisM] || 0))));
+    h("div.stat", h("div.k", "Days taught (this month)"), h("div.v", days[thisM] || 0)),
+    h("div.stat", h("div.k", "Hours (this month)"), h("div.v", hrsOf(thisM) ? hrs(hrsOf(thisM)) : "0"))));
+  page.append(h("p.small.muted", { style: { margin: "6px 2px 0" } }, `Monthly fee ${tk(s.monthly_fee)}`));
   page.append(h("p.small.muted", { style: { margin: "8px 2px 10px" } },
     unpaid ? h("span.warn", `${unpaid} past month${unpaid > 1 ? "s" : ""} not paid. `) : "All past months paid. ",
     cur && last ? (cur > last ? `Up ${tk(cur - last)} from last month.` : cur < last ? `Down ${tk(last - cur)} from last month.` : "Same as last month.") : ""));
@@ -528,11 +542,20 @@ route("student", async (page, id) => {
     barChart(shown.map(m => ({ l: lbl(m), v: days[m.slice(0, 7)] || 0 })), { color: "var(--cyan)" }),
     h("p.hint.mb0", "Counted automatically when a tuition task with this student is marked Completed, or when you tap “Came today”.")));
   page.append(h("div.section-title", h("h2", "Month by month")));
+  page.append(h("p.hint", "Tap a month to see every day you taught — date, time and hours."));
   page.append(h("div.list", shown.slice().reverse().map(m => {
     const k = m.slice(0, 7), p = pays.find(x => x.month.slice(0, 7) === k);
-    return h("div.li", h("div.grow", h("b", new Date(m + "T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" })),
-      h("div.small.muted", `${days[k] || 0} day${days[k] === 1 ? "" : "s"} taught`, p ? ` · paid on ${fmtDate(p.paid_on)}` : "")),
-      p ? h("b.ok", tk(p.amount)) : k < thisM ? h("span.badge.bad", "Due") : h("span.badge", "This month"));
+    const dl = Object.keys(byDay).filter(d => d.startsWith(k)).sort().reverse();
+    const head = h("summary.li", { style: { cursor: dl.length ? "pointer" : "default", listStyle: "none" } },
+      h("div.grow", h("b", new Date(m + "T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" })),
+        h("div.small.muted", `${dl.length || days[k] || 0} day${(dl.length || days[k]) === 1 ? "" : "s"} taught${hrsOf(k) ? " · " + hrs(hrsOf(k)) : ""}`, p ? ` · paid on ${fmtDate(p.paid_on)}` : "")),
+      p ? h("b.ok", tk(p.amount)) : k < thisM ? h("span.badge.bad", "Due") : h("span.badge", "This month"), dl.length ? h("span.small.muted", { style: { marginLeft: "6px" } }, "▾") : null);
+    const body = h("div.taught", dl.map(d => h("div.taught-row",
+      h("div.taught-d", h("b", new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric" })), h("span.small.muted", new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short" }))),
+      h("div.grow", byDay[d].map(x => x.manual ? h("div.small.muted", "✓ Came (marked by hand — no time)")
+        : h("div", h("span", `${fmtTime(x.start_at)} – ${fmtTime(x.end_at)}`), h("span.small.muted", ` · ${x.title}${x.status === "late_completed" ? " · marked late" : ""}${x.done_pct && x.done_pct < 100 ? ` · ${x.done_pct}% done` : ""}`)))),
+      h("b.small", byDay[d].reduce((a, x) => a + x.min, 0) ? hrs(byDay[d].reduce((a, x) => a + x.min, 0)) : "—"))));
+    return h("details", { open: k === thisM && dl.length > 0 }, head, dl.length ? body : null);
   })));
 }, { tab: "money" });
 
