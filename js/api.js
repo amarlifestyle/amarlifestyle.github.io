@@ -157,6 +157,8 @@ const cacheKey = p => "al_c:" + p.replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, "T");
 // fresh data is fetched at the same time and the screen updates itself when it differs
 let fast = false, fastJobs = [];
 export const setFast = v => { fast = v; };
+// the saved copy is only for the very first screen: the moment the user taps or types, everything is read fresh
+["pointerdown", "keydown"].forEach(ev => addEventListener(ev, () => { fast = false; }, { capture: true, passive: true }));
 export const fastDone = () => { const l = fastJobs; fastJobs = []; return Promise.all(l).then(r => r.some(Boolean)); };
 async function cachedRead(path, run) {
   if (fast) {
@@ -182,6 +184,8 @@ const TASK_RPCS = new Set(["complete_task", "complete_task_pct", "unmark_task", 
 export const rpc = (fn, args = {}) => (TASK_RPCS.has(fn) && forgetTasks(), READ_RPCS.has(fn))
   ? cachedRead(`rpc/${fn}/${JSON.stringify(args)}`, () => req(`/rest/v1/rpc/${fn}`, { method: "POST", body: args }))
   : req(`/rest/v1/rpc/${fn}`, { method: "POST", body: args });
+// always from the server (checks before saving, e.g. "does this time clash?") — never the saved copy
+export const selectFresh = (table, query = "") => req(`/rest/v1/${table}?${query}`);
 export const select = (table, query = "") => cachedRead(`${table}?${query}`, () => req(`/rest/v1/${table}?${query}`));
 // when the routine (or money) changes, today's AI advice is made again next time
 const STALE = new Set(["routines", "timetable_items", "timetable_tabs", "students", "bills", "finance_entries", "exams"]);

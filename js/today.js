@@ -370,7 +370,7 @@ export async function addTask(tk = null, preset = {}) {
 export async function clashOk(day, s, e, skipId = null) {
   const S = new Date(s).getTime(), E = new Date(e).getTime(), hits = [];
   try {
-    const list = await api.select("tasks", `select=id,title,start_at,end_at,status&day=eq.${day}&status=eq.pending`);
+    const list = await api.selectFresh("tasks", `select=id,title,start_at,end_at,status&day=eq.${day}&status=eq.pending&is_timer=eq.false`);
     list.filter(x => x.id !== skipId && new Date(x.start_at) < E && new Date(x.end_at) > S).forEach(x => hits.push(`${x.title} (${fmtTime(x.start_at)} – ${fmtTime(x.end_at)})`));
   } catch { /* offline: skip the check */ }
   try {
