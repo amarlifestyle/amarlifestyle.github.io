@@ -318,6 +318,7 @@ $("submit").onclick=async()=>{
     if(!$("pagree").checked){m.textContent="“৯ নভেম্বরের মধ্যে টাকা দিয়ে দেবো” বক্সে টিক দাও।";return;}
   }
   const canVote=!P.voted&&voteOpen();
+  if(canVote&&!vote){m.textContent="ডিজাইন ভোটে Option A বা B বেছে নাও — ভোট দেওয়া বাধ্যতামূলক।";$("voteCard").scrollIntoView({behavior:"smooth"});return;}
   $("submit").disabled=true;m.className="msg";m.textContent="পাঠানো হচ্ছে…";
   try{
     let vr=null;
