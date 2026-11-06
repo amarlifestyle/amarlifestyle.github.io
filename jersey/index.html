@@ -228,12 +228,10 @@ function shownVal(f){
   return v||"—";
 }
 function renderFields(){
-  const taken=new Set(P.taken||[]);
   $("fields").innerHTML=FIELDS.map(f=>{
     let extra="";
     if(f.k==="jersey_no"){
       if(!P.jersey_no) extra=`<div class="warn">তুমি নম্বর দাওনি — নম্বর না দিলে জার্সিতে নাম ও নম্বর থাকবে না। চাইলে নিচে নম্বর দাও।</div>`;
-      else if(taken.has(P.jersey_no)) extra=`<div class="warn">⚠️ ${esc(P.jersey_no)} নম্বরটা আরেকজনও নিয়েছে। চাইলে অন্য নম্বর দাও, নাহলে CR ঠিক করে দেবে।</div>`;
     }
     const inp=f.opts
       ?`<select data-k="${f.k}"><option value="">— ঠিকটা বেছে নাও —</option>${f.opts.filter(o=>o!==P[f.k]).map(o=>`<option>${esc(o)}</option>`).join("")}</select>`
@@ -257,7 +255,6 @@ function changes(){
 function numberProblem(c){
   if(!c.jersey_no) return "";
   if(!/^\d{1,3}$/.test(c.jersey_no)) return "শুধু সংখ্যা (০–৯৯৯)";
-  if((P.taken||[]).includes(c.jersey_no)) return `${c.jersey_no} নম্বর আগেই আরেকজন নিয়েছে — অন্যটা দাও`;
   return "";
 }
 function price(){const c=changes();const s=c.sleeve||P.sleeve;return (SLEEVES.find(x=>x[0]===s)||[0,P.price])[1];}
