@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>IRE 8 Jersey Confirmation</title>
+<meta name="description" content="অষ্টযান্ত্রিক IRE 8 — জার্সি কনফার্মেশন ও ডিজাইন ভোট">
+<meta name="theme-color" content="#0b1220">
+<link rel="icon" href="../assets/icon-64.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b1220;--card:#121b2e;--card2:#18233a;--line:#24314d;--tx:#e8eef8;--mut:#8fa0bd;--ac:#2dd4a7;--ac2:#14b8a6;--warn:#f5b84a;--bad:#f2665c;--ok:#34d399;--r:16px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.55 Inter,"Noto Sans Bengali",system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding-bottom:40px}
+a{color:var(--ac)}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+.top{background:linear-gradient(90deg,#0f1a2e,#10243a);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:10px;padding:10px 16px}
+.top img{width:28px;height:28px;border-radius:8px}
+.top .t1{font-size:12px;color:var(--mut)}
+.top .t1 b{color:var(--tx);font-weight:600}
+.top .t2{font-size:11px;color:var(--ac);letter-spacing:.3px}
+.top a.go{margin-left:auto;font-size:12px;text-decoration:none;border:1px solid var(--line);padding:5px 10px;border-radius:99px}
+.hero{padding:26px 0 8px}
+.hero .bn{font-size:30px;font-weight:700;letter-spacing:.5px}
+.hero .sub{color:var(--mut);font-size:13px;letter-spacing:2px;text-transform:uppercase;margin-top:2px}
+.hero p{color:var(--mut);margin-top:10px;font-size:14px}
+.card{background:var(--card);border-radius:var(--r);padding:18px;margin-top:16px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.h{font-size:13px;font-weight:600;color:var(--ac);letter-spacing:.6px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.h .n{width:22px;height:22px;border-radius:50%;background:var(--ac);color:#062019;display:grid;place-items:center;font-size:12px}
+input,select,textarea{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--tx);border-radius:12px;padding:12px 14px;font:inherit;font-size:16px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--ac)}
+button{font:inherit;cursor:pointer;border:0}
+.btn{width:100%;background:var(--ac);color:#04201a;font-weight:700;border-radius:12px;padding:14px;font-size:16px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--tx);border:1px solid var(--line)}
+.row2{display:flex;gap:10px}
+.row2 input{flex:1}
+.row2 .btn{width:auto;padding:0 20px}
+.msg{font-size:14px;margin-top:10px;min-height:1px}
+.msg.bad{color:var(--bad)}.msg.ok{color:var(--ok)}
+.who{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.av{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--ac2),#0e7490);display:grid;place-items:center;font-weight:700;font-size:18px;color:#fff}
+.who .nm{font-weight:600;font-size:17px}.who .id{color:var(--mut);font-size:13px}
+.f{border-top:1px solid var(--line);padding:12px 0}
+.f:first-of-type{border-top:0}
+.fl{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.fk{color:var(--mut);font-size:13px}
+.fv{font-weight:600;text-align:right}
+.ed{font-size:12px;color:var(--ac);background:none;padding:4px 0;margin-top:2px}
+.fix{margin-top:8px;display:none}
+.fix.on{display:block}
+.fix small{display:block;color:var(--mut);font-size:12px;margin-top:4px}
+.chg{color:var(--warn);font-size:12px;margin-top:4px}
+.warn{background:rgba(245,184,74,.1);border:1px solid rgba(245,184,74,.35);color:var(--warn);font-size:13px;border-radius:10px;padding:8px 10px;margin-top:8px}
+.pay{border-radius:12px;padding:14px;display:flex;gap:12px;align-items:center}
+.pay.paid{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.35)}
+.pay.pend{background:rgba(245,184,74,.08);border:1px solid rgba(245,184,74,.35)}
+.pay .ic{font-size:24px}
+.pay b{display:block;font-size:16px}
+.pay span{color:var(--mut);font-size:13px}
+.chk{display:flex;gap:10px;align-items:flex-start;margin-top:12px;font-size:14px}
+.chk input{width:20px;height:20px;flex:none;margin-top:2px;accent-color:var(--ac)}
+label.lb{display:block;font-size:13px;color:var(--mut);margin:12px 0 6px}
+.opts{display:grid;gap:12px}
+.opt{border:2px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card2);text-align:left;color:var(--tx);padding:0;position:relative}
+.opt img{width:100%;display:block}
+.opt .ol{padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-weight:600}
+.opt .rad{width:22px;height:22px;border-radius:50%;border:2px solid var(--mut)}
+.opt.sel{border-color:var(--ac)}
+.opt.sel .rad{border-color:var(--ac);background:radial-gradient(var(--ac) 45%,transparent 50%)}
+.opt .zoom{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;padding:4px 9px;border-radius:99px}
+.note{color:var(--mut);font-size:13px}
+.done{text-align:center;padding:26px 18px}
+.done .big{font-size:44px}
+.done h2{font-size:20px;margin:8px 0 6px}
+.hide{display:none!important}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:9;padding:10px}
+.lightbox.on{display:flex}
+.lightbox img{max-width:100%;max-height:100%}
+footer{color:var(--mut);font-size:12px;text-align:center;margin-top:28px}
+/* admin */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.st{background:var(--card2);border-radius:12px;padding:10px;text-align:center}
+.st b{display:block;font-size:22px}.st span{font-size:11px;color:var(--mut)}
+.bar{height:12px;border-radius:6px;background:var(--card2);overflow:hidden;margin:6px 0 12px}
+.bar i{display:block;height:100%;background:var(--ac)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl td{border-top:1px solid var(--line);padding:9px 4px;vertical-align:top}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:600}
+.tag.c{background:rgba(52,211,153,.15);color:var(--ok)}.tag.e{background:rgba(245,184,74,.15);color:var(--warn)}.tag.x{background:rgba(143,160,189,.15);color:var(--mut)}
+.filt{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.filt button{background:var(--card2);color:var(--mut);border-radius:99px;padding:6px 12px;font-size:12px}
+.filt button.on{background:var(--ac);color:#04201a}
+</style>
+</head>
+<body>
+<div class="top"><div class="wrap">
+  <img src="../assets/icon-64.png" alt="">
+  <div><div class="t1">Powered by <b>Amar Lifestyle</b></div><div class="t2">Make your life disciplined</div></div>
+  <a class="go" href="../" target="_blank" rel="noopener">Open app →</a>
+</div></div>
+
+<main class="wrap" id="app">
+  <div class="hero">
+    <div class="bn">অষ্টযান্ত্রিক</div>
+    <div class="sub">IRE 8 · Jersey Confirmation</div>
+    <p>নিজের Student ID দিয়ে জার্সির তথ্য চেক করো, ভুল থাকলে ঠিক করো, আর ডিজাইনে ভোট দাও।</p>
+  </div>
+
+  <!-- step 1 -->
+  <section class="card" id="s1">
+    <div class="h"><span class="n">1</span>তোমার Student ID</div>
+    <div class="row2">
+      <input id="sid" inputmode="numeric" maxlength="7" placeholder="যেমন 2501011" autocomplete="off">
+      <button class="btn" id="go">দেখাও</button>
+    </div>
+    <div class="msg" id="m1"></div>
+  </section>
+
+  <div id="body" class="hide">
+    <!-- details -->
+    <section class="card">
+      <div class="h"><span class="n">2</span>তোমার জার্সির তথ্য</div>
+      <div class="who"><div class="av" id="av"></div><div><div class="nm" id="nm"></div><div class="id" id="idl"></div></div></div>
+      <p class="note" id="prev" style="margin-bottom:6px"></p>
+      <div id="fields"></div>
+    </section>
+
+    <!-- payment -->
+    <section class="card">
+      <div class="h"><span class="n">3</span>পেমেন্ট</div>
+      <div id="payBox"></div>
+      <div id="payWhen" class="hide">
+        <label class="lb" for="pdate">কবে টাকা দিতে পারবে? (৯ নভেম্বরের মধ্যে)</label>
+        <input type="date" id="pdate" min="2026-11-06" max="2026-11-09">
+        <label class="chk"><input type="checkbox" id="pagree"><span>হ্যাঁ, আমি <b>৯ নভেম্বরের মধ্যে</b> টাকা দিয়ে দেবো।</span></label>
+        <p class="note" style="margin-top:10px">ক্যাশ: CR মুসফিকের হাতে · bKash/Nagad: 01406694434</p>
+      </div>
+    </section>
+
+    <!-- vote -->
+    <section class="card" id="voteCard">
+      <div class="h"><span class="n">4</span>জার্সি ডিজাইন ভোট</div>
+      <p class="note" id="voteNote">কোন ডিজাইনটা ভালো লাগে? একজন একবারই ভোট দিতে পারবে। ভোট শেষ আজ সন্ধ্যা ৭টায়।</p>
+      <div class="opts" id="opts" style="margin-top:12px">
+        <button class="opt" data-v="A"><img src="option-a.jpg" alt="Option A — cream ও navy" loading="lazy"><span class="zoom" data-z="option-a.jpg">বড় করে দেখো</span><div class="ol">Option A <i class="rad"></i></div></button>
+        <button class="opt" data-v="B"><img src="option-b.jpg" alt="Option B — black ও green" loading="lazy"><span class="zoom" data-z="option-b.jpg">বড় করে দেখো</span><div class="ol">Option B <i class="rad"></i></div></button>
+      </div>
+    </section>
+
+    <!-- submit -->
+    <section class="card">
+      <div class="h"><span class="n">5</span>শেষ ধাপ</div>
+      <p class="note" id="sumTxt">উপরের সব তথ্য দেখে নিচের বাটন চাপো।</p>
+      <button class="btn" id="submit" style="margin-top:12px">✅ সব ঠিক আছে — Confirm</button>
+      <div class="msg" id="m2"></div>
+    </section>
+  </div>
+
+  <section class="card done hide" id="done">
+    <div class="big">🎉</div>
+    <h2 id="doneH">কনফার্ম হয়ে গেছে!</h2>
+    <p class="note" id="doneP"></p>
+    <button class="btn ghost" style="margin-top:16px" onclick="location.reload()">আরেকজনের জন্য</button>
+  </section>
+
+  <footer>IRE 8 · University of Frontier Technology, Bangladesh<br>CR Musfiq · তথ্যে সমস্যা হলে CR-কে জানাও</footer>
+</main>
+
+<!-- admin -->
+<main class="wrap hide" id="admin">
+  <div class="hero"><div class="bn">Admin</div><div class="sub">IRE 8 Jersey · CR only</div></div>
+  <section class="card" id="alog">
+    <div class="h">পাসওয়ার্ড</div>
+    <div class="row2"><input id="apw" type="password" placeholder="Admin password"><button class="btn" id="ago">খোলো</button></div>
+    <div class="msg" id="am"></div>
+  </section>
+  <div id="adata" class="hide">
+    <section class="card">
+      <div class="h">সামারি</div>
+      <div class="stats" id="stats"></div>
+    </section>
+    <section class="card">
+      <div class="h">ভোটের ফলাফল <span class="note" style="text-transform:none;letter-spacing:0" id="vtot"></span></div>
+      <div id="tally"></div>
+    </section>
+    <section class="card">
+      <div class="h">সবার অবস্থা <button class="ed" id="arf" style="margin-left:auto">↻ Refresh</button></div>
+      <div class="filt" id="filt"></div>
+      <table class="tbl" id="atbl"></table>
+    </section>
+  </div>
+</main>
+
+<div class="lightbox" id="lb"><img id="lbi" alt=""></div>
+
+<script>
+const SB="https://njzqexdoajxlfvczpuqn.supabase.co",KEY="sb_publishable_Mut_YlonwNkEZRYptuJHpQ_3n37N38e";
+const VOTE_END=new Date("2026-11-06T19:00:00+06:00");
+const SIZES=["S","M — Chest 38, Length 27","L — Chest 40, Length 28","XL — Chest 42, Length 29","XXL — Chest 44, Length 30"];
+const SLEEVES=[["ফুল হাতা",420],["হাফ হাতা",400]];
+const bn=s=>String(s).replace(/\d/g,d=>"০১২৩৪৫৬৭৮৯"[d]);
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function rpc(fn,args){
+  const r=await fetch(`${SB}/rest/v1/rpc/${fn}`,{method:"POST",headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":"application/json"},body:JSON.stringify(args)});
+  const t=await r.text(); let j=null; try{j=t?JSON.parse(t):null}catch(e){}
+  if(!r.ok) throw new Error((j&&j.message)||"Network error");
+  return j;
+}
+let P=null,vote=null;
+const voteOpen=()=>new Date()<VOTE_END;
+
+/* ---------- student flow ---------- */
+const FIELDS=[
+  {k:"name",label:"তোমার নাম"},
+  {k:"back_name",label:"জার্সির পেছনের নাম"},
+  {k:"jersey_no",label:"জার্সি নম্বর"},
+  {k:"size",label:"সাইজ",opts:SIZES},
+  {k:"sleeve",label:"হাতা",opts:SLEEVES.map(s=>s[0])}
+];
+function shownVal(f){
+  const v=P[f.k];
+  if(f.k==="jersey_no"&&!v) return "দেওয়া নেই";
+  if(f.k==="sleeve") return `${v} — ${bn(P.price)}৳`;
+  return v||"—";
+}
+function renderFields(){
+  const taken=new Set(P.taken||[]);
+  $("fields").innerHTML=FIELDS.map(f=>{
+    let extra="";
+    if(f.k==="jersey_no"){
+      if(!P.jersey_no) extra=`<div class="warn">তুমি নম্বর দাওনি — নম্বর না দিলে জার্সিতে নাম ও নম্বর থাকবে না। চাইলে নিচে নম্বর দাও।</div>`;
+      else if(taken.has(P.jersey_no)) extra=`<div class="warn">⚠️ ${esc(P.jersey_no)} নম্বরটা আরেকজনও নিয়েছে। চাইলে অন্য নম্বর দাও, নাহলে CR ঠিক করে দেবে।</div>`;
+    }
+    const inp=f.opts
+      ?`<select data-k="${f.k}"><option value="">— ঠিকটা বেছে নাও —</option>${f.opts.filter(o=>o!==P[f.k]).map(o=>`<option>${esc(o)}</option>`).join("")}</select>`
+      :`<input data-k="${f.k}" ${f.k==="jersey_no"?'inputmode="numeric" maxlength="3"':'maxlength="40"'} placeholder="সঠিকটা লেখো">`;
+    return `<div class="f"><div class="fl"><span class="fk">${f.label}</span><span class="fv">${esc(shownVal(f))}</span></div>${extra}
+      <button class="ed" data-t="${f.k}">${!P.jersey_no&&f.k==="jersey_no"?"＋ নম্বর দাও":"✎ ভুল আছে? ঠিক করো"}</button>
+      <div class="fix" id="fx-${f.k}">${inp}<small id="hint-${f.k}"></small></div></div>`;
+  }).join("");
+  $("fields").querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
+    const fx=$("fx-"+b.dataset.t);fx.classList.toggle("on");
+    if(!fx.classList.contains("on")){const i=fx.querySelector("[data-k]");i.value="";onEdit();}
+    else fx.querySelector("[data-k]").focus();
+  });
+  $("fields").querySelectorAll("[data-k]").forEach(i=>i.oninput=i.onchange=onEdit);
+}
+function changes(){
+  const c={};
+  $("fields").querySelectorAll("[data-k]").forEach(i=>{let v=i.value.trim();if(i.dataset.k==="back_name")v=v.toUpperCase();if(v&&v!==P[i.dataset.k])c[i.dataset.k]=v;});
+  return c;
+}
+function numberProblem(c){
+  if(!c.jersey_no) return "";
+  if(!/^\d{1,3}$/.test(c.jersey_no)) return "শুধু সংখ্যা (০–৯৯৯)";
+  if((P.taken||[]).includes(c.jersey_no)) return `${c.jersey_no} নম্বর আগেই আরেকজন নিয়েছে — অন্যটা দাও`;
+  return "";
+}
+function price(){const c=changes();const s=c.sleeve||P.sleeve;return (SLEEVES.find(x=>x[0]===s)||[0,P.price])[1];}
+function renderPay(){
+  const amt=price();
+  if(P.paid){
+    $("payBox").innerHTML=`<div class="pay paid"><span class="ic">✅</span><div><b>পরিশোধিত — ${bn(P.price)}৳</b><span>${esc(P.paid_to)}-এর কাছে দেওয়া হয়েছে</span></div></div>`+
+      (amt!==P.price?`<div class="warn">হাতা বদলালে দাম ${bn(amt)}৳ — ${amt>P.price?bn(amt-P.price)+"৳ বাকি থাকবে":bn(P.price-amt)+"৳ ফেরত পাবে"}।</div>`:"");
+    $("payWhen").classList.add("hide");
+  }else{
+    $("payBox").innerHTML=`<div class="pay pend"><span class="ic">⏳</span><div><b>পেন্ডিং — ${bn(amt)}৳</b><span>এখনো টাকা জমা হয়নি</span></div></div>`;
+    $("payWhen").classList.remove("hide");
+  }
+}
+function onEdit(){
+  const c=changes(),np=numberProblem(c);
+  const h=$("hint-jersey_no"); if(h){h.textContent=np;h.style.color="var(--bad)";}
+  renderPay();
+  const n=Object.keys(c).length;
+  $("submit").textContent=n?`✎ এডিট রিকোয়েস্ট পাঠাও (${bn(n)}টা পরিবর্তন)`:"✅ সব ঠিক আছে — Confirm";
+  $("sumTxt").textContent=n?"তোমার পরিবর্তনগুলো CR-এর কাছে রিকোয়েস্ট হিসেবে যাবে।":"উপরের সব তথ্য দেখে নিচের বাটন চাপো।";
+}
+function renderVote(){
+  const opts=$("opts");
+  if(P.voted){$("voteNote").innerHTML="✅ তোমার ভোট নেওয়া হয়ে গেছে। ধন্যবাদ!";opts.classList.add("hide");return;}
+  if(!voteOpen()){$("voteNote").textContent="ভোটের সময় শেষ (সন্ধ্যা ৭টা)। ফলাফল CR জানাবে।";opts.classList.add("hide");return;}
+  opts.classList.remove("hide");
+}
+document.querySelectorAll(".opt").forEach(o=>o.onclick=e=>{
+  if(e.target.dataset.z){$("lbi").src=e.target.dataset.z;$("lb").classList.add("on");return;}
+  vote=o.dataset.v;document.querySelectorAll(".opt").forEach(x=>x.classList.toggle("sel",x===o));
+});
+$("lb").onclick=()=>$("lb").classList.remove("on");
+
+async function load(){
+  const id=$("sid").value.trim();
+  $("m1").className="msg";
+  if(!/^25010\d{2}$/.test(id)){$("m1").className="msg bad";$("m1").textContent="পুরো ৭ ডিজিটের ID দাও (যেমন 2501011)।";return;}
+  $("go").disabled=true;$("m1").textContent="খোঁজা হচ্ছে…";
+  try{
+    P=await rpc("jersey_get",{p_id:id});
+    if(!P){$("m1").className="msg bad";$("m1").textContent="এই ID দিয়ে রেজিস্ট্রেশন পাওয়া যায়নি। শুধু রেজিস্টার করা সবাই কনফার্ম ও ভোট দিতে পারবে।";$("body").classList.add("hide");return;}
+    $("m1").textContent="";
+    $("av").textContent=(P.back_name||P.name||"?")[0].toUpperCase();
+    $("nm").textContent=P.name;$("idl").textContent="ID "+P.student_id;
+    const r=P.response;
+    $("prev").textContent=r?(r.status==="confirmed"?"✅ তুমি আগে একবার কনফার্ম করেছো। দরকার হলে আবার পাঠাতে পারো।":"✎ তুমি আগে এডিট রিকোয়েস্ট পাঠিয়েছো। নতুন করে পাঠালে শেষেরটাই ধরা হবে।"):"";
+    renderFields();renderPay();renderVote();onEdit();
+    $("body").classList.remove("hide");
+    $("s1").scrollIntoView({behavior:"smooth"});
+  }catch(e){$("m1").className="msg bad";$("m1").textContent="সমস্যা হয়েছে, আবার চেষ্টা করো। ("+e.message+")";}
+  finally{$("go").disabled=false;}
+}
+$("go").onclick=load;
+$("sid").onkeydown=e=>{if(e.key==="Enter")load();};
+$("sid").oninput=()=>{$("body").classList.add("hide");};
+
+$("submit").onclick=async()=>{
+  const c=changes(),m=$("m2");m.className="msg bad";
+  const np=numberProblem(c);if(np){m.textContent=np;return;}
+  let pd=null;
+  if(!P.paid){
+    pd=$("pdate").value;
+    if(!pd||pd<"2026-11-06"||pd>"2026-11-09"){m.textContent="কবে টাকা দেবে, ৬–৯ নভেম্বরের মধ্যে একটা তারিখ বেছে নাও।";$("pdate").focus();return;}
+    if(!$("pagree").checked){m.textContent="“৯ নভেম্বরের মধ্যে টাকা দিয়ে দেবো” বক্সে টিক দাও।";return;}
+  }
+  const canVote=!P.voted&&voteOpen();
+  if(canVote&&!vote){m.textContent="ডিজাইন ভোটে Option A বা B বেছে নাও।";$("voteCard").scrollIntoView({behavior:"smooth"});return;}
+  $("submit").disabled=true;m.className="msg";m.textContent="পাঠানো হচ্ছে…";
+  try{
+    let vr=null;
+    if(canVote) vr=await rpc("jersey_vote",{p_id:P.student_id,p_choice:vote});
+    const st=Object.keys(c).length?"edit":"confirmed";
+    await rpc("jersey_submit",{p_id:P.student_id,p_status:st,p_changes:c,p_note:null,p_pay_date:pd});
+    $("app").querySelectorAll(".card,.hero").forEach(x=>x.classList.add("hide"));$("body").classList.add("hide");
+    $("done").classList.remove("hide");
+    $("doneH").textContent=st==="edit"?"এডিট রিকোয়েস্ট পাঠানো হয়েছে!":"কনফার্ম হয়ে গেছে!";
+    let p=st==="edit"?"CR তোমার পরিবর্তনগুলো দেখে ঠিক করে দেবে।":"তোমার জার্সির তথ্য ফাইনাল।";
+    if(vr==="ok")p+=` তোমার ভোট (Option ${vote}) নেওয়া হয়েছে।`;
+    else if(vr==="already")p+=" এই ID দিয়ে আগেই ভোট দেওয়া হয়েছিল।";
+    else if(vr==="closed")p+=" ভোটের সময় শেষ হয়ে গেছে, তাই ভোট নেওয়া যায়নি।";
+    if(pd)p+=` টাকা দেওয়ার তারিখ: ${bn(pd.slice(8))} নভেম্বর।`;
+    $("doneP").textContent=p;window.scrollTo({top:0,behavior:"smooth"});
+  }catch(e){m.className="msg bad";m.textContent="পাঠানো যায়নি, আবার চেষ্টা করো। ("+e.message+")";$("submit").disabled=false;}
+};
+
+/* ---------- admin ---------- */
+let AD=null,filter="all";
+const LBL={name:"নাম",back_name:"পেছনের নাম",jersey_no:"নম্বর",size:"সাইজ",sleeve:"হাতা"};
+async function aload(){
+  const pw=$("apw").value;$("am").className="msg";$("am").textContent="লোড হচ্ছে…";
+  try{AD=await rpc("jersey_admin",{p_pw:pw});try{sessionStorage.setItem("jpw",pw)}catch(e){}
+    $("am").textContent="";$("alog").classList.add("hide");$("adata").classList.remove("hide");arender();
+  }catch(e){$("am").className="msg bad";$("am").textContent="পাসওয়ার্ড ভুল।";}
+}
+function arender(){
+  const ps=AD.people,t=AD.tally||{},A=t.A||0,B=t.B||0,T=A+B;
+  const conf=ps.filter(p=>p.response&&p.response.status==="confirmed").length,ed=ps.filter(p=>p.response&&p.response.status==="edit").length;
+  const paid=ps.filter(p=>p.paid),pend=ps.filter(p=>!p.paid);
+  const sum=a=>a.reduce((s,p)=>s+p.price,0);
+  $("stats").innerHTML=[[ps.length,"রেজিস্টার্ড"],[conf,"কনফার্ম"],[ed,"এডিট চেয়েছে"],[ps.length-conf-ed,"রেসপন্স নেই"],[paid.length+" · "+sum(paid)+"৳","পেইড"],[pend.length+" · "+sum(pend)+"৳","পেন্ডিং"]]
+    .map(([b,s])=>`<div class="st"><b>${b}</b><span>${s}</span></div>`).join("");
+  $("vtot").textContent=`· ${T}/${ps.length} জন ভোট দিয়েছে`;
+  $("tally").innerHTML=[["A","Option A (cream/navy)",A],["B","Option B (black/green)",B]].map(([k,l,n])=>
+    `<div class="fl"><b>${l}</b><b>${n} ভোট ${T?"· "+Math.round(n*100/T)+"%":""}</b></div><div class="bar"><i style="width:${T?n*100/T:0}%"></i></div>`).join("")+
+    `<p class="note">${A===B?"এখন সমান সমান":(A>B?"Option A":"Option B")+" এগিয়ে"} · ভোট বন্ধ হবে সন্ধ্যা ৭টায়</p>`;
+  const F=[["all","সবাই"],["none","রেসপন্স নেই"],["edit","এডিট"],["pend","পেন্ডিং পেমেন্ট"],["novote","ভোট দেয়নি"]];
+  $("filt").innerHTML=F.map(([k,l])=>`<button data-f="${k}" class="${k===filter?"on":""}">${l}</button>`).join("");
+  $("filt").querySelectorAll("button").forEach(b=>b.onclick=()=>{filter=b.dataset.f;arender();});
+  const list=ps.filter(p=>filter==="all"||(filter==="none"&&!p.response)||(filter==="edit"&&p.response&&p.response.status==="edit")||(filter==="pend"&&!p.paid)||(filter==="novote"&&!p.vote));
+  $("atbl").innerHTML=list.map(p=>{
+    const r=p.response;
+    const tag=!r?'<span class="tag x">রেসপন্স নেই</span>':r.status==="confirmed"?'<span class="tag c">কনফার্ম</span>':'<span class="tag e">এডিট</span>';
+    const ch=r&&r.status==="edit"?Object.entries(r.changes).map(([k,v])=>`<div class="chg">${LBL[k]||k}: ${esc(p[k]||"—")} → <b>${esc(v)}</b></div>`).join(""):"";
+    const pay=p.paid?`✅ ${p.price}৳ · ${esc(p.paid_to)}`:`⏳ ${p.price}৳ পেন্ডিং${r&&r.pay_date?" · দেবে "+bn(r.pay_date.slice(8))+" নভে":""}`;
+    return `<tr><td><b>${esc(p.back_name||p.name)}</b> #${esc(p.jersey_no||"—")}<br><span class="note">${p.student_id} · ${esc(p.name)}</span>${ch}</td>
+      <td style="text-align:right">${tag}<br><span class="note">${pay}</span><br><span class="note">ভোট: ${p.vote?"<b>"+p.vote.choice+"</b>":"—"}</span></td></tr>`;
+  }).join("")||'<tr><td class="note">কেউ নেই</td></tr>';
+}
+$("ago").onclick=aload;$("apw").onkeydown=e=>{if(e.key==="Enter")aload();};
+$("arf").onclick=()=>{$("apw").value=$("apw").value||(()=>{try{return sessionStorage.getItem("jpw")}catch(e){return""}})();aload();};
+function route(){
+  const adm=location.hash==="#admin";
+  $("app").classList.toggle("hide",adm);$("admin").classList.toggle("hide",!adm);
+  if(adm){try{const s=sessionStorage.getItem("jpw");if(s){$("apw").value=s;aload();}}catch(e){}}
+}
+addEventListener("hashchange",route);route();
+</script>
+</body>
+</html>
