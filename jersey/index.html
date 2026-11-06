@@ -230,12 +230,9 @@ function shownVal(f){
 function renderFields(){
   $("fields").innerHTML=FIELDS.map(f=>{
     let extra="";
-    if(f.k==="jersey_no"){
-      if(!P.jersey_no) extra=`<div class="warn">তুমি নম্বর দাওনি — নম্বর না দিলে জার্সিতে নাম ও নম্বর থাকবে না। চাইলে নিচে নম্বর দাও।</div>`;
-    }
     const inp=f.opts
       ?`<select data-k="${f.k}"><option value="">— ঠিকটা বেছে নাও —</option>${f.opts.filter(o=>o!==P[f.k]).map(o=>`<option>${esc(o)}</option>`).join("")}</select>`
-      :`<input data-k="${f.k}" ${f.k==="jersey_no"?'inputmode="numeric" maxlength="3"':'maxlength="40"'} placeholder="সঠিকটা লেখো">`;
+      :`<input data-k="${f.k}" ${f.k==="jersey_no"?'inputmode="numeric" maxlength="10"':'maxlength="40"'} placeholder="সঠিকটা লেখো">`;
     return `<div class="f"><div class="fl"><span class="fk">${f.label}</span><span class="fv">${esc(shownVal(f))}</span></div>${extra}
       <button class="ed" data-t="${f.k}">${!P.jersey_no&&f.k==="jersey_no"?"＋ নম্বর দাও":"✎ ভুল আছে? ঠিক করো"}</button>
       <div class="fix" id="fx-${f.k}">${inp}<small id="hint-${f.k}"></small></div></div>`;
@@ -254,7 +251,6 @@ function changes(){
 }
 function numberProblem(c){
   if(!c.jersey_no) return "";
-  if(!/^\d{1,3}$/.test(c.jersey_no)) return "শুধু সংখ্যা (০–৯৯৯)";
   return "";
 }
 function price(){const c=changes();const s=c.sleeve||P.sleeve;return (SLEEVES.find(x=>x[0]===s)||[0,P.price])[1];}
@@ -322,11 +318,10 @@ $("submit").onclick=async()=>{
     if(!$("pagree").checked){m.textContent="“৯ নভেম্বরের মধ্যে টাকা দিয়ে দেবো” বক্সে টিক দাও।";return;}
   }
   const canVote=!P.voted&&voteOpen();
-  if(canVote&&!vote){m.textContent="ডিজাইন ভোটে Option A বা B বেছে নাও।";$("voteCard").scrollIntoView({behavior:"smooth"});return;}
   $("submit").disabled=true;m.className="msg";m.textContent="পাঠানো হচ্ছে…";
   try{
     let vr=null;
-    if(canVote) vr=await rpc("jersey_vote",{p_id:P.student_id,p_choice:vote});
+    if(canVote&&vote) vr=await rpc("jersey_vote",{p_id:P.student_id,p_choice:vote});
     const st=Object.keys(c).length?"edit":"confirmed";
     await rpc("jersey_submit",{p_id:P.student_id,p_status:st,p_changes:c,p_note:null,p_pay_date:pd});
     $("app").querySelectorAll(".card,.hero").forEach(x=>x.classList.add("hide"));$("body").classList.add("hide");
