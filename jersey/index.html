@@ -275,6 +275,7 @@ function onEdit(){
 }
 function renderVote(){
   const opts=$("opts");
+  if(P.no_vote){$("voteNote").textContent="তোমার জন্য ভোট দেওয়ার দরকার নেই।";opts.classList.add("hide");return;}
   if(P.voted){$("voteNote").innerHTML="✅ তোমার ভোট নেওয়া হয়ে গেছে। ধন্যবাদ!";opts.classList.add("hide");return;}
   if(!voteOpen()){$("voteNote").textContent="ভোটের সময় শেষ। ফলাফল CR জানাবে।";opts.classList.add("hide");return;}
   opts.classList.remove("hide");
