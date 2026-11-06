@@ -143,7 +143,7 @@ footer{color:var(--mut);font-size:12px;text-align:center;margin-top:28px}
     <!-- vote -->
     <section class="card" id="voteCard">
       <div class="h"><span class="n">4</span>জার্সি ডিজাইন ভোট</div>
-      <p class="note" id="voteNote">কোন ডিজাইনটা ভালো লাগে? একজন একবারই ভোট দিতে পারবে। ভোট শেষ আজ সন্ধ্যা ৭টায়।</p>
+      <p class="note" id="voteNote">কোন ডিজাইনটা ভালো লাগে? একজন একবারই ভোট দিতে পারবে। ভোট শেষ আজ রাত ৮টায়।</p>
       <div class="opts" id="opts" style="margin-top:12px">
         <button class="opt" data-v="A"><img src="option-a.jpg" alt="Option A — cream ও navy" loading="lazy"><span class="zoom" data-z="option-a.jpg">বড় করে দেখো</span><div class="ol">Option A <i class="rad"></i></div></button>
         <button class="opt" data-v="B"><img src="option-b.jpg" alt="Option B — black ও green" loading="lazy"><span class="zoom" data-z="option-b.jpg">বড় করে দেখো</span><div class="ol">Option B <i class="rad"></i></div></button>
@@ -197,8 +197,8 @@ footer{color:var(--mut);font-size:12px;text-align:center;margin-top:28px}
 <div class="lightbox" id="lb"><img id="lbi" alt=""></div>
 
 <script>
-const SB="https://njzqexdoajxlfvczpuqn.supabase.co",KEY="sb_publishable_Mut_YlonwNkEZRYptuJHpQ_3n37N38e";
-const VOTE_END=new Date("2026-11-06T19:00:00+06:00");
+const SB="https://njzqexdoajxlfvczpuqn.supabase.co",KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qenFleGRvYWp4bGZ2Y3pwdXFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NTQyNzcsImV4cCI6MjEwOTAzMDI3N30.OrlPb7sqKKDXQ6RZAsWQaLxX5XzoAtt1xiL-KXt7flE";
+const VOTE_END=new Date("2026-11-06T20:00:00+06:00");
 const SIZES=["S","M — Chest 38, Length 27","L — Chest 40, Length 28","XL — Chest 42, Length 29","XXL — Chest 44, Length 30"];
 const SLEEVES=[["ফুল হাতা",420],["হাফ হাতা",400]];
 const bn=s=>String(s).replace(/\d/g,d=>"০১২৩৪৫৬৭৮৯"[d]);
@@ -283,7 +283,7 @@ function onEdit(){
 function renderVote(){
   const opts=$("opts");
   if(P.voted){$("voteNote").innerHTML="✅ তোমার ভোট নেওয়া হয়ে গেছে। ধন্যবাদ!";opts.classList.add("hide");return;}
-  if(!voteOpen()){$("voteNote").textContent="ভোটের সময় শেষ (সন্ধ্যা ৭টা)। ফলাফল CR জানাবে।";opts.classList.add("hide");return;}
+  if(!voteOpen()){$("voteNote").textContent="ভোটের সময় শেষ (রাত ৮টা)। ফলাফল CR জানাবে।";opts.classList.add("hide");return;}
   opts.classList.remove("hide");
 }
 document.querySelectorAll(".opt").forEach(o=>o.onclick=e=>{
@@ -363,7 +363,7 @@ function arender(){
   $("vtot").textContent=`· ${T}/${ps.length} জন ভোট দিয়েছে`;
   $("tally").innerHTML=[["A","Option A (cream/navy)",A],["B","Option B (black/green)",B]].map(([k,l,n])=>
     `<div class="fl"><b>${l}</b><b>${n} ভোট ${T?"· "+Math.round(n*100/T)+"%":""}</b></div><div class="bar"><i style="width:${T?n*100/T:0}%"></i></div>`).join("")+
-    `<p class="note">${A===B?"এখন সমান সমান":(A>B?"Option A":"Option B")+" এগিয়ে"} · ভোট বন্ধ হবে সন্ধ্যা ৭টায়</p>`;
+    `<p class="note">${A===B?"এখন সমান সমান":(A>B?"Option A":"Option B")+" এগিয়ে"} · ভোট বন্ধ হবে রাত ৮টায়</p>`;
   const F=[["all","সবাই"],["none","রেসপন্স নেই"],["edit","এডিট"],["pend","পেন্ডিং পেমেন্ট"],["novote","ভোট দেয়নি"]];
   $("filt").innerHTML=F.map(([k,l])=>`<button data-f="${k}" class="${k===filter?"on":""}">${l}</button>`).join("");
   $("filt").querySelectorAll("button").forEach(b=>b.onclick=()=>{filter=b.dataset.f;arender();});
