@@ -223,7 +223,7 @@ const FIELDS=[
 ];
 function shownVal(f){
   const v=P[f.k];
-  if(f.k==="jersey_no"&&!v) return "দেওয়া নেই";
+  if(f.k==="jersey_no"&&!v) return "নম্বর থাকবে না";
   if(f.k==="sleeve") return `${v} — ${bn(P.price)}৳`;
   return v||"—";
 }
@@ -234,7 +234,7 @@ function renderFields(){
       ?`<select data-k="${f.k}"><option value="">— ঠিকটা বেছে নাও —</option>${f.opts.filter(o=>o!==P[f.k]).map(o=>`<option>${esc(o)}</option>`).join("")}</select>`
       :`<input data-k="${f.k}" ${f.k==="jersey_no"?'inputmode="numeric" maxlength="10"':'maxlength="40"'} placeholder="সঠিকটা লেখো">`;
     return `<div class="f"><div class="fl"><span class="fk">${f.label}</span><span class="fv">${esc(shownVal(f))}</span></div>${extra}
-      <button class="ed" data-t="${f.k}">${!P.jersey_no&&f.k==="jersey_no"?"＋ নম্বর দাও":"✎ ভুল আছে? ঠিক করো"}</button>
+      <button class="ed" data-t="${f.k}">✎ ভুল আছে? ঠিক করো</button>
       <div class="fix" id="fx-${f.k}">${inp}<small id="hint-${f.k}"></small></div></div>`;
   }).join("");
   $("fields").querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
