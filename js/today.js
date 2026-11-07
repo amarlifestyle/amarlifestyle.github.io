@@ -453,7 +453,11 @@ export function openTimer() {
           id = "local"; api.LS.set("al_localtimer", { title: tt, category: cat.value, start: new Date().toISOString() });
           toast("Offline timer started — it will sync later ✓", "ok");
         }
-        if (mode === "pomo") api.LS.set("al_pomo", { id, work, brk }); else api.LS.del("al_pomo");
+        if (mode === "pomo") {
+          api.LS.set("al_pomo", { id, work, brk });
+          // the server sends "break / focus again" notifications too, so they come even with the app closed
+          if (id !== "local") api.rpc("set_pomo", { p_task: id, p_work: Math.round(work), p_break: Math.round(brk) }).catch(() => {});
+        } else api.LS.del("al_pomo");
         askNotify(); close(true); go("#/today"); rerender();
       });
       return [h("button.btn", { onclick: () => close(null) }, t("Cancel")), go_];
