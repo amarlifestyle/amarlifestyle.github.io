@@ -138,7 +138,8 @@ route("schedule", async (page, key = "university", dayArg) => {
     if (!(await confirmBox(`Remove “${tab.name}” tab?`, kind === "custom" ? "Everything in this tab is deleted." : "The tab is hidden. Its items stay saved and come back if you add the tab again.", "Remove", true))) return;
     try { await api.remove("timetable_tabs", `id=eq.${tab.id}`); await loadTabs(); await syncWeekly(); location.hash = "#/week"; } catch (e) { toast(e.message, "bad"); }
   };
-  setTimeout(() => page.append(h("div.center", removeTab)), 0);
+  const tail = h("div.center", removeTab);
+  const addTail = () => { if (!tail.isConnected) page.append(tail); };
 
   if (!items.length) {
     const demo = DEMO[kind] || DEMO.coaching;
@@ -147,10 +148,10 @@ route("schedule", async (page, key = "university", dayArg) => {
       h("div.list.mt", demo.map(d => h("div.li", h("div.grow", h("b", d.title), h("div.small.muted", [d.days.length ? d.days.map(x => DAYS[x]).join(", ") : (d.start_time ? "Every day" : "Note"), range(d), d.detail].filter(Boolean).join(" · ")))))),
       h("div.row.mt", { style: { gap: "8px" } },
         (() => { const b = h("button.btn.small", "Use this example"); b.onclick = busy(b, async () => { await api.insert("timetable_items", demo.map(d => ({ ...d, kind, tab_id: kind === "custom" ? tab.id : null, user_id: api.userId() }))); if (tab.merge === "weekly" || tab.merge === "today") await syncWeekly(); toast("Example added — tap any item to change it ✓", "ok"); rerender(); }); return b; })())));
+    addTail();
     return;
   }
 
-  if (kind === "university") { const box = h("div"); page.append(box); attendanceCard().then(c => box.replaceWith(c)).catch(() => {}); }
   if (kind !== "meal") {
     // day chips (Sat → Fri), today marked
     page.append(h("div.row", { style: { gap: "6px", overflowX: "auto", marginBottom: "10px", paddingBottom: "2px" } }, ORDER.map(d => {
@@ -164,14 +165,33 @@ route("schedule", async (page, key = "university", dayArg) => {
   const mins = t => { const [a, b] = hm(t).split(":").map(Number); return a * 60 + b; };
   const live = it => dow === todayDow && it.start_time && mins(it.start_time) <= nowMin && nowMin < mins(it.end_time || it.start_time) + (it.end_time ? 0 : 30);
   const nextIt = dow === todayDow ? list.find(it => mins(it.start_time) > nowMin) : null;
-  page.append(h("h3", { style: { margin: "4px 2px 8px" } }, kind === "meal" ? "Every day" : (dow === todayDow ? "Today · " : "") + ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dow]));
+  // the date of the chosen weekday (today, or the next one)
+  const dDate = (() => { const t = todayStr(); const x = new Date(t + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() + ((dow - todayDow + 7) % 7)); return x.toISOString().slice(0, 10); })();
+  const dLabel = new Date(dDate + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  page.append(h("h3", { style: { margin: "4px 2px 8px" } }, kind === "meal" ? "Every day" : (dow === todayDow ? "Today · " : "") + ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dow] + (kind === "university" ? " · " + dLabel : "")));
+  // university: the whole day off (holiday / university closed) — those classes are not counted in attendance
+  const weeklyTab = tab.merge === "weekly" || tab.merge === "today";
+  let off = false;
+  if (kind === "university" && weeklyTab && list.some(it => it.mine !== false)) {
+    off = await isDayOff(dDate).catch(() => false);
+    const b = h("button.btn.small" + (off ? ".primary" : ""), { type: "button" }, off ? "↶ Classes are on" : "✕ No classes this day");
+    b.onclick = busy(b, async () => {
+      if (!off && !(await confirmBox(`No classes on ${dLabel}?`, "University closed / holiday: all classes that day are skipped. They are not counted as absent and no DP changes.", "Yes, no classes"))) return;
+      await dayOff(dDate, !off); rerender();
+    });
+    page.append(h("div.card" + (off ? ".dayoff" : ""), { style: { display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", marginBottom: "10px" } },
+      h("div.grow", h("b", off ? "🚫 No classes this day" : "Is the university closed this day?"), h("div.small.muted", off ? `${dLabel}: not counted in attendance` : "Holiday or all classes cancelled → tap")), b));
+  }
   if (!list.length) page.append(h("div.card.empty", h("p", kind === "meal" ? "No meal times yet." : "No classes this day 🎉")));
-  else page.append(h("div.list", list.map(it => h("button.li", { onclick: () => itemSheet(tab, it), style: { alignItems: "flex-start", textAlign: "left", ...(live(it) ? { borderColor: "var(--brand)", background: "color-mix(in srgb, var(--brand) 10%, var(--card))" } : {}) } },
+  else page.append(h("div.list", list.map(it => h("button.li", { onclick: () => itemSheet(tab, it), style: { alignItems: "flex-start", textAlign: "left", ...(off ? { opacity: .45, textDecoration: "line-through" } : {}), ...(live(it) && !off ? { borderColor: "var(--brand)", background: "color-mix(in srgb, var(--brand) 10%, var(--card))" } : {}) } },
     h("div", { style: { minWidth: "92px", fontWeight: 700, fontSize: "13px", color: live(it) ? "var(--brand)" : "var(--muted)" } }, fmtHM(hm(it.start_time)), it.end_time ? h("div.small.faint", "– " + fmtHM(hm(it.end_time))) : null),
     h("div.grow", h("b", it.title, live(it) ? h("span.badge.ok", { style: { marginLeft: "6px" } }, "Now") : it === nextIt ? h("span.badge", { style: { marginLeft: "6px" } }, "Next") : null),
       it.detail ? h("div.small.muted", it.detail) : null)))));
   const notes = items.filter(it => !it.start_time);
   notes.forEach(n => page.append(h("button.card", { onclick: () => itemSheet(tab, n), style: { width: "100%", textAlign: "left", marginTop: "10px", cursor: "pointer" } }, h("b", n.title), h("div.small.muted", { style: { marginTop: "4px" } }, n.detail || ""))));
+  // attendance below the classes
+  if (kind === "university") { const box = h("div", { style: { marginTop: "14px" } }); page.append(box); attendanceCard().then(c => box.replaceChildren(c)).catch(() => {}); }
+  addTail();
 }, { tab: "week" });
 
 function itemSheet(tab, it, presetDays = []) {
@@ -389,4 +409,36 @@ function attCalendar(by) {
     onTap: d => sheet(new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }), h("div.list", perDay[d].map(x => h("div.li", h("i", { style: { width: "10px", height: "10px", borderRadius: "50%", background: ATT_COL[x.st], flexShrink: 0 } }), h("div.grow", h("b", x.title)), h("span.small", ATT_WORD[x.st]))))),
     legend: [["Present", ATT_COL.in], ["Absent", ATT_COL.out], ["No class", ATT_COL.off]],
   }));
+}
+
+// whole day without classes (holiday / university closed): skip every class of that weekday on that date
+async function dayRoutines(date) {
+  await loadClassIds();
+  const ids = [...CLASS_IDS];
+  if (!ids.length) return [];
+  const dw = new Date(date + "T00:00:00Z").getUTCDay();
+  const rts = await api.select("routines", `select=id,title,days&id=in.(${ids.join(",")})&active=eq.true`);
+  return rts.filter(r => (r.days || []).includes(dw));
+}
+export async function isDayOff(date) {
+  const rts = await dayRoutines(date);
+  if (!rts.length) return false;
+  const sk = await api.selectFresh("routine_skips", `select=routine_id&day=eq.${date}&routine_id=in.(${rts.map(r => r.id).join(",")})`);
+  return rts.every(r => sk.some(k => k.routine_id === r.id));
+}
+export async function dayOff(date, on) {
+  const rts = await dayRoutines(date);
+  if (!rts.length) return;
+  const ids = rts.map(r => r.id).join(",");
+  const doOff = async () => {
+    for (const r of rts) await api.insert("routine_skips", { routine_id: r.id, day: date, user_id: api.userId() }).catch(() => {});
+    await api.remove("tasks", `routine_id=in.(${ids})&day=eq.${date}&status=eq.pending`);
+  };
+  const doOn = async () => {
+    await api.remove("routine_skips", `routine_id=in.(${ids})&day=eq.${date}`);
+    await api.rpc("ensure_tasks", { p_from: date, p_to: date }).catch(() => {});
+  };
+  if (on) { await doOff(); toast("No classes that day ✓ — not counted", "ok"); }
+  else { await doOn(); toast("Classes are back ✓", "ok"); }
+  import("./undo.js").then(U => U.record(on ? "Day off" : "Classes on", async () => { await (on ? doOn() : doOff()); rerender(); }, on ? doOff : doOn));
 }
