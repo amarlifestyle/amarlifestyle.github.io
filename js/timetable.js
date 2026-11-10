@@ -5,6 +5,7 @@ import * as api from "./api.js";
 import { h, icon, toast, sheet, busy, confirmBox, todayStr, fmtHM, dhakaNow, pickPhoto, monthCalendar } from "./ui.js";
 import { route, store, rerender, backbar, myRoles } from "./app.js";
 import { shrink } from "./assistant.js";
+import * as U from "./undo.js";
 import { isMuslim } from "./prayer.js";
 import { deadlines } from "./exams.js";
 
@@ -182,11 +183,20 @@ route("schedule", async (page, key = "university", dayArg) => {
     page.append(h("div.card" + (off ? ".dayoff" : ""), { style: { display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", marginBottom: "10px" } },
       h("div.grow", h("b", off ? "🚫 No classes this day" : "Is the university closed this day?"), h("div.small.muted", off ? `${dLabel}: not counted in attendance` : "Holiday or all classes cancelled → tap")), b));
   }
+  const cancelled = kind === "university" && weeklyTab && !off ? await cancelledOn(dDate).catch(() => new Set()) : new Set();
+  if (kind === "university") page.append(h("div.row", { style: { justifyContent: "flex-end", margin: "-4px 0 6px" } }, U.undoButtons()));
   if (!list.length) page.append(h("div.card.empty", h("p", kind === "meal" ? "No meal times yet." : "No classes this day 🎉")));
   else page.append(h("div.list", list.map(it => h("button.li", { onclick: () => itemSheet(tab, it), style: { alignItems: "flex-start", textAlign: "left", ...(off ? { opacity: .45, textDecoration: "line-through" } : {}), ...(live(it) && !off ? { borderColor: "var(--brand)", background: "color-mix(in srgb, var(--brand) 10%, var(--card))" } : {}) } },
     h("div", { style: { minWidth: "92px", fontWeight: 700, fontSize: "13px", color: live(it) ? "var(--brand)" : "var(--muted)" } }, fmtHM(hm(it.start_time)), it.end_time ? h("div.small.faint", "– " + fmtHM(hm(it.end_time))) : null),
     h("div.grow", h("b", it.title, live(it) ? h("span.badge.ok", { style: { marginLeft: "6px" } }, "Now") : it === nextIt ? h("span.badge", { style: { marginLeft: "6px" } }, "Next") : null),
-      it.detail ? h("div.small.muted", it.detail) : null)))));
+      it.detail ? h("div.small.muted", it.detail) : null),
+    // one class cancelled on this date (not counted) — tap again to bring it back; ↶ ↷ at the top too
+    kind === "university" && weeklyTab && !off && it.mine !== false ? (() => {
+      const isC = cancelled.has(it.code || it.title) || cancelled.has(it.title);
+      const b = h("span.btn.small" + (isC ? ".primary" : ""), { role: "button" }, isC ? "↶ Cancelled" : "✕ Cancel");
+      b.onclick = busy(b, async ev => { ev.stopPropagation(); await cancelClass(it, dDate, !isC); rerender(); });
+      return b;
+    })() : null))));
   const notes = items.filter(it => !it.start_time);
   notes.forEach(n => page.append(h("button.card", { onclick: () => itemSheet(tab, n), style: { width: "100%", textAlign: "left", marginTop: "10px", cursor: "pointer" } }, h("b", n.title), h("div.small.muted", { style: { marginTop: "4px" } }, n.detail || ""))));
   // attendance below the classes
@@ -441,4 +451,22 @@ export async function dayOff(date, on) {
   if (on) { await doOff(); toast("No classes that day ✓ — not counted", "ok"); }
   else { await doOn(); toast("Classes are back ✓", "ok"); }
   import("./undo.js").then(U => U.record(on ? "Day off" : "Classes on", async () => { await (on ? doOn() : doOff()); rerender(); }, on ? doOff : doOn));
+}
+
+// one class off on one date: same as ✕ No class on Today (not counted, no DP change); undo / redo
+export async function cancelledOn(date) {
+  const rts = await dayRoutines(date);
+  if (!rts.length) return new Set();
+  const sk = await api.selectFresh("routine_skips", `select=routine_id&day=eq.${date}&routine_id=in.(${rts.map(r => r.id).join(",")})`);
+  return new Set(rts.filter(r => sk.some(k => k.routine_id === r.id)).map(r => r.title));
+}
+export async function cancelClass(it, date, on) {
+  const rts = (await dayRoutines(date)).filter(r => r.title === (it.code || it.title) || r.title === it.title);
+  if (!rts.length) return toast("This class is not in your weekly routine.", "bad");
+  const ids = rts.map(r => r.id).join(",");
+  const doOff = async () => { for (const r of rts) await api.insert("routine_skips", { routine_id: r.id, day: date, user_id: api.userId() }).catch(() => {}); await api.remove("tasks", `routine_id=in.(${ids})&day=eq.${date}&status=eq.pending`); };
+  const doOn = async () => { await api.remove("routine_skips", `routine_id=in.(${ids})&day=eq.${date}`); await api.rpc("ensure_tasks", { p_from: date, p_to: date }).catch(() => {}); };
+  await (on ? doOff() : doOn());
+  toast(on ? `“${it.title}” cancelled — not counted ✓` : `“${it.title}” is back ✓`, "ok");
+  U.record(on ? `“${it.title}” cancelled` : `“${it.title}” back`, async () => { await (on ? doOn() : doOff()); rerender(); }, async () => { await (on ? doOff() : doOn()); rerender(); });
 }

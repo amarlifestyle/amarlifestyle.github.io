@@ -24,7 +24,10 @@ route("week", async (page, offset = "0") => {
       h("a.icon-btn", { href: `#/week/${off - 1}`, "aria-label": "Previous week" }, icon("back")),
       h("a.icon-btn", { href: `#/week/${off + 1}`, "aria-label": "Next week" }, icon("chev")))));
   page.append(await routineTabsAsync("week"));
-  page.append(h("div.row.between", { style: { margin: "-4px 0 8px" } }, h("span.small.muted", off === 0 ? "This week" : ""), U.undoButtons()));
+  // 🎓 university classes on/off in this view (only hides them here; nothing is deleted)
+  const hideCls = !!api.LS.get("al_hide_cls");
+  const clsBtn = h("button.chip" + (hideCls ? "" : ".on"), { type: "button", onclick: () => { api.LS.set("al_hide_cls", hideCls ? 0 : 1); rerender(); } }, hideCls ? "🎓 Classes: Off" : "🎓 Classes: On");
+  page.append(h("div.row.between", { style: { margin: "-4px 0 8px", gap: "8px" } }, h("span.small.muted", off === 0 ? "This week" : ""), clsBtn, U.undoButtons()));
   if (we >= today) { try { await api.rpc("ensure_tasks", { p_from: ws < today ? today : ws, p_to: we }); } catch {} }
   const [tasks0, routines, students] = await Promise.all([
     api.select("tasks", `select=*&day=gte.${ws}&day=lte.${we}&order=start_at`),
@@ -42,7 +45,7 @@ route("week", async (page, offset = "0") => {
       fromRoutine.push({ id: `r:${r.id}:${d}`, isPlan: true, routine_id: r.id, student_id: r.student_id, title: r.title, category: r.category, day: d, start_at: s0, end_at: new Date(new Date(s0).getTime() + r.duration_min * 60000).toISOString(), status: "plan", color: r.color, dp_value: 0 });
     });
   }
-  const tasks = [...tasks0, ...fromRoutine].sort((a, b) => a.start_at.localeCompare(b.start_at));
+  const tasks = [...tasks0, ...fromRoutine].filter(x => !hideCls || !isClassTask(x)).sort((a, b) => a.start_at.localeCompare(b.start_at));
   const rMap = Object.fromEntries(routines.map(r => [r.id, r]));
   const sMap = Object.fromEntries(students.map(s => [s.id, s]));
   const colorOf = tk => tk.color || rMap[tk.routine_id]?.color || sMap[tk.student_id]?.color || catColor(tk.category);

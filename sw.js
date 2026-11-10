@@ -1,6 +1,6 @@
 /* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — offline support: app files are cached, data always comes fresh from the server.
-const CACHE = "amarlifestyle-v91";
+const CACHE = "amarlifestyle-v92";
 const FONTS = "amarlifestyle-fonts";
 const FILES = [
   "./", "index.html", "manifest.json", "css/app.css",
