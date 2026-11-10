@@ -23,17 +23,24 @@ function cleanMsg(m) {
   return String(m).replace(/^.*?ERROR:\s*/i, "").replace(/\s*CONTEXT:.*$/s, "");
 }
 
+// "no internet" covers more than a failed fetch: phone offline, a connection that hangs, the server or a
+// mobile-data page answering with an error/HTML page — all of these mean "save it and send it later"
+const offlineErr = () => { const e = new ApiError("No internet. Your change will be saved when you are back online."); e.offline = true; return e; };
+const tmo = ms => (AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined); // older phones: no time limit
+const NET_DOWN = new Set([0, 408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 530]);
 async function refresh() {
   if (!session?.refresh_token) throw new ApiError("Please log in again.");
+  if (navigator.onLine === false) throw offlineErr();
   let r;
   try {
     r = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, {
       method: "POST", headers: { apikey: SB_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: session.refresh_token }),
+      body: JSON.stringify({ refresh_token: session.refresh_token }), signal: tmo(15000),
     });
-  } catch { const e = new ApiError("No internet. Your change will be saved when you are back online."); e.offline = true; throw e; }
+  } catch { throw offlineErr(); }
+  if (NET_DOWN.has(r.status)) throw offlineErr(); // a bad connection must never log anyone out
   if (!r.ok) { saveSession(null); location.hash = "#/login"; throw new ApiError("Please log in again."); }
-  const d = await r.json();
+  const d = await r.json().catch(() => { throw offlineErr(); });
   saveSession({ access_token: d.access_token, refresh_token: d.refresh_token, expires_at: d.expires_at, user_id: d.user.id });
 }
 
@@ -45,17 +52,18 @@ async function authHeader() {
 async function req(path, { method = "GET", body, headers = {}, raw = false } = {}) {
   const h = { apikey: SB_KEY, ...(await authHeader()), ...headers };
   if (body !== undefined && !(body instanceof Blob)) h["Content-Type"] = "application/json";
+  if (navigator.onLine === false) throw offlineErr();
   let r;
   try {
-    r = await fetch(SB_URL + path, { method, headers: h, body: body instanceof Blob ? body : body !== undefined ? JSON.stringify(body) : undefined });
-  } catch (e) {
-    const err = new ApiError("No internet. Your change will be saved when you are back online.");
-    err.offline = true; throw err;
-  }
+    r = await fetch(SB_URL + path, { method, headers: h, body: body instanceof Blob ? body : body !== undefined ? JSON.stringify(body) : undefined,
+      signal: tmo(body instanceof Blob ? 120000 : 20000) }); // a hanging connection counts as offline
+  } catch (e) { throw offlineErr(); }
   if (r.status === 401 && session) { await refresh(); return req(path, { method, body, headers, raw }); }
+  if (NET_DOWN.has(r.status)) throw offlineErr();
   if (raw) return r;
-  const text = await r.text();
-  const data = text ? JSON.parse(text) : null;
+  const text = await r.text().catch(() => { throw offlineErr(); });
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { throw offlineErr(); } // an HTML page (mobile data / wifi login) instead of the server
   if (!r.ok) throw new ApiError(cleanMsg(data?.message || data?.error || data?.msg || r.statusText));
   return data;
 }

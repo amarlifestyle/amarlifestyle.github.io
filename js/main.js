@@ -26,7 +26,16 @@ if ("serviceWorker" in navigator) {
   // always pick up the newest version: check on open / when coming back, and reload once a new one takes over
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+  // a new version took over: switch at once only if the app was just opened and nothing was tapped yet,
+  // otherwise when the user leaves the app (so it never reloads in the middle of something)
+  const t0 = Date.now(); let touched = false;
+  addEventListener("pointerdown", () => { touched = true; }, { once: true, capture: true });
+  const reloadNow = () => { if (!reloaded) { reloaded = true; location.reload(); } };
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController) return;
+    if (!touched && Date.now() - t0 < 4000) return reloadNow();
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") reloadNow(); });
+  });
   window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(reg => {
     reg.update().catch(() => {});
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
