@@ -348,6 +348,7 @@ export async function addTask(tk = null, preset = {}) {
         if (!title.value.trim()) throw new Error("Please write what you will do.");
         const { start: st0, minutes: m } = tp.get(); if (!(m >= 5 && m <= 720)) throw new Error("Pick 5 minutes to 12 hours.");
         const s = dhakaIso(day.value, st0); const e = new Date(new Date(s).getTime() + m * 60000).toISOString();
+        if (e <= new Date() && !(await confirmBox("This time is already over", `${day.value} ${fmtTime(s.toISOString())} – ${fmtTime(e.toISOString())} has passed. Check the date — save it anyway?`, "Save anyway"))) return;
         if (!(await clashOk(day.value, s, e, tk?.id))) return;
         const student = cat.value === "Tuition" ? stu.value || null : null;
         const row = { title: title.value.trim(), category: cat.value, start_at: s, end_at: e, day: day.value, pinned: pin.checked, student_id: student };
