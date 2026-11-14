@@ -63,9 +63,11 @@ export async function examsCard() {
 }
 
 route("exams", async page => {
-  const { routineTabsAsync } = await import("./timetable.js");
+  const { routineTabsAsync, shareSwitch } = await import("./timetable.js");
+  const U = await import("./undo.js");
   const R = deadlines();
   page.append(h("header.topbar", h("div", h("h1", "Routine"), h("div.sub", R.sub))), await routineTabsAsync("exams"));
+  page.append(h("div.row", { style: { justifyContent: "space-between", margin: "-4px 0 6px", gap: "8px" } }, await shareSwitch(), U.undoButtons()));
   const all = await api.select("exams", "select=*&order=due_at");
   const now = Date.now();
   // time over → it stays under "Done & past" for one day, then disappears by itself
@@ -258,7 +260,7 @@ export function examSheet(e) {
         const done = h("button.btn", e.done ? "Undo" : "✓ " + doneWord(e.kind));
         done.onclick = busy(done, async () => { close(true); await markExamDone(e, !e.done); });
         const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash"));
-        del.onclick = busy(del, async () => { if (!(await confirmBox("Delete?", e.title, "Delete", true))) return; await api.remove("exams", `id=eq.${e.id}`); close(true); rerender(); });
+        del.onclick = busy(del, async () => { if (!(await confirmBox("Delete?", e.title, "Delete", true))) return; await removeExamUndo(e); close(true); rerender(); });
         out.unshift(del, done);
       }
       return out;

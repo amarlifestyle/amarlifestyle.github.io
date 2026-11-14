@@ -184,7 +184,7 @@ route("schedule", async (page, key = "university", dayArg) => {
       h("div.grow", h("b", off ? "🚫 No classes this day" : "Is the university closed this day?"), h("div.small.muted", off ? `${dLabel}: not counted in attendance` : "Holiday or all classes cancelled → tap")), b));
   }
   const cancelled = kind === "university" && weeklyTab && !off ? await cancelledOn(dDate).catch(() => new Set()) : new Set();
-  if (kind === "university") page.append(h("div.row", { style: { justifyContent: "flex-end", margin: "-4px 0 6px" } }, U.undoButtons()));
+  if (kind === "university") page.append(h("div.row", { style: { justifyContent: "space-between", margin: "-4px 0 6px", gap: "8px" } }, await shareSwitch(), U.undoButtons()));
   if (!list.length) page.append(h("div.card.empty", h("p", kind === "meal" ? "No meal times yet." : "No classes this day 🎉")));
   else page.append(h("div.list", list.map(it => h("button.li", { onclick: () => itemSheet(tab, it), style: { alignItems: "flex-start", textAlign: "left", ...(off ? { opacity: .45, textDecoration: "line-through" } : {}), ...(live(it) && !off ? { borderColor: "var(--brand)", background: "color-mix(in srgb, var(--brand) 10%, var(--card))" } : {}) } },
     h("div", { style: { minWidth: "92px", fontWeight: 700, fontSize: "13px", color: live(it) ? "var(--brand)" : "var(--muted)" } }, fmtHM(hm(it.start_time)), it.end_time ? h("div.small.faint", "– " + fmtHM(hm(it.end_time))) : null),
@@ -240,7 +240,8 @@ function itemSheet(tab, it, presetDays = []) {
       const out = [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
       if (it) {
         const del = h("button.btn.danger", { "aria-label": "Delete" }, icon("trash"));
-        del.onclick = busy(del, async () => { if (!(await confirmBox("Delete this?", it.title, "Delete", true))) return; await api.remove("timetable_items", `id=eq.${it.id}`); if (weekly) await syncWeekly(); close(true); rerender(); });
+        del.onclick = busy(del, async () => { if (!(await confirmBox("Delete this?", it.title, "Delete", true))) return; const back = { ...it }; await api.remove("timetable_items", `id=eq.${it.id}`); if (weekly) await syncWeekly(); close(true); rerender();
+          U.record(`“${it.title}” deleted`, async () => { await api.insert("timetable_items", back); if (weekly) await syncWeekly(); rerender(); }, async () => { await api.remove("timetable_items", `id=eq.${it.id}`); if (weekly) await syncWeekly(); rerender(); }); });
         out.unshift(del);
       }
       return out;
@@ -469,4 +470,20 @@ export async function cancelClass(it, date, on) {
   await (on ? doOff() : doOn());
   toast(on ? `“${it.title}” cancelled — not counted ✓` : `“${it.title}” is back ✓`, "ok");
   U.record(on ? `“${it.title}” cancelled` : `“${it.title}” back`, async () => { await (on ? doOn() : doOff()); rerender(); }, async () => { await (on ? doOff() : doOn()); rerender(); });
+}
+
+// admin only: do my university changes (classes, CT / lab / quiz / exam dates, deletes) go to all UFTB classmates, or only my account
+export async function shareSwitch() {
+  if (!store.profile?.is_admin) return h("span");
+  let on = await api.rpc("uftb_share_get").catch(() => null);
+  if (on === null) return h("span");
+  const b = h("button.chip" + (on ? ".on" : ""), { type: "button" });
+  const draw = () => { b.textContent = on ? "🎓 Changes: All UFTB" : "👤 Changes: Only me"; b.classList.toggle("on", on); };
+  b.onclick = busy(b, async () => {
+    const was = on; on = await api.rpc("uftb_share_set", { p_on: !on }); draw();
+    toast(on ? "Your university changes now go to all classmates" : "Your university changes now stay only in your account", "ok");
+    U.record(on ? "Changes: All UFTB" : "Changes: Only me", async () => { on = await api.rpc("uftb_share_set", { p_on: was }); draw(); }, async () => { on = await api.rpc("uftb_share_set", { p_on: !was }); draw(); });
+  });
+  draw();
+  return b;
 }
