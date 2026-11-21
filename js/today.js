@@ -48,7 +48,7 @@ route("today", async page => {
   let tasks, stats, events;
   try {
     [tasks, stats, events] = await Promise.all([
-      api.select("tasks", `select=*&day=eq.${today}&order=pinned.desc,start_at`),
+      api.select("tasks", `select=*&or=(day.eq.${today},and(day.eq.${addDays(today, -1)},status.eq.pending,end_at.gt.${today}T00:00:00%2B06:00))&order=pinned.desc,start_at`),
       api.rpc("my_stats"),
       api.select("events", "select=*&order=date"),
     ]);
