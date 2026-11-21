@@ -72,6 +72,7 @@ export async function loadBasics() {
 }
 export function applyTheme() { // dark only
   document.documentElement.dataset.theme = "dark";
+  try { document.documentElement.dataset.skin = JSON.parse(localStorage.getItem("al_skin")) || "blue"; } catch { document.documentElement.dataset.skin = "blue"; }
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#0B1220");
 }
 

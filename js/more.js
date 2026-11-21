@@ -252,6 +252,11 @@ function fold(ic, title, sub, body) {
 }
 route("settings", async (page, open) => {
   page.append(backbar(t("Settings")));
+  // look of the app: Black (lime) or the classic Blue — saved on this phone
+  const skin = api.LS.get("al_skin") || "blue";
+  page.append(h("div.card", { style: { display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" } },
+    h("div.grow", h("b", "Theme"), h("div.small.muted", "How the app looks")),
+    ...[["blue", "Blue"], ["black", "Black"]].map(([k, l]) => h("button.chip" + (skin === k ? ".on" : ""), { type: "button", onclick: () => { api.LS.set("al_skin", k); document.documentElement.dataset.skin = k; rerender(); } }, l))));
   const p = store.profile;
   const name = h("input.input", { value: p.name });
   const sleep = h("input.input", { type: "time", value: p.sleep_time.slice(0, 5) });
