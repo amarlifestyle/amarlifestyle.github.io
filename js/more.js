@@ -151,8 +151,8 @@ route("calendar", async (page, ym) => {
   const events = await api.select("events", "select=*&order=date");
   const on = d => events.filter(e => e.date === d || (e.yearly && e.date.slice(5) === d.slice(5)));
   const grid = h("div", { style: { display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: "4px" } },
-    DAYS.map(d => h("div.small.faint.center", d.slice(0, 2))),
-    [...Array(first.getDay())].map(() => h("div")),
+    [6, 0, 1, 2, 3, 4, 5].map(d => h("div.small.faint.center", DAYS[d].slice(0, 2))),
+    [...Array((first.getDay() + 1) % 7)].map(() => h("div")),
     [...Array(daysIn)].map((_, i) => {
       const d = `${y}-${pad(m)}-${pad(i + 1)}`; const ev = on(d);
       return h("button", { style: { minHeight: "48px", borderRadius: "10px", border: "1px solid " + (d === today ? "var(--brand)" : "var(--line)"), background: ev.length ? "color-mix(in srgb, var(--amber) 12%, var(--card))" : "var(--card)", cursor: "pointer", padding: "4px" },

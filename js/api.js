@@ -201,7 +201,8 @@ const STALE = new Set(["routines", "timetable_items", "timetable_tabs", "student
 // (done / total) can never show an old number when the app is opened again
 const TASKY = new Set(["tasks", "routine_skips", "routines", "timetable_items", "timetable_skips"]);
 const forgetTasks = () => { try { Object.keys(localStorage).filter(k => k.startsWith("al_c:tasks?") || k.startsWith("al_c:rpc/my_stats") || k === "al_today").forEach(k => localStorage.removeItem(k)); } catch {} };
-const touch = t => { if (STALE.has(t)) try { localStorage.setItem("al_coach_stale", "1"); } catch {} if (TASKY.has(t)) forgetTasks(); };
+const dropCache = t => { try { Object.keys(localStorage).filter(k => k.startsWith(cacheKey(t + "?"))).forEach(k => localStorage.removeItem(k)); } catch {} };
+const touch = t => { dropCache(t); if (STALE.has(t)) try { localStorage.setItem("al_coach_stale", "1"); } catch {} if (TASKY.has(t)) forgetTasks(); };
 export const insert = (table, rows) => (touch(table), req(`/rest/v1/${table}`, { method: "POST", body: rows, headers: { Prefer: "return=representation" } }));
 export const upsert = (table, rows, onConflict) => (touch(table), 0) || req(`/rest/v1/${table}${onConflict ? `?on_conflict=${onConflict}` : ""}`, { method: "POST", body: rows, headers: { Prefer: "return=representation,resolution=merge-duplicates" } });
 export const update = (table, match, patch) => (touch(table), req(`/rest/v1/${table}?${match}`, { method: "PATCH", body: patch, headers: { Prefer: "return=representation" } }));

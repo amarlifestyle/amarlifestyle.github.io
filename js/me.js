@@ -205,7 +205,7 @@ route("habit", async (page, id) => {
   const weeks = [...Array(12)].map((_, i) => addDays(today, -7 * (11 - i) - 6));
   const wSum = w => sumDays(w, addDays(w, 6));
   page.append(h("div.card", h("h3", "Per week — last 12 weeks"), barChart(weeks.map(w => ({ l: w.slice(5).replace("-", "/"), v: wSum(w) })), { color: "var(--amber)" })));
-  const months = [...Array(12)].map((_, i) => { const d = new Date(today.slice(0, 7) + "-01T00:00:00"); d.setMonth(d.getMonth() - (11 - i)); return d.toISOString().slice(0, 7); });
+  const months = [...Array(12)].map((_, i) => { const d = new Date(today.slice(0, 7) + "-01T12:00:00"); d.setMonth(d.getMonth() - (11 - i)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
   const mSum = m => Object.entries(cnt).filter(([d]) => d.slice(0, 7) === m).reduce((a, [, v]) => a + v, 0);
   const lbl = m => new Date(m + "-01T00:00:00").toLocaleDateString("en-GB", { month: "short" });
   page.append(h("div.card", h("h3", "Per month"), barChart(months.map(m => ({ l: lbl(m), v: mSum(m) })), { color: "var(--red)" })));

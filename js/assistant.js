@@ -462,7 +462,8 @@ export function askSheet(opts = {}) {
     out.replaceChildren(h("div.ai-think", h("i"), h("i"), h("i"), h("span", photo ? "Reading photo…" : audio ? "Listening…" : "Thinking…")));
     lastQ = text || (audio ? "[voice]" : "") + (photo ? " [photo]" : "");
     const c = await gather();
-    const r = await api.ai("ask", { question: text || "", audio: audio || null, image: photo ? { mime: photo.mime, data: photo.data } : null, ctx: c.forAi, history: history.slice(-6), today: todayStr() });
+    const en = text && /[A-Za-z]/.test(text) && !/[\u0980-\u09FF]/.test(text);
+    const r = await api.ai("ask", { question: en ? `${text}\n\n(Reply in English.)` : (text || ""), audio: audio || null, image: photo ? { mime: photo.mime, data: photo.data } : null, ctx: c.forAi, history: history.slice(-6), today: todayStr() });
     if (r.heard) { q.value = r.heard; lastQ = r.heard; }
     history.push({ role: "user", text: r.heard || text || (photo ? "[photo]" : "") }, { role: "ai", text: (r.answer || "").slice(0, 400) + ((r.actions || []).length ? ` [proposed ${(r.actions || []).length} changes]` : "") });
     photo = null; thumb.replaceChildren();

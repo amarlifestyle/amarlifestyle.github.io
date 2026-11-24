@@ -142,12 +142,14 @@ route("summary", async (page, which) => {
       aiAsk: `আমি এই অ্যাপ শুরু করার দিন থেকে আজ পর্যন্ত পুরো ইতিহাস দেখে বাংলায় একটা সৎ মূল্যায়ন দাও: সামগ্রিক রায়, সবচেয়ে বড় ৩টা উন্নতি, ৩টা দুর্বলতা, টাকার অভ্যাস নিয়ে ২টা কথা, আর সামনে ৩টা পরামর্শ।` });
     return;
   }
-  const m = /^\d{4}-\d{2}$/.test(which || "") ? which : (() => { const d = new Date(today.slice(0, 7) + "-01T00:00:00"); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
-  const months = []; for (let d = new Date(first.slice(0, 7) + "-01T00:00:00"); d.toISOString().slice(0, 7) <= today.slice(0, 7); d.setMonth(d.getMonth() + 1)) months.push(d.toISOString().slice(0, 7));
+  const ym = (x, k) => { let [y, mo] = x.split("-").map(Number); mo += k; while (mo < 1) { mo += 12; y--; } while (mo > 12) { mo -= 12; y++; } return `${y}-${String(mo).padStart(2, "0")}`; };
+  const cur = today.slice(0, 7);
+  const m = /^\d{4}-\d{2}$/.test(which || "") ? which : (first.slice(0, 7) < cur ? ym(cur, -1) : cur);
+  const months = []; for (let x = first.slice(0, 7); x <= cur; x = ym(x, 1)) months.push(x);
   const pick = h("select.input.noprint", { style: { marginBottom: "10px" }, onchange: e => location.hash = `#/summary/${e.target.value}` },
-    months.reverse().map(x => h("option", { value: x, selected: x === m }, new Date(x + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) + (x === today.slice(0, 7) ? " (current)" : ""))));
+    months.reverse().map(x => h("option", { value: x, selected: x === m }, new Date(x + "-01T12:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) + (x === today.slice(0, 7) ? " (current)" : ""))));
   const to = m === today.slice(0, 7) ? today : monthEnd(m);
-  await render(page, { from: m + "-01", to, title: "Month summary", sub: new Date(m + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" }), aiKey: "al_monthai_" + m, nav: pick,
+  await render(page, { from: m + "-01", to, title: "Month summary", sub: new Date(m + "-01T12:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" }), aiKey: "al_monthai_" + m, nav: pick,
     aiAsk: `আমার এই মাসের পুরো হিসাব দেখে বাংলায় সৎ মাসিক মূল্যায়ন দাও। ফরম্যাট: প্রথম লাইনে মাসটা এক কথায় আর কেন। তারপর "✅ ভালো যা হয়েছে:" ৩টা, "⚠️ সমস্যা:" ৩টা (কোথায়, কত বার), "💰 টাকা:" ২টা কথা, "🎯 পরের মাসে:" ৩টা নির্দিষ্ট লক্ষ্য।` });
 }, { tab: "more" });
 
