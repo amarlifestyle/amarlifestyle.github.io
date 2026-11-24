@@ -1049,3 +1049,31 @@ h2, h3, .section-title h2 { font-weight: 600; letter-spacing: -.2px; }
 b, strong, .v { font-weight: 600; }
 .topbar .sub { font-weight: 500; }
 .task .t, .task b { font-weight: 600; }
+
+/* ---- tech background (one fixed layer, no images/JS, painted once) ---- */
+:root { --circuit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' fill='none' stroke='%23C6F432' stroke-width='1.2' stroke-opacity='.3'%3E%3Cpath d='M0 70h90l30 30h110M230 100l40-40h150M60 0v40l30 30M300 60V0M0 250h40l40-40h90l30 30h70M270 240h150M170 210v-60l30-30M330 240v70l-30 30H190l-30 30v90M60 420v-60l40-40h50M380 420v-40l-40-40'/%3E%3Cg fill='%23C6F432' fill-opacity='.35' stroke='none'%3E%3Ccircle cx='230' cy='100' r='3'/%3E%3Ccircle cx='200' cy='120' r='3'/%3E%3Ccircle cx='300' cy='60' r='3'/%3E%3Ccircle cx='170' cy='210' r='3'/%3E%3Ccircle cx='270' cy='240' r='3'/%3E%3Ccircle cx='160' cy='340' r='3'/%3E%3Ccircle cx='150' cy='320' r='3'/%3E%3Ccircle cx='90' cy='70' r='3'/%3E%3C/g%3E%3C/svg%3E"); }
+:root[data-skin="blue"] { --circuit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' fill='none' stroke='%232DD4BF' stroke-width='1.2' stroke-opacity='.3'%3E%3Cpath d='M0 70h90l30 30h110M230 100l40-40h150M60 0v40l30 30M300 60V0M0 250h40l40-40h90l30 30h70M270 240h150M170 210v-60l30-30M330 240v70l-30 30H190l-30 30v90M60 420v-60l40-40h50M380 420v-40l-40-40'/%3E%3Cg fill='%232DD4BF' fill-opacity='.35' stroke='none'%3E%3Ccircle cx='230' cy='100' r='3'/%3E%3Ccircle cx='200' cy='120' r='3'/%3E%3Ccircle cx='300' cy='60' r='3'/%3E%3Ccircle cx='170' cy='210' r='3'/%3E%3Ccircle cx='270' cy='240' r='3'/%3E%3Ccircle cx='160' cy='340' r='3'/%3E%3Ccircle cx='150' cy='320' r='3'/%3E%3Ccircle cx='90' cy='70' r='3'/%3E%3C/g%3E%3C/svg%3E"); }
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(600px 420px at 85% -5%, color-mix(in srgb, var(--brand) 13%, transparent), transparent 70%),
+    radial-gradient(520px 420px at -10% 100%, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 70%),
+    radial-gradient(rgba(255,255,255,.07) 1px, transparent 1.2px) 0 0 / 22px 22px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.55) 60%, #000 100%);
+          mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.55) 60%, #000 100%);
+}
+:root[data-theme="light"] body::after { display: none; }
+@media print { body::after { display: none; } }
+.card, .task, .stat, .tabs, .seg { background-color: color-mix(in srgb, var(--card) 84%, transparent); }
+.bgfx { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.bgfx-c { position: absolute; top: 0; left: 0; fill: none; stroke: var(--brand); stroke-width: 1.2; stroke-opacity: .28; }
+.bgfx-n { fill: var(--brand); stroke: none; opacity: .5; }
+.bgfx-s { fill: var(--brand); stroke: var(--brand); stroke-width: 5; stroke-opacity: .22; }
+.bgfx-drone { position: absolute; top: 18vh; left: 0; fill: var(--brand); stroke: var(--brand); stroke-width: 1.6; fill-opacity: .6; stroke-opacity: .5; fill: none;
+  animation: bgfx-fly 38s linear infinite; }
+.bgfx-drone circle { fill: var(--brand); }
+@keyframes bgfx-fly { 0% { transform: translate(-80px, 0) } 45% { transform: translate(calc(100vw + 80px), -6vh) } 100% { transform: translate(calc(100vw + 80px), -6vh) } }
+@media (prefers-reduced-motion: reduce) { .bgfx-drone { display: none; } }
+:root[data-theme="light"] .bgfx, body.printing .bgfx { display: none; }
+@media print { .bgfx { display: none; } }
+.bgfx-calm .bgfx-drone { display: none; }

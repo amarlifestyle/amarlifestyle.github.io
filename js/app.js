@@ -73,6 +73,7 @@ export async function loadBasics() {
 export function applyTheme() { // dark only
   document.documentElement.dataset.theme = "dark";
   try { document.documentElement.dataset.skin = JSON.parse(localStorage.getItem("al_skin")) || "blue"; } catch { document.documentElement.dataset.skin = "blue"; }
+  try { bgFx(); } catch {}
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#0B1220");
 }
 
@@ -319,4 +320,30 @@ export function genderPicker(cur, onPick) {
   const box = h("div.seg");
   const draw = () => box.replaceChildren(...Object.entries(GENDERS).map(([k, l]) => h("button" + (k === cur ? ".on" : ""), { type: "button", onclick: () => { cur = k; onPick(k); draw(); } }, l)));
   draw(); return box;
+}
+
+// animated tech background: circuit traces with travelling signals + a small drone (SVG, no images; off for reduced motion)
+function bgFx() {
+  if (document.querySelector(".bgfx")) return;
+  const tr = ["M0 70h90l30 30h110", "M230 100l40-40h150", "M0 250h40l40-40h90l30 30h70", "M270 240h150", "M330 240v70l-30 30H190l-30 30v90", "M60 0v40l30 30", "M60 420v-60l40-40h50", "M380 420v-40l-40-40", "M170 210v-60l30-30", "M300 60V0"];
+  const sig = [[0, 5.5, 0], [2, 7, 1.8], [4, 8, 3.2], [1, 4.5, 4.4], [6, 3, 2.6], [8, 3.5, 5.2]];
+  const node = [[230, 100], [200, 120], [300, 60], [170, 210], [270, 240], [160, 340], [150, 320], [90, 70]];
+  const tile = `<g id="bgt">${tr.map(d => `<path d="${d}"/>`).join("")}
+    <g class="bgfx-n">${node.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="3"><animate attributeName="opacity" values=".35;1;.35" dur="${3 + (i % 3)}s" begin="${i * .7}s" repeatCount="indefinite"/></circle>`).join("")}</g>
+    <g class="bgfx-s">${sig.map(([p, d, b]) => `<circle r="2.6"><animateMotion path="${tr[p]}" dur="${d}s" begin="${b}s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.1;.85;1" dur="${d}s" begin="${b}s" repeatCount="indefinite"/></circle>`).join("")}</g></g>`;
+  const cols = Math.min(5, Math.ceil(innerWidth / 420)), rows = Math.min(4, Math.ceil(innerHeight / 420));
+  const uses = []; for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) uses.push(`<use href="#bgt" x="${x * 420}" y="${y * 420}"/>`);
+  const drone = `<svg class="bgfx-drone" viewBox="0 0 64 32" width="64" height="32"><path d="M8 8h16M40 8h16M16 8v6h32V8M24 14l-4 8M40 14l4 8M26 14h12v6H26z"/><circle cx="32" cy="17" r="1.6"/></svg>`;
+  const el = document.createElement("div"); el.className = "bgfx"; el.setAttribute("aria-hidden", "true");
+  el.innerHTML = `<svg class="bgfx-c" width="2100" height="1680"><defs>${tile}</defs>${uses.join("")}</svg>${drone}`;
+  document.body.prepend(el);
+  const mq = matchMedia("(prefers-reduced-motion: reduce)"), svg = el.firstChild;
+  // signed in: the signals run for a few seconds after opening, then rest (no distraction while working).
+  // Welcome / login pages (signed out): full animation with the drone.
+  let calm = false;
+  const sync = () => { if (calm || mq.matches || document.hidden) svg.pauseAnimations?.(); else svg.unpauseAnimations?.(); };
+  const mode = () => { const inApp = !!api.getSession(); el.classList.toggle("bgfx-calm", inApp); if (!inApp) { calm = false; sync(); } };
+  mode(); addEventListener("hashchange", mode);
+  setTimeout(() => { if (api.getSession()) { calm = true; sync(); } }, 4000);
+  mq.addEventListener?.("change", sync); document.addEventListener("visibilitychange", sync); sync();
 }
