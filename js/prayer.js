@@ -169,7 +169,7 @@ route("prayer", async page => {
     page.append(yBtn);
   }
   page.append(h("div.card.small.mt", h("b", "Points"), h("p.small.muted.mb0", { style: { marginTop: "4px" } },
-    `Prayed: Fajr +${pdp("fajr")} DP, other prayers +${pdp()} DP (prayer time with preparation is valued like a demanding task) · Not prayed: 0 (nothing is cut) · Not marked at all: at 6 AM next morning the same DP is cut (Fajr −${pen("fajr")}, others −${pen()}). You can mark a prayer only after its time starts.`)));
+    `Prayed: Fajr +${pdp("fajr")} DP, other prayers +${pdp()} DP (prayer time with preparation is valued like a demanding task) · Not prayed: 0 (nothing is cut) · Not marked at all: 0 (nothing is cut). You can mark a prayer only after its time starts.`)));
 
   // graphs
   const days = Array.from({ length: 30 }, (_, i) => addDays(today, i - 29));
