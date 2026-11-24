@@ -572,20 +572,35 @@ async function alertFolds(p) {
 
 // ---------- Notifications page: turn on, Telegram, and the latest important notifications
 route("notifications", async page => {
-  page.append(topbar("Alerts", "Notifications · Telegram · Home Screen"));
-  const { isStandalone, installBody } = await import("./install.js");
-  if (!isStandalone()) { const f = fold("download", "Home Screen", "Not added yet", installBody()); f.open = true; page.append(f); }
-  const folds = await alertFolds(store.profile);
-  folds.forEach(f => { if (/Off|Not connected/.test(f.textContent.slice(0, 80))) f.open = true; });
-  page.append(...folds);
+  page.append(topbar("Alerts", "Your latest notifications"));
   const since = new Date(Date.now() - 3 * 3600e3).toISOString();
   const list = await api.select("inbox", `select=id,title,body,url,level,created_at,read&created_at=gt.${since}&order=created_at.desc&limit=60`).catch(() => []);
-  page.append(h("div.section-title", h("h2", "Recent"), h("span.small.faint", "cleared after 3 hours")));
-  if (!list.length) { page.append(h("div.card.empty", h("p", "No notifications."))); return; }
-  page.append(h("div.list", list.map(n => h("a.li", { href: n.url || "#/today", style: { alignItems: "flex-start", opacity: n.read ? .7 : 1 } },
-    h("div.ic", n.level === "urgent" ? "🚨" : "🔔"),
-    h("div.grow", h("b", n.title), n.body ? h("div.small.muted", n.body) : null, h("div.small.faint", new Date(n.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }))),
-    n.read ? null : h("span.badge.warn", "New")))));
-  const unread = list.filter(n => !n.read).map(n => n.id);
+  // what a notification is about decides its icon and colour
+  const kindOf = n => { const x = (n.title + " " + (n.body || "")).toLowerCase();
+    if (n.level === "urgent" || /🚨|emergency/.test(x)) return ["siren", "#F87171"];
+    if (/fajr|dhuhr|zuhr|asr|maghrib|isha|prayer|নামাজ|ওয়াক্ত/.test(x)) return ["mosque", "#2DD4BF"];
+    if (/\bct\b|lab|exam|assignment|quiz|presentation|deadline|পরীক্ষা/.test(x)) return ["edit", "#FBBF24"];
+    if (/৳|taka|bill|money|budget|টাকা|খরচ/.test(x)) return ["wallet", "#4ADE80"];
+    if (/update|version|v\d+|আপডেট|policy/.test(x)) return ["spark", "#A78BFA"];
+    if (/pomodoro|focus|break/.test(x)) return ["timer", "#38BDF8"];
+    if (/admin|reply|message|মেসেজ/.test(x)) return ["chat", "#F472B6"];
+    return ["bell", "#38BDF8"]; };
+  const ago = d => { const m = Math.round((Date.now() - new Date(d)) / 60000); return m < 1 ? "now" : m < 60 ? m + "m ago" : Math.floor(m / 60) + "h ago"; };
+  const card = n => { const [ic, c] = kindOf(n);
+    return h("a.nt" + (n.read ? "" : ".new"), { href: n.url || "#/today" },
+      h("div.nt-ic", { style: { color: c, background: c + "1F" } }, icon(ic)),
+      h("div.grow", { style: { minWidth: 0 } }, h("div.nt-top", h("b.ell", n.title.replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, "")), h("span.nt-time", ago(n.created_at))), n.body ? h("div.nt-body", n.body) : null),
+      n.read ? null : h("i.nt-dot")); };
+  const fresh = list.filter(n => !n.read), old = list.filter(n => n.read);
+  if (!list.length) page.append(h("div.card.nt-empty", h("div.nt-empty-ic", icon("bell")), h("b", "You're all caught up"), h("div.small.muted", "New reminders and messages show up here.")));
+  if (fresh.length) page.append(h("div.section-title", h("h2", "New"), h("span.small.faint", String(fresh.length))), h("div.nt-list", fresh.map(card)));
+  if (old.length) page.append(h("div.section-title", h("h2", "Earlier"), h("span.small.faint", "cleared after 3 hours")), h("div.nt-list", old.map(card)));
+  const unread = fresh.map(n => n.id);
   if (unread.length) api.update("inbox", `id=in.(${unread.join(",")})`, { read: true }).then(() => setUnread(0)).catch(() => {});
+  // settings for notifications sit below the list
+  page.append(h("div.section-title", h("h2", "Settings")));
+  const { isStandalone, installBody } = await import("./install.js");
+  if (!isStandalone()) page.append(fold("download", "Home Screen", "Not added yet", installBody()));
+  const folds = await alertFolds(store.profile);
+  page.append(...folds);
 }, { tab: "alerts" });
