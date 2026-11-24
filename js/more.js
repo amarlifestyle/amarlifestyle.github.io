@@ -589,7 +589,7 @@ route("notifications", async page => {
   const card = n => { const [ic, c] = kindOf(n);
     return h("a.nt" + (n.read ? "" : ".new"), { href: n.url || "#/today" },
       h("div.nt-ic", { style: { color: c, background: c + "1F" } }, icon(ic)),
-      h("div.grow", { style: { minWidth: 0 } }, h("div.nt-top", h("b.ell", n.title.replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, "")), h("span.nt-time", ago(n.created_at))), n.body ? h("div.nt-body", n.body) : null),
+      h("div.grow", { style: { minWidth: 0 } }, h("div.nt-top", h("b.ell", n.title.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]\s?/gu, "").trim()), h("span.nt-time", ago(n.created_at))), n.body ? h("div.nt-body", n.body.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]\s?/gu, "")) : null),
       n.read ? null : h("i.nt-dot")); };
   const fresh = list.filter(n => !n.read), old = list.filter(n => n.read);
   if (!list.length) page.append(h("div.card.nt-empty", h("div.nt-empty-ic", icon("bell")), h("b", "You're all caught up"), h("div.small.muted", "New reminders and messages show up here.")));

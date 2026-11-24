@@ -1110,3 +1110,38 @@ b, strong, .v { font-weight: 600; }
 .nt-empty { text-align: center; padding: 28px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .nt-empty-ic { width: 56px; height: 56px; border-radius: 18px; display: flex; align-items: center; justify-content: center; background: var(--card2); color: var(--brand); margin-bottom: 4px; }
 .nt-empty-ic svg { width: 28px; height: 28px; }
+/* ---- toast: top banner, iOS-style ---- */
+#toast .toast { display: flex; align-items: center; gap: 10px; padding: 10px 16px 10px 10px; border-radius: 22px; width: fit-content; max-width: min(92vw, 420px); margin: 0 auto 8px;
+  background: rgba(24,32,48,.92); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 10px 30px rgba(0,0,0,.45); font-size: 14px; font-weight: 500; line-height: 1.35; cursor: pointer;
+  animation: toastDrop .45s cubic-bezier(.34,1.4,.64,1) both; }
+#toast .toast.out { animation: toastUp .25s ease-in forwards; }
+.toast-ic { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: color-mix(in srgb, var(--cyan) 20%, transparent); color: var(--cyan); }
+.toast-ic svg { width: 17px; height: 17px; }
+.toast.ok .toast-ic { background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); }
+.toast.bad .toast-ic { background: color-mix(in srgb, var(--red) 20%, transparent); color: var(--red); }
+#toast .toast.ok, #toast .toast.bad { border-color: rgba(255,255,255,.1); }
+@keyframes toastDrop { from { opacity: 0; transform: translateY(-24px) scale(.92); } }
+@keyframes toastUp { to { opacity: 0; transform: translateY(-20px) scale(.95); } }
+#toast { top: calc(10px + env(safe-area-inset-top)); bottom: auto !important; }
+#toast .toast { pointer-events: auto; }
+#toast .toast { text-align: left; }
+/* ---- Today's focus card ---- */
+.focus-bd { position: fixed; inset: 0; z-index: 8500; background: rgba(3,6,12,.6); display: flex; align-items: flex-end; justify-content: center; animation: fadein .25s ease; }
+.focus-bd.out { animation: fadeout .28s ease forwards; } .focus-bd.out .focus-card { animation: focusDown .28s ease-in forwards; }
+.focus-card { width: 100%; max-width: 480px; background: var(--bg2); border: 1px solid var(--line2); border-bottom: 0; border-radius: 26px 26px 0 0; padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+  box-shadow: 0 -20px 60px rgba(0,0,0,.5); animation: focusUp .5s cubic-bezier(.34,1.25,.64,1) both; }
+.focus-grab { width: 40px; height: 5px; border-radius: 5px; background: var(--line2); margin: 0 auto 12px; }
+.focus-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 12px; } .focus-head h2 { margin: 2px 0 0; font-size: 22px; }
+.focus-n { min-width: 30px; height: 30px; border-radius: 15px; padding: 0 9px; display: flex; align-items: center; justify-content: center; font-weight: 700; background: color-mix(in srgb, var(--brand) 18%, transparent); color: var(--brand); }
+.focus-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.focus-it { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); opacity: 0; animation: focusItem .45s cubic-bezier(.34,1.3,.64,1) forwards; }
+.focus-it.hot { border-color: color-mix(in srgb, #F87171 45%, transparent); }
+.focus-ic { width: 38px; height: 38px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; } .focus-ic svg { width: 21px; height: 21px; }
+.focus-hot { font-size: 11.5px; font-weight: 700; color: #F87171; background: rgba(248,113,113,.14); padding: 3px 8px; border-radius: 10px; }
+.focus-btns { display: flex; flex-direction: column; gap: 8px; } .focus-btns .btn { justify-content: center; }
+@keyframes focusUp { from { transform: translateY(100%); } }
+@keyframes focusDown { to { transform: translateY(100%); } }
+@keyframes focusItem { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes fadeout { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .focus-card, .focus-it { animation: none; opacity: 1; } }

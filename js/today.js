@@ -227,7 +227,7 @@ route("today", async page => {
   }
   notifyLoop(tasks);
   // first: put the app on the home screen, then the guide
-  setTimeout(async () => { if (!location.hash.startsWith("#/today") || document.querySelector(".backdrop")) return; await installFirst(); if (location.hash.startsWith("#/today") && !document.querySelector(".backdrop")) showTour(); }, 700);
+  setTimeout(async () => { if (!location.hash.startsWith("#/today") || document.querySelector(".backdrop")) return; await installFirst(); if (location.hash.startsWith("#/today") && !document.querySelector(".backdrop")) showTour(); setTimeout(() => { if (location.hash.startsWith("#/today") && !document.querySelector(".backdrop,.tour,[class*=tour-]")) focusCard(); }, 600); }, 700);
 }, { tab: "today" });
 
 // ---------- task card
@@ -626,4 +626,44 @@ export function levelUp(name) {
   document.body.appendChild(ov);
   import("./ui.js").then(u => u.confetti(innerWidth / 2, innerHeight * .4));
   if (navigator.vibrate) navigator.vibrate([20, 60, 30, 60, 40]);
+}
+
+// ---- "Today's focus": once a day when the app opens, the important things rise up one by one
+let focusShown = false;
+export async function focusCard(force = false) {
+  if ((focusShown && !force) || document.querySelector(".focus-bd")) return;
+  const day = todayStr(), st = (() => { try { return JSON.parse(localStorage.getItem("al_focus") || "null") || {}; } catch { return {}; } })();
+  if (!force && st.day === day && (st.done || Date.now() < (st.until || 0))) return;
+  focusShown = true;
+  const now = new Date(), soon = new Date(Date.now() + 48 * 3600e3).toISOString();
+  const [ex, notes, next] = await Promise.all([
+    api.select("exams", `select=id,title,kind,course,due_at&done=eq.false&due_at=gt.${now.toISOString()}&due_at=lt.${soon}&order=due_at&limit=4`).catch(() => []),
+    api.select("notes", `select=id,text&day=eq.${day}&done=eq.false&order=created_at&limit=3`).catch(() => []),
+    api.select("tasks", `select=id,title,start_at,pinned&day=eq.${day}&status=eq.pending&start_at=gt.${now.toISOString()}&order=pinned.desc,start_at&limit=2`).catch(() => []),
+  ]);
+  const left = d => { const m = Math.round((new Date(d) - Date.now()) / 60000); return m < 60 ? m + "m" : m < 1440 ? Math.round(m / 60) + "h" : Math.round(m / 1440) + "d"; };
+  const items = [
+    ...ex.filter(e => new Date(e.due_at) > now).map(e => ({ ic: e.kind === "lab" ? "flask" : "edit", c: "#FBBF24", t: e.title, s: [e.course, "due in " + left(e.due_at)].filter(Boolean).join(" · "), hot: new Date(e.due_at) - Date.now() < 24 * 3600e3 })),
+    ...next.filter(x => new Date(x.start_at) > now).map(x => ({ ic: "clock", c: "#38BDF8", t: x.title, s: "starts " + fmtTime(x.start_at) + " · in " + left(x.start_at) })),
+    ...notes.map(n => ({ ic: "pin", c: "#A78BFA", t: n.text, s: "Note for today" })),
+  ].slice(0, 6);
+  if (!items.length) return;
+  const save = o => { try { localStorage.setItem("al_focus", JSON.stringify({ day, ...o })); } catch {} };
+  const ov = h("div.focus-bd");
+  const close = () => { ov.classList.add("out"); setTimeout(() => ov.remove(), 280); };
+  const card = h("div.focus-card",
+    h("div.focus-grab"),
+    h("div.focus-head", h("div", h("div.small.muted", new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })), h("h2", "Today's focus")), h("span.focus-n", String(items.length))),
+    h("div.focus-list", items.map((x, i) => h("div.focus-it" + (x.hot ? ".hot" : ""), { style: { animationDelay: 180 + i * 90 + "ms" } },
+      h("div.focus-ic", { style: { color: x.c, background: x.c + "1F" } }, icon(x.ic)),
+      h("div.grow", { style: { minWidth: 0 } }, h("b.ell", x.t), h("div.small.muted.ell", x.s)),
+      x.hot ? h("span.focus-hot", "Soon") : null))),
+    h("div.focus-btns",
+      h("button.btn.primary", { onclick: () => { save({ done: true }); close(); } }, "OK, got it"),
+      h("div.row", { style: { gap: "8px" } },
+        h("button.btn.grow", { onclick: () => { save({ until: Date.now() + 3600e3 }); focusShown = false; close(); toast("I'll remind you in 1 hour", "ok"); } }, icon("clock"), " Remind in 1h"),
+        h("button.btn.grow", { onclick: () => { save({ done: true }); close(); } }, "Skip today"))));
+  ov.append(card); ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  document.body.appendChild(ov);
+  if (navigator.vibrate) navigator.vibrate(12);
 }

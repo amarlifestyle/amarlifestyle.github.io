@@ -207,9 +207,15 @@ export function t(s) { return (LS.get("al_lang", "en") === "bn" && BN[s]) || s; 
 export function toast(msg, kind = "") {
   let box = document.getElementById("toast");
   if (!box) { box = h("div", { id: "toast", role: "status", "aria-live": "polite" }); document.body.appendChild(box); }
-  const el = h("div.toast" + (kind ? "." + kind : ""), msg);
+  const ic = kind === "ok" ? "check" : kind === "bad" ? "warn" : "info";
+  const el = h("div.toast" + (kind ? "." + kind : ""), h("span.toast-ic", icon(ic)), h("span.toast-msg", msg));
+  const bye = () => { if (el.dataset.out) return; el.dataset.out = 1; el.classList.add("out"); setTimeout(() => el.remove(), 260); };
+  el.addEventListener("click", bye);
+  let y0 = null; el.addEventListener("touchstart", e => { y0 = e.touches[0].clientY; }, { passive: true });
+  el.addEventListener("touchmove", e => { if (y0 !== null && e.touches[0].clientY - y0 < -12) bye(); }, { passive: true });
+  while (box.children.length > 2) box.firstChild.remove(); // never a pile of old messages
   box.appendChild(el);
-  setTimeout(() => { el.style.transition = "opacity .3s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 320); }, kind === "bad" ? 4200 : 2600);
+  setTimeout(bye, kind === "bad" ? 4200 : 2800);
 }
 
 export function sheet(title, body, { actions, hint } = {}) {
