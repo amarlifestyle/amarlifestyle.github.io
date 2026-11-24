@@ -82,14 +82,14 @@ const P = {
   sun: `<circle cx="12" cy="12" r="4"/> <path d="M12 2v2"/> <path d="M12 20v2"/> <path d="m4.93 4.93 1.41 1.41"/> <path d="m17.66 17.66 1.41 1.41"/> <path d="M2 12h2"/> <path d="M20 12h2"/> <path d="m6.34 17.66-1.41 1.41"/> <path d="m19.07 4.93-1.41 1.41"/>`,
   mic: `<path d="M12 19v3"/> <path d="M19 10v2a7 7 0 0 1-14 0v-2"/> <rect x="9" y="2" width="6" height="13" rx="3"/>`,
   logo: '',
-  mosque: '<path d="M12 3c2 2 4 3 4 6H8c0-3 2-4 4-6z"/><path d="M5 21V12h14v9M3 21h18M10 21v-4a2 2 0 0 1 4 0v4M5 12V9M19 12V9"/>',
+  mosque: '<path d="M12 2.5v2.5"/><path d="M6.5 11a5.5 5.5 0 0 1 11 0"/><path d="M5 21V11h14v10"/><path d="M10 21v-3.5a2 2 0 0 1 4 0V21"/><path d="M2 21h20"/>',
   siren: `<path d="M7 18v-6a5 5 0 1 1 10 0v6"/> <path d="M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z"/> <path d="M21 12h1"/> <path d="M18.5 4.5 18 5"/> <path d="M2 12h1"/> <path d="M12 2v1"/> <path d="m4.929 4.929.707.707"/> <path d="M12 12v6"/>`,
   copy: `<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/> <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>`,
   globe: `<circle cx="12" cy="12" r="10"/> <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/> <path d="M2 12h20"/>`,
   send: `<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/> <path d="m21.854 2.147-10.94 10.939"/>`,
   phone: `<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/> <path d="M12 18h.01"/>`,
   bulb: `<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/> <path d="M9 18h6"/> <path d="M10 22h4"/>`,
-  warn: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.01"/>',
+  warn: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   cup: `<path d="M10 2v2"/> <path d="M14 2v2"/> <path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/> <path d="M6 2v2"/>`,
   flask: `<path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/> <path d="M6.453 15h11.094"/> <path d="M8.5 2h7"/>`,
   spark: `<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/> <path d="M20 2v4"/> <path d="M22 4h-4"/> <circle cx="4" cy="20" r="2"/>`,
@@ -178,7 +178,7 @@ let gid = 0;
 export function logoSvg(size = 28) {
   const id = "lg" + (++gid);
   const w = document.createElement("span");
-  w.innerHTML = `<svg viewBox="0 0 100 100" width="${size}" height="${size}" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#22D3EE"/><stop offset="1" stop-color="#4ADE80"/></linearGradient></defs><path d="M16 84 L38 22 L60 84 L86 84" fill="none" stroke="url(#${id})" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="38" cy="9" r="6" fill="#FBBF24"/></svg>`;
+  w.innerHTML = `<svg viewBox="0 0 100 100" width="${size}" height="${size}" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="1" x2="1" y2="0"><stop offset="0" style="stop-color:var(--g1,#22D3EE)"/><stop offset="1" style="stop-color:var(--g2,#4ADE80)"/></linearGradient></defs><path d="M16 84 L38 22 L60 84 L86 84" fill="none" stroke="url(#${id})" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="38" cy="9" r="6" fill="#FBBF24"/></svg>`;
   return w.firstChild;
 }
 
@@ -308,7 +308,7 @@ export function donut(parts, { size = 150, center = "" } = {}) {
 }
 export function ring(pct, label, sub) {
   const r = 40, c = 2 * Math.PI * r, off = c * (1 - Math.min(1, Math.max(0, pct)));
-  return h("div.ring", { html: `<svg viewBox="0 0 96 96"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22D3EE"/><stop offset="1" stop-color="#4ADE80"/></linearGradient></defs><circle cx="48" cy="48" r="${r}" fill="none" stroke="var(--bg2)" stroke-width="9"/><circle cx="48" cy="48" r="${r}" fill="none" stroke="url(#rg)" stroke-width="9" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" style="transition:stroke-dashoffset .8s ease"/></svg><div class="lbl"><b>${label}</b><span>${sub}</span></div>` });
+  return h("div.ring", { html: `<svg viewBox="0 0 96 96"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--g1,#22D3EE)"/><stop offset="1" style="stop-color:var(--g2,#4ADE80)"/></linearGradient></defs><circle cx="48" cy="48" r="${r}" fill="none" stroke="var(--bg2)" stroke-width="9"/><circle cx="48" cy="48" r="${r}" fill="none" stroke="url(#rg)" stroke-width="9" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" style="transition:stroke-dashoffset .8s ease"/></svg><div class="lbl"><b>${label}</b><span>${sub}</span></div>` });
 }
 export const PALETTE = ["#22D3EE", "#4ADE80", "#FBBF24", "#E879F9", "#60A5FA", "#F87171", "#A78BFA", "#2DD4BF",
   "#FB923C", "#F472B6", "#A3E635", "#38BDF8", "#FACC15", "#C084FC", "#34D399", "#FDA4AF",
@@ -451,4 +451,17 @@ export function monthCalendar({ month, day, summary, onTap, legend = [] }) {
   };
   draw((month || today).slice(0, 8) + "01");
   return box;
+}
+
+// small celebration: a burst of confetti from a point (no library; removed after 1.2 s)
+export function confetti(x = innerWidth / 2, y = innerHeight / 2) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const box = document.createElement("div"); box.className = "confetti"; box.style.left = x + "px"; box.style.top = y + "px";
+  const cols = ["var(--g1)", "var(--g2)", "var(--g3, var(--g1))", "#FBBF24", "#fff"];
+  for (let i = 0; i < 26; i++) {
+    const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 110, b = document.createElement("i");
+    b.style.cssText = `background:${cols[i % cols.length]};--x:${Math.cos(a) * d}px;--y:${Math.sin(a) * d - 40}px;--r:${Math.random() * 540 - 270}deg;animation-delay:${Math.random() * 60}ms`;
+    box.appendChild(b);
+  }
+  document.body.appendChild(box); setTimeout(() => box.remove(), 1300);
 }

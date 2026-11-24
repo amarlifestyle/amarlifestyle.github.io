@@ -203,10 +203,35 @@ const TASKY = new Set(["tasks", "routine_skips", "routines", "timetable_items", 
 const forgetTasks = () => { try { Object.keys(localStorage).filter(k => k.startsWith("al_c:tasks?") || k.startsWith("al_c:rpc/my_stats") || k === "al_today").forEach(k => localStorage.removeItem(k)); } catch {} };
 const dropCache = t => { try { Object.keys(localStorage).filter(k => k.startsWith(cacheKey(t + "?"))).forEach(k => localStorage.removeItem(k)); } catch {} };
 const touch = t => { dropCache(t); if (STALE.has(t)) try { localStorage.setItem("al_coach_stale", "1"); } catch {} if (TASKY.has(t)) forgetTasks(); };
-export const insert = (table, rows) => (touch(table), req(`/rest/v1/${table}`, { method: "POST", body: rows, headers: { Prefer: "return=representation" } }));
-export const upsert = (table, rows, onConflict) => (touch(table), 0) || req(`/rest/v1/${table}${onConflict ? `?on_conflict=${onConflict}` : ""}`, { method: "POST", body: rows, headers: { Prefer: "return=representation,resolution=merge-duplicates" } });
-export const update = (table, match, patch) => (touch(table), req(`/rest/v1/${table}?${match}`, { method: "PATCH", body: patch, headers: { Prefer: "return=representation" } }));
-export const remove = (table, match) => (touch(table), req(`/rest/v1/${table}?${match}`, { method: "DELETE" }));
+const rawInsert = (table, rows) => req(`/rest/v1/${table}`, { method: "POST", body: rows, headers: { Prefer: "return=representation" } });
+const rawUpsert = (table, rows, onConflict) => req(`/rest/v1/${table}${onConflict ? `?on_conflict=${onConflict}` : ""}`, { method: "POST", body: rows, headers: { Prefer: "return=representation,resolution=merge-duplicates" } });
+const rawUpdate = (table, match, patch) => req(`/rest/v1/${table}?${match}`, { method: "PATCH", body: patch, headers: { Prefer: "return=representation" } });
+const rawRemove = (table, match) => req(`/rest/v1/${table}?${match}`, { method: "DELETE" });
+// change the saved copies on the phone so an offline edit / delete shows at once (rows picked by id=eq.<id>)
+function patchCache(table, match, fn) {
+  const m = /^id=eq\.([\w-]+)$/.exec(match || ""); if (!m) return;
+  try { Object.keys(localStorage).filter(k => k.startsWith(cacheKey(table + "?"))).forEach(k => {
+    const v = JSON.parse(localStorage.getItem(k)); if (!Array.isArray(v)) return;
+    localStorage.setItem(k, JSON.stringify(v.flatMap(r => String(r?.id) === m[1] ? fn(r) : [r])));
+  }); } catch {}
+}
+// every write: online → straight to the server; no internet → saved on the phone and sent automatically later
+async function write(table, op, run, optimistic) {
+  try { const r = await run(); touch(table); return r; }
+  catch (e) {
+    if (!e.offline || !session) throw e;
+    pushOp(op); optimistic.cache?.();
+    try { window.dispatchEvent(new CustomEvent("al:queued")); } catch {}
+    return optimistic.value;
+  }
+}
+const arr = x => (Array.isArray(x) ? x : [x]);
+export const insert = (table, rows) => write(table, { kind: "insert", table, rows }, () => rawInsert(table, rows), { value: arr(rows) });
+export const upsert = (table, rows, onConflict) => write(table, { kind: "upsert", table, rows, onConflict }, () => rawUpsert(table, rows, onConflict), { value: arr(rows) });
+export const update = (table, match, patch) => write(table, { kind: "update", table, match, patch }, () => rawUpdate(table, match, patch),
+  { value: [patch], cache: () => patchCache(table, match, r => [{ ...r, ...patch }]) });
+export const remove = (table, match) => write(table, { kind: "remove", table, match }, () => rawRemove(table, match),
+  { value: null, cache: () => patchCache(table, match, () => []) });
 
 // ---- storage
 export async function uploadProof(file, taskId) {
@@ -259,8 +284,10 @@ async function runOp(o, idMap, live = false) {
   if (o.kind === "mark") return rpc("complete_task_pct", { p_task: id(o.taskId), p_result: o.result, p_client_time: live ? null : o.at, p_pct: o.pct || 100 });
   if (o.kind === "task") return rpc("add_task", { p_title: o.title, p_category: o.category, p_start: o.start, p_end: o.end, p_pinned: !!o.pinned, p_made_at: live ? null : o.at, p_student: o.studentId || null });
   if (o.kind === "timer") return rpc("log_offline_timer", { p_title: o.title, p_category: o.category, p_start: o.start, p_end: o.end });
-  if (o.kind === "insert") return insert(o.table, o.rows);
-  if (o.kind === "upsert") return upsert(o.table, o.rows, o.onConflict);
+  if (o.kind === "insert") return rawInsert(o.table, o.rows).then(r => (touch(o.table), r));
+  if (o.kind === "upsert") return rawUpsert(o.table, o.rows, o.onConflict).then(r => (touch(o.table), r));
+  if (o.kind === "update") return rawUpdate(o.table, o.match, o.patch).then(r => (touch(o.table), r));
+  if (o.kind === "remove") return rawRemove(o.table, o.match).then(r => (touch(o.table), r));
   throw new ApiError("Unknown change.");
 }
 let flushing = false;

@@ -93,6 +93,7 @@ route("today", async page => {
 
   // hero
   const lv = stats.level;
+  levelCheck(lv.name);
   const toNext = lv.next ? `${lv.next_min - stats.month_dp} DP to ${lv.next}` : "Top level this month!";
   // ask once what they do, so categories fit them
   let pickedRoles = [];
@@ -112,8 +113,9 @@ route("today", async page => {
   body.append(h("div.hero.top",
     h("a.hero-l", { href: "#/day", style: { color: "inherit" } }, ring(pct, `${Math.round(pct * 100)}%`, ""),
       h("div", { style: { minWidth: 0 } },
-        h("div.hero-dp", h("b", (stats.today.dp >= 0 ? "+" : "") + stats.today.dp), " DP", h("span.muted", ` · ${doneN}/${realTasks.length}`)),
-        h("div.hero-meta", h("span.lvl", { "data-l": lv.name }, lv.name), h("span.muted", "🔥", stats.streak, "d"), pslot))),
+        h("div.hero-dp", countUp(stats.today.dp), " DP", h("span.muted", ` · ${doneN}/${realTasks.length}`)),
+        h("div.hero-meta", h("span.lvl", { "data-l": lv.name }, lv.name), h("span.muted", "🔥", stats.streak, "d"), pslot),
+        lv.next ? h("div.lvl-bar", { title: toNext }, h("i", { style: { width: Math.max(4, Math.min(100, Math.round(stats.month_dp / lv.next_min * 100))) + "%" } })) : null)),
     h("a.ai-rep", { href: "#/day" }, h("span.ai-rep-ic", "✨"), h("span", "AI report"))));
   // up next — a reason to come back
   const isEmg = x => (x.title || "").startsWith("🚨");
@@ -310,7 +312,8 @@ async function mark(tk, result, pctDone = 100) {
     if (r.status === "completed") toast(r.no_dp_reason === "added_after_start" ? "Done ✓ — no DP (task was added after it started)" : `${pctDone < 100 ? pctDone + "% done · " : "Great! "}+${r.dp} DP 🎉`, "ok");
     else if (r.status === "late_completed") toast("Marked done (late) — no DP this time.", "");
     else toast(`Noted. ${r.dp} DP`, "");
-    if (navigator.vibrate) navigator.vibrate(30);
+    if (navigator.vibrate) navigator.vibrate(r.status === "completed" ? [18, 40, 28] : 30);
+    if (r.status === "completed") import("./ui.js").then(u => u.confetti(innerWidth / 2, innerHeight * .45));
     rerender();
   } catch (e) {
     if (e.offline) { api.queueMark(tk.id, result, pctDone); toast("Saved offline. It will sync when you're online.", "ok"); rerender(); }
@@ -591,4 +594,36 @@ export async function editChoice(tk, routines) {
       ? opt("🔁", "Every week", "This comes from your class timetable — change it there for all weeks.", () => { location.hash = `#/schedule/${r.category === "Tuition" ? "coaching" : "university"}`; })
       : opt("🔁", "Every week", "Change the routine itself — all coming weeks.", () => import("./more.js").then(m => m.editRoutine(r))))],
     { actions: close => [h("button.btn", { onclick: () => close(null) }, t("Cancel"))] });
+}
+
+// the DP number rolls up from the last value seen today (e.g. 12 → 27) after a task is marked
+function countUp(dp) {
+  const el = h("b", (dp >= 0 ? "+" : "") + dp), day = todayStr();
+  let last = null; try { const o = JSON.parse(localStorage.getItem("al_dp_seen") || "null"); if (o?.day === day) last = o.dp; } catch {}
+  const save = () => { try { localStorage.setItem("al_dp_seen", JSON.stringify({ day, dp })); } catch {} };
+  if (last === null || last === dp || matchMedia("(prefers-reduced-motion: reduce)").matches) { save(); return el; }
+  el.textContent = (last >= 0 ? "+" : "") + last;
+  let t0 = 0; const dur = 900;
+  // wait until the page is really on screen (it renders hidden first), then roll
+  const wait = t => { const pg = el.closest(".page"); if (!el.isConnected || !pg || pg.style.visibility === "hidden") return requestAnimationFrame(wait); t0 = t + 200; requestAnimationFrame(step); };
+  const step = t => { const k = Math.min(1, Math.max(0, (t - t0) / dur)), e = 1 - Math.pow(1 - k, 3), v = Math.round(last + (dp - last) * e);
+    el.textContent = (v >= 0 ? "+" : "") + v; if (k < 1) requestAnimationFrame(step); else { save(); el.classList.add("dp-pop"); } };
+  requestAnimationFrame(wait);
+  return el;
+}
+// a full-screen badge the first time a new level is reached this month
+const LEVELS = ["Bronze", "Silver", "Gold", "Platinum", "Diamond"];
+function levelCheck(name) {
+  const month = todayStr().slice(0, 7); let seen = null;
+  try { const o = JSON.parse(localStorage.getItem("al_lvl_seen") || "null"); if (o?.month === month) seen = o.name; } catch {}
+  try { localStorage.setItem("al_lvl_seen", JSON.stringify({ month, name })); } catch {}
+  if (seen && LEVELS.indexOf(name) > LEVELS.indexOf(seen)) levelUp(name);
+}
+export function levelUp(name) {
+  const ov = h("div.lvlup", { "data-l": name, onclick: () => ov.remove() },
+    h("div.lvlup-card", h("div.lvlup-badge", icon("trophy")), h("div.small.muted", "New level unlocked"), h("h2", name),
+      h("p.small.muted", "Steady work pays off. Keep the streak going!"), h("button.btn.primary", "Continue")));
+  document.body.appendChild(ov);
+  import("./ui.js").then(u => u.confetti(innerWidth / 2, innerHeight * .4));
+  if (navigator.vibrate) navigator.vibrate([20, 60, 30, 60, 40]);
 }

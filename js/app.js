@@ -137,6 +137,11 @@ async function render() {
     const ghost = snap.cloneNode(true); ghost.classList.add("page-ghost"); ghost.removeAttribute("data-key");
     Object.assign(page.style, { position: "absolute", left: "0", right: "0", top: "0", visibility: "hidden" });
     app.replaceChildren(ghost, page);
+  } else if (!r.public) {
+    // first visit to this page: grey shimmer cards instead of a blank screen
+    const sk = h("div.page.skel", h("div.sk.sk-h"), h("div.sk.sk-hero"), [1, 2, 3, 4].map(() => h("div.sk.sk-row")));
+    Object.assign(page.style, { position: "absolute", left: "0", right: "0", top: "0", visibility: "hidden" });
+    app.replaceChildren(sk, page);
   } else app.replaceChildren(page);
   if (!same) window.scrollTo(0, 0);
   api.resetStale();
@@ -293,7 +298,12 @@ export function start() {
   track(false);
   window.addEventListener("hashchange", () => track(true));
   setInterval(() => { if (!document.hidden) track(false); }, 60000); // keeps "time spent" up to date
-  window.addEventListener("online", () => { api.flushQueue().then(r => { if (r.length) { syncToast(r); render(); } }); });
+  const flushNow = () => api.flushQueue().then(r => { if (r.length) { syncToast(r); render(); } }).catch(() => {});
+  window.addEventListener("online", flushNow);
+  // a weak connection may never fire "online": keep trying every 30 s while something is waiting, and when the app comes back
+  setInterval(() => { if (api.pendingOps().length && !document.hidden) flushNow(); }, 30000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && api.pendingOps().length) flushNow(); });
+  let qT = 0; window.addEventListener("al:queued", () => { if (Date.now() - qT > 20000) { qT = Date.now(); toast("No internet — saved on your phone. It will sync automatically.", "ok"); } });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && api.getSession()) daily(); });
   applyTheme();
   // home-screen app has no browser back button: swipe from the left edge to go back
