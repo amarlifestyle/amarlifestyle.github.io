@@ -648,6 +648,8 @@ export async function focusCard(force = false) {
     ...notes.map(n => ({ ic: "pin", c: "#A78BFA", t: n.text, s: "Note for today" })),
   ].slice(0, 6);
   if (!items.length) return;
+  // never on top of something the user already opened (a sheet, the tour) or after leaving Today
+  if (!force && (document.querySelector(".backdrop,.tour,[class*=tour-]") || !location.hash.startsWith("#/today"))) { focusShown = false; return; }
   const save = o => { try { localStorage.setItem("al_focus", JSON.stringify({ day, ...o })); } catch {} };
   const ov = h("div.focus-bd");
   const close = () => { ov.classList.add("out"); setTimeout(() => ov.remove(), 280); };

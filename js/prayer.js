@@ -156,7 +156,7 @@ route("prayer", async page => {
 
   const listFor = (day, ws) => h("div.list", ws.map(w => {
     const status = stOf.get(day + ":" + w.key), started = Date.now() >= w.start, live = started && Date.now() < w.end;
-    return h("div.li", { style: live ? { borderColor: "#10B981" } : {} },
+    return h("div.li.pr-row", { style: live ? { borderColor: "#10B981" } : {} },
       h("div", { style: { minWidth: "72px", fontWeight: 700 } }, w.bn, h("div.small.faint", w.en)),
       h("div.grow.small", tm(w.start), " – ", tm(w.end), live ? h("span.badge.ok", { style: { marginLeft: "6px" } }, "Now") : null),
       started || status ? answerBtns(day, w, status, rerender) : h("span.small.faint", "—"));

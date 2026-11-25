@@ -53,7 +53,7 @@ route("me", async page => {
   const p = store.profile;
   const lv = s.level;
   const prog = lv.next_min ? (s.month_dp - lv.cur_min) / (lv.next_min - lv.cur_min) : 1;
-  page.append(h("header.topbar", h("div", h("h1", p.name), h("div.sub", [myRoles(p).map(k => ROLES[k].icon + " " + ROLES[k].label).join(" + ") || null, RELIGIONS[p.religion] && p.religion !== "other" ? RELIGIONS[p.religion].split(" · ")[0] : null].filter(Boolean).map(x => x + " · ").join(""), "Member since " + fmtDate(p.created_at.slice(0, 10), { month: "long", year: "numeric" }), " · ", h("a", { href: "#/settings/profile" }, "Edit profile")))));
+  page.append(h("header.topbar", h("div", h("h1", p.name), h("div.sub", { style: { whiteSpace: "normal", overflow: "visible" } }, [myRoles(p).map(k => ROLES[k].icon + " " + ROLES[k].label).join(" + ") || null, RELIGIONS[p.religion] && p.religion !== "other" ? RELIGIONS[p.religion].split(" · ")[0] : null].filter(Boolean).map(x => x + " · ").join(""), "Member since " + fmtDate(p.created_at.slice(0, 10), { month: "long", year: "numeric" }), " · ", h("a", { href: "#/settings/profile" }, "Edit profile")))));
   page.append(h("div.hero", { style: { flexDirection: "column", alignItems: "stretch" } },
     h("div.row.between", h("span.level-pill", icon("medal"), `${lv.name} · this month`), h("span.small.muted", new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" }))),
     h("div", h("span.big", s.month_dp), h("span.muted", " DP points")),
