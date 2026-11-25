@@ -1157,3 +1157,37 @@ b, strong, .v { font-weight: 600; }
 .settled .ring circle:last-of-type, .settled .lvl-bar i { animation: none; }
 .section-title { flex-wrap: wrap; row-gap: 8px; }
 .section-title h2 { white-space: nowrap; }
+/* ---- report (PDF) ---- */
+.report { font-family: Inter, "Noto Sans Bengali", sans-serif; padding: 30px 30px 22px; border-top: 6px solid #0F766E; }
+.rp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid #E5E7EB; }
+.rp-title { font-size: 20px; font-weight: 700; margin-top: 12px; color: #0B1220; }
+.rp-sub { font-size: 12px; color: #6B7280; margin-top: 2px; letter-spacing: .2px; }
+.rp-qr { text-align: center; font-size: 10px; color: #6B7280; } .rp-qr img { border: 1px solid #E5E7EB; border-radius: 8px; padding: 4px; background: #fff; }
+.rp-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0; }
+.rp-meta div { background: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.rp-meta span { font-size: 10px; color: #6B7280; text-transform: uppercase; letter-spacing: .6px; } .rp-meta b { font-size: 13px; color: #111827; word-break: break-word; }
+.rp-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
+.rp-kpi { border: 1px solid #E5E7EB; border-radius: 10px; padding: 10px 12px; }
+.rp-kl { font-size: 10.5px; color: #6B7280; text-transform: uppercase; letter-spacing: .5px; } .rp-kv { font-size: 17px; font-weight: 700; color: #111827; margin-top: 2px; }
+.rp-kv.pos { color: #047857; } .rp-kv.neg { color: #B91C1C; }
+.rp-h { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: #0F766E; margin: 18px 0 6px; }
+.report .rp-table th { background: #F1F5F9; color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; padding: 8px 8px; border-bottom: 0; }
+.report .rp-table td { padding: 7px 8px; border-bottom: 1px solid #EEF2F7; font-size: 12.5px; }
+.report .rp-table tbody tr:nth-child(even) td { background: #FAFBFC; }
+.rp-tag { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 10px; } .rp-tag.pos { background: #ECFDF5; color: #047857; } .rp-tag.neg { background: #FEF2F2; color: #B91C1C; }
+.rp-note { font-size: 10.5px; color: #6B7280; }
+.rp-verified { margin: 14px 0; padding: 10px; background: #ECFDF5; border: 1px solid #10B981; border-radius: 8px; color: #065F46; font-weight: 600; }
+.rp-foot { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 34px; gap: 20px; }
+.rp-sign { min-width: 220px; }
+.rp-script { font-family: "Great Vibes", "Brush Script MT", cursive; font-size: 38px; color: #0B3B6E; line-height: 1; margin-bottom: -4px; }
+.rp-line { border-top: 1.5px solid #111827; width: 230px; margin-top: 6px; }
+.rp-signame { font-weight: 700; font-size: 13.5px; margin-top: 6px; color: #111827; } .rp-role { font-size: 12px; color: #374151; } .rp-date { font-size: 10.5px; color: #6B7280; margin-top: 2px; }
+.rp-seal { width: 92px; height: 92px; border-radius: 50%; border: 2.5px solid #0F766E; display: flex; align-items: center; justify-content: center; transform: rotate(-12deg); }
+.rp-seal-in { width: 78px; height: 78px; border-radius: 50%; border: 1px dashed #0F766E; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #0F766E; }
+.rp-seal-in b { font-size: 13px; letter-spacing: 1px; } .rp-seal-in span { font-size: 7.5px; letter-spacing: .8px; }
+.rp-bottom { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 18px; padding-top: 10px; border-top: 1px solid #E5E7EB; font-size: 9.5px; color: #6B7280; }
+.rp-bottom span:last-child { word-break: break-all; }
+@media (max-width: 520px) { .rp-meta, .rp-kpis { grid-template-columns: repeat(2, 1fr); } .report { padding: 20px 16px; } }
+@media print { .report { border-top-color: #0F766E; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+.rp-script { white-space: nowrap; }
+.rp-seal-in b { font-size: 11px; } .rp-seal-in span { font-size: 6.5px; letter-spacing: .4px; }

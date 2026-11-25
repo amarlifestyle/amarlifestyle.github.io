@@ -468,45 +468,72 @@ route("reports", async page => {
   })));
 }, { tab: "more" });
 
-export function reportView(rep, verifyMode = false) {
+export function reportView(rep, verifyMode = false, extra = {}) {
   const s = rep.snapshot;
   const verifyUrl = `${api.SITE_URL}#/verify/${rep.id}`;
   const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=0&data=${encodeURIComponent(verifyUrl)}`;
   const edited = s.entries.filter(e => e.edits > 0);
+  const gen = new Date(rep.created_at);
+  const kpi = (label, value, tone) => h("div.rp-kpi", h("div.rp-kl", label), h("div.rp-kv" + (tone ? "." + tone : ""), value));
   return h("div.report",
-    h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" } },
-      h("div", h("img", { src: "assets/logo-light.png", alt: "Amar Lifestyle", style: { width: "190px" } }),
-        h("div", { style: { fontSize: "18px", fontWeight: 700, marginTop: "10px" } }, rep.title),
-        h("div", { style: { color: "#555" } }, `Name: ${s.name}`),
-        h("div", { style: { color: "#555" } }, `Report ID: ${rep.id}`),
-        h("div", { style: { color: "#555" } }, `Generated: ${new Date(rep.created_at).toLocaleString("en-GB")}`)),
-      h("div", { style: { textAlign: "center" } }, h("img", { src: qr, alt: "QR code to verify this report", width: 120, height: 120 }), h("div", { style: { fontSize: "10px", color: "#555", marginTop: "4px" } }, "Scan to verify"))),
-    verifyMode ? h("div", { style: { margin: "14px 0", padding: "10px", background: "#ECFDF5", border: "1px solid #10B981", borderRadius: "8px", color: "#065F46", fontWeight: 600 } }, "✓ Verified: this report matches the original saved in Amar Lifestyle.") : null,
-    h("table", h("tbody",
-      h("tr", h("th", "Total income"), h("td", tk(s.income)), h("th", "Total expense"), h("td", tk(s.expense))),
-      h("tr", h("th", "Saved"), h("td", tk(s.income - s.expense)), h("th", "Edited entries"), h("td", String(edited.length))),
-      h("tr", h("th", "Tasks done"), h("td", `${s.tasks_done} / ${s.tasks_total}`), h("th", "DP earned"), h("td", String(s.dp))))),
-    h("div", { style: { fontWeight: 700, marginTop: "14px" } }, "Money entries"),
-    h("table", h("thead", h("tr", h("th", "Date"), h("th", "Type"), h("th", "Category / note"), h("th", { style: { textAlign: "right" } }, "Amount"))),
+    h("div.rp-head",
+      h("div", h("img", { src: "assets/logo-light.png", alt: "Amar Lifestyle", style: { width: "170px", display: "block" } }),
+        h("div.rp-title", rep.title), h("div.rp-sub", "Official activity & finance statement")),
+      h("div.rp-qr", h("img", { src: qr, alt: "QR code to verify this report", width: 96, height: 96 }), h("div", "Scan to verify"))),
+    h("div.rp-meta",
+      h("div", h("span", "Prepared for"), h("b", s.name)),
+      h("div", h("span", "Report ID"), h("b", String(rep.id).slice(0, 8).toUpperCase())),
+      h("div", h("span", "Issued"), h("b", gen.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })))),
+    verifyMode ? h("div.rp-verified", "✓ Verified — this report matches the original saved in Amar Lifestyle.") :
+    h("div.rp-kpis", { "data-sec": "summary" },
+      kpi("Total income", tk(s.income), "pos"), kpi("Total expense", tk(s.expense), "neg"), kpi("Net saved", tk(s.income - s.expense), s.income - s.expense >= 0 ? "pos" : "neg"),
+      kpi("Tasks done", `${s.tasks_done} / ${s.tasks_total}`), kpi("DP earned", String(s.dp)), kpi("Edited entries", String(edited.length))),
+    h("div", { "data-sec": "money" }, h("h4.rp-h", "Money entries"),
+    h("table.rp-table", h("thead", h("tr", h("th", "Date"), h("th", "Type"), h("th", "Category / note"), h("th", { style: { textAlign: "right" } }, "Amount"))),
       h("tbody", s.entries.length ? s.entries.map(e => h("tr",
-        h("td", fmtDate(e.date, { day: "numeric", month: "short" })), h("td", e.kind === "income" ? "Income" : "Expense"),
+        h("td", fmtDate(e.date, { day: "numeric", month: "short" })), h("td", h("span.rp-tag." + (e.kind === "income" ? "pos" : "neg"), e.kind === "income" ? "Income" : "Expense")),
         h("td", e.category, e.note ? ` — ${e.note}` : "",
           e.edits > 0 ? h("div.edited", `${e.admin_edited ? "Special edit (approved by Admin)" : "Edited"}: originally ${tk(e.original)}, ${e.edits} edit${e.edits > 1 ? "s" : ""}${e.last_edit ? ", last on " + new Date(e.last_edit).toLocaleDateString("en-GB") : ""}`) : null),
-        h("td", { style: { textAlign: "right", whiteSpace: "nowrap" } }, (e.kind === "income" ? "+" : "−") + tk(e.amount), e.edits > 0 ? " *" : ""))) : h("tr", h("td", { colspan: "4" }, "No entries in this period.")))),
-    edited.length ? h("div", { style: { fontSize: "11px", color: "#555" } }, "* Edited after it was first entered. Full edit history is kept in Amar Lifestyle and cannot be changed.") : null,
-    Object.keys(s.hours || {}).length ? [h("div", { style: { fontWeight: 700, marginTop: "14px" } }, "Time spent (completed tasks)"),
-      h("table", h("tbody", Object.entries(s.hours).map(([c, v]) => h("tr", h("td", c), h("td", { style: { textAlign: "right" } }, v + " hours")))))] : null,
-    h("div.sig",
-      h("div", h("div.name", "Musfiqur Rahman"), h("div", { style: { borderTop: "1px solid #999", paddingTop: "4px", fontWeight: 600 } }, "Musfiqur Rahman"), h("div", "CEO, Amar Lifestyle"),
-        h("div", { style: { fontSize: "10.5px", color: "#555", marginTop: "4px", maxWidth: "320px" } }, "This is a digitally generated document and does not require a handwritten signature.")),
-      h("div", { style: { fontSize: "10.5px", color: "#555", textAlign: "right" } }, "Verify at:", h("br"), verifyUrl)));
+        h("td", { style: { textAlign: "right", whiteSpace: "nowrap", fontWeight: 600 } }, (e.kind === "income" ? "+" : "−") + tk(e.amount), e.edits > 0 ? " *" : ""))) : h("tr", h("td", { colspan: "4", style: { textAlign: "center", color: "#777" } }, "No entries in this period.")))),
+    edited.length ? h("div.rp-note", "* Edited after it was first entered. Full edit history is kept in Amar Lifestyle and cannot be changed.") : null),
+    Object.keys(s.hours || {}).length ? h("div", { "data-sec": "time" }, h("h4.rp-h", "Time spent (completed tasks)"),
+      h("table.rp-table", h("tbody", Object.entries(s.hours).map(([c, v]) => h("tr", h("td", c), h("td", { style: { textAlign: "right", fontWeight: 600 } }, v + " hours"))))) ) : null,
+    extra.routine?.length ? h("div", { "data-sec": "routine" }, h("h4.rp-h", "Routine — tasks"),
+      h("table.rp-table", h("thead", h("tr", h("th", "Date"), h("th", "Task"), h("th", "Category"), h("th", { style: { textAlign: "right" } }, "Status"))),
+        h("tbody", extra.routine.map(t => h("tr", h("td", fmtDate(t.day, { day: "numeric", month: "short" })), h("td", t.title), h("td", t.category || ""),
+          h("td", { style: { textAlign: "right" } }, h("span.rp-tag." + (/completed/.test(t.status) ? "pos" : "neg"), t.status === "completed" ? "Done" : t.status === "late_completed" ? "Done late" : t.status === "pending" ? "Open" : "Missed"))))))) : null,
+    extra.attend?.length ? h("div", { "data-sec": "attend" }, h("h4.rp-h", "University class attendance"),
+      h("table.rp-table", h("thead", h("tr", h("th", "Course"), h("th", "Attended"), h("th", "Classes"), h("th", { style: { textAlign: "right" } }, "Rate"))),
+        h("tbody", extra.attend.map(a => h("tr", h("td", a.code), h("td", String(a.got)), h("td", String(a.all)), h("td", { style: { textAlign: "right", fontWeight: 600 } }, Math.round(100 * a.got / a.all) + "%")))))) : null,
+    extra.syllabus?.length ? h("div", { "data-sec": "syllabus" }, h("h4.rp-h", "Syllabus progress"),
+      h("table.rp-table", h("thead", h("tr", h("th", "Subject"), h("th", "Chapters done"), h("th", { style: { textAlign: "right" } }, "Progress"))),
+        h("tbody", extra.syllabus.map(x => h("tr", h("td", x.name), h("td", `${x.done} / ${x.all}`), h("td", { style: { textAlign: "right", fontWeight: 600 } }, Math.round(100 * x.done / Math.max(1, x.all)) + "%")))))) : null,
+    h("div.rp-foot", h("div.rp-sign", h("div.rp-script", "Musfiqur Rahman"), h("div.rp-line"), h("div.rp-role", "Founder & CEO, Amar Lifestyle"))),
+    h("div.rp-bottom", h("span", "To check this report is genuine, scan the QR code above or open: " + verifyUrl)));
 }
 
 route("report", async (page, id) => {
   page.append(backbar("Report", "#/reports", h("button.btn.small.primary.noprint", { onclick: () => window.print() }, icon("download"), "Save PDF")));
   const rows = await api.select("reports", `select=*&id=eq.${id}`);
   if (!rows.length) throw new Error("Report not found.");
-  page.append(h("p.hint.noprint", "Tap “Save PDF”, then choose “Save as PDF” in the print screen."), reportView(rows[0]));
+  const rep = rows[0], from = rep.period_start, to = rep.period_end;
+  const [tasks, chapters, subjects] = await Promise.all([
+    from && to ? api.select("tasks", `select=day,title,category,status&day=gte.${from}&day=lte.${to}&is_timer=eq.false&order=day,start_at&limit=600`).catch(() => []) : [],
+    api.select("syl_chapters", "select=subject_id,done_on").catch(() => []), api.select("syl_subjects", "select=id,name&order=sort").catch(() => [])]);
+  const code = t => (/^([A-Z]{2,5})[ -]?(\d{3})\b/.exec(t.title || "") || [])[0];
+  const att = {}; tasks.forEach(t => { const c = code(t); if (!c || t.status === "pending") return; const k = c.replace(/[ -]/, " "); (att[k] ||= { code: k, got: 0, all: 0 }).all++; if (/completed/.test(t.status)) att[k].got++; });
+  const extra = { routine: tasks, attend: Object.values(att).sort((a, b) => a.code.localeCompare(b.code)),
+    syllabus: subjects.map(x => { const c = chapters.filter(y => y.subject_id === x.id); return { name: x.name, all: c.length, done: c.filter(y => y.done_on).length }; }).filter(x => x.all) };
+  const secs = [["summary", "Summary"], ["money", "Money"], ["time", "Time spent"], ["routine", "Routine"], ["attend", "Attendance"], ["syllabus", "Syllabus"]];
+  const on = new Set(secs.map(x => x[0]));
+  const view = reportView(rep, false, extra);
+  const apply = () => view.querySelectorAll("[data-sec]").forEach(el => { el.style.display = on.has(el.dataset.sec) ? "" : "none"; });
+  const chips = h("div.chips.noprint", { style: { margin: "6px 0 12px", flexWrap: "wrap" } }, secs.map(([k, l]) => {
+    const c = h("button.chip.on", { type: "button" }, l);
+    c.onclick = () => { on.has(k) ? on.delete(k) : on.add(k); c.classList.toggle("on", on.has(k)); apply(); };
+    return c; }));
+  page.append(h("p.hint.noprint", "Choose what to include, then tap “Save PDF” and pick “Save as PDF”."), chips, view);
+  apply();
 }, { tab: "more" });
 
 route("verify", async (page, id) => {
