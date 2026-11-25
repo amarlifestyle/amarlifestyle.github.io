@@ -1,6 +1,6 @@
 /* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — offline support: app files are cached, data always comes fresh from the server.
-const CACHE = "amarlifestyle-v104";
+const CACHE = "amarlifestyle-v105";
 const FONTS = "amarlifestyle-fonts";
 const FILES = [
   "./", "index.html", "manifest.json", "css/app.css",
@@ -45,7 +45,8 @@ self.addEventListener("notificationclick", e => {
   e.notification.close();
   const url = new URL("./" + (e.notification.data?.url || "#/today"), self.registration.scope).href;
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
-    for (const c of list) if (c.url.startsWith(self.registration.scope)) { c.navigate(url); return c.focus(); }
+    // app already open: just switch it to the right page (no reload)
+    for (const c of list) if (c.url.startsWith(self.registration.scope)) { c.postMessage({ go: e.notification.data?.url || "#/today" }); return c.focus(); }
     return self.clients.openWindow(url);
   }));
 });

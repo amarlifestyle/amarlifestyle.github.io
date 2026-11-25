@@ -73,6 +73,7 @@ export async function loadBasics() {
 export function applyTheme() { // dark only
   document.documentElement.dataset.theme = "dark";
   setTimeout(() => document.body.classList.add("settled"), 2500);
+  navigator.serviceWorker?.addEventListener("message", e => { const g = e.data?.go; if (typeof g === "string" && /^#\/[\w/-]*$/.test(g)) go(g); });
   try { document.documentElement.dataset.skin = JSON.parse(localStorage.getItem("al_skin")) || "blue"; } catch { document.documentElement.dataset.skin = "blue"; }
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#0B1220");
 }

@@ -572,7 +572,7 @@ async function alertFolds(p) {
 
 // ---------- Notifications page: turn on, Telegram, and the latest important notifications
 route("notifications", async page => {
-  page.append(topbar("Alerts", "Your latest notifications"));
+  page.append(h("header.topbar", h("div", h("h1", "Alerts"), h("div.sub", "Your latest notifications")), h("a.icon-btn", { href: "#/alert-settings", "aria-label": "Notification settings", title: "Notification settings" }, icon("gear"))));
   const since = new Date(Date.now() - 3 * 3600e3).toISOString();
   const list = await api.select("inbox", `select=id,title,body,url,level,created_at,read&created_at=gt.${since}&order=created_at.desc&limit=60`).catch(() => []);
   // what a notification is about decides its icon and colour
@@ -597,8 +597,10 @@ route("notifications", async page => {
   if (old.length) page.append(h("div.section-title", h("h2", "Earlier"), h("span.small.faint", "cleared after 3 hours")), h("div.nt-list", old.map(card)));
   const unread = fresh.map(n => n.id);
   if (unread.length) api.update("inbox", `id=in.(${unread.join(",")})`, { read: true }).then(() => setUnread(0)).catch(() => {});
-  // settings for notifications sit below the list
-  page.append(h("div.section-title", h("h2", "Settings")));
+}, { tab: "alerts" });
+
+route("alert-settings", async page => {
+  page.append(h("header.topbar", h("div.row", h("a.icon-btn", { href: "#/notifications", "aria-label": "Back" }, icon("back")), h("div", h("h1", "Notification settings"), h("div.sub", "Phone alerts · Telegram · Home Screen")))));
   const { isStandalone, installBody } = await import("./install.js");
   if (!isStandalone()) page.append(fold("download", "Home Screen", "Not added yet", installBody()));
   const folds = await alertFolds(store.profile);
