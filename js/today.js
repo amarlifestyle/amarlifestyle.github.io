@@ -570,7 +570,7 @@ function tipTicker(today) {
   let i = Number(api.LS.get("al_tick_i", 0)) || 0;
   const show = () => {
     const L = items(); if (!L.length) return 7000;
-    const it = L[i % L.length]; cur = it; if (it.full) setTimeout(() => { diaryPick = null; }, 6500);
+    const D = L.find(x => x.full), B = L.filter(x => !x.full); const it = D && (i % 2 === 0 || !B.length) ? D : B[Math.floor(i / 2) % B.length]; cur = it; if (it.full) setTimeout(() => { diaryPick = null; }, 6500);
     const line = h("span.tk-in" + (it.quote ? ".quote" : ""), h("span.tk-ic", it.ic), h("span.tk-txt", h("b", it.t), it.d ? h("span", it.quote ? "— " + it.d : it.d) : null));
     box.classList.toggle("warn", !!it.warn);
     const old = box.querySelector(".tk-in:not(.tk-out)");
