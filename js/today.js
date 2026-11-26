@@ -555,7 +555,7 @@ function tipTicker(today) {
   let cur = null;
   const box = h("button.ticker", { type: "button", "aria-label": "Open", onclick: () => {
     if (!cur?.full) return askSheet();
-    sheet("From my diary", [h("div.small.muted", cur.full.label), h("p.diary-full", cur.full.body)], { actions: close => [h("button.btn.primary", { onclick: () => close() }, "Close")] });
+    sheet("From my diary", [h("div.diary-paper", h("div.diary-date", cur.full.label), h("p.diary-full", cur.full.body))], { actions: close => [h("button.btn.primary", { onclick: () => close() }, "Close")] });
   } });
   if (!api.LS.get("al_pq_at") || Date.now() - api.LS.get("al_pq_at") > 36e5) api.select("personal_quotes", "select=label,short,body&order=id").then(r => { api.LS.set("al_pq", r); api.LS.set("al_pq_at", Date.now()); }).catch(() => {});
   const items = () => {
@@ -564,13 +564,13 @@ function tipTicker(today) {
     for (let k = 0; k < 2; k++) { const [q, by] = quoteFor(store.profile?.occupation, today, k); list.push({ ic: "❝", t: q, d: by, quote: true }); }
     // the owner's own diary lines (only on accounts that have them)
     const pq = api.LS.get("al_pq") || [];
-    if (pq.length) { const q = pq[Math.floor(Math.random() * pq.length)]; list.push({ ic: "❝", t: q.short, d: q.label, quote: true, full: q }); }
+    if (pq.length) { let bag = api.LS.get("al_pq_bag") || []; if (!bag.length || bag.some(j => j >= pq.length)) bag = pq.map((_, j) => j).sort(() => Math.random() - .5); if (!diaryPick || !pq[diaryPick.i]) { diaryPick = { i: bag.shift() }; api.LS.set("al_pq_bag", bag); } const q = pq[diaryPick.i]; list.push({ ic: "❝", t: q.short, d: q.label, quote: true, full: q }); }
     return list;
   };
   let i = Number(api.LS.get("al_tick_i", 0)) || 0;
   const show = () => {
     const L = items(); if (!L.length) return 7000;
-    const it = L[i % L.length]; cur = it;
+    const it = L[i % L.length]; cur = it; if (it.full) setTimeout(() => { diaryPick = null; }, 6500);
     const line = h("span.tk-in" + (it.quote ? ".quote" : ""), h("span.tk-ic", it.ic), h("span.tk-txt", h("b", it.t), it.d ? h("span", it.quote ? "— " + it.d : it.d) : null));
     box.classList.toggle("warn", !!it.warn);
     const old = box.querySelector(".tk-in:not(.tk-out)");
@@ -638,6 +638,7 @@ export function levelUp(name) {
 
 // ---- "Today's focus": once a day when the app opens, the important things rise up one by one
 let focusShown = false;
+let diaryPick = null;
 export async function focusCard(force = false) {
   if ((focusShown && !force) || document.querySelector(".focus-bd")) return;
   const day = todayStr(), st = (() => { try { return JSON.parse(localStorage.getItem("al_focus") || "null") || {}; } catch { return {}; } })();
@@ -656,7 +657,7 @@ export async function focusCard(force = false) {
     ...notes.map(n => ({ ic: "pin", c: "#A78BFA", t: n.text, s: "Note for today" })),
   ].slice(0, 6);
   if (!items.length) return;
-  if (!force && st.day === day && (st.skip || (st.done && !ex.some(e => e.important)))) { focusShown = false; return; }
+  if (!force && st.day === day && (st.skip || st.done)) { focusShown = false; return; }
   // never on top of something the user already opened (a sheet, the tour) or after leaving Today
   if (!force && (document.querySelector(".backdrop,.tour,[class*=tour-]") || !location.hash.startsWith("#/today"))) { focusShown = false; return; }
   const save = o => { try { localStorage.setItem("al_focus", JSON.stringify({ day, ...o })); } catch {} };
@@ -670,11 +671,11 @@ export async function focusCard(force = false) {
       h("div.grow", { style: { minWidth: 0 } }, h("b.ell", x.t), h("div.small.muted.ell", x.s)),
       x.hot ? h("span.focus-hot", x.imp ? "Final" : "Soon") : null))),
     h("div.focus-btns",
-      h("button.btn.primary", { onclick: () => { save({ done: true }); close(); } }, "OK, got it"),
+      h("button.btn.primary", { onclick: () => { save({ done: true, skip: true }); close(); } }, "OK, got it"),
       h("div.row", { style: { gap: "8px" } },
         h("button.btn.grow", { onclick: () => { save({ until: Date.now() + 3600e3 }); focusShown = false; close(); toast("I'll remind you in 1 hour", "ok"); } }, icon("clock"), " Remind in 1h"),
         h("button.btn.grow", { onclick: () => { save({ done: true, skip: true }); close(); } }, "Skip today"))));
-  ov.append(card); ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.append(card); ov.addEventListener("click", e => { if (e.target === ov) { save({ done: true, skip: true }); close(); } });
   document.body.appendChild(ov);
   if (navigator.vibrate) navigator.vibrate(12);
 }
