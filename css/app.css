@@ -1214,3 +1214,4 @@ b, strong, .v { font-weight: 600; }
 .imp-tog .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .2s; }
 .imp-tog.on { border-color: rgba(248,113,113,.5); } .imp-tog.on .sw { background: #F87171; } .imp-tog.on .sw::after { transform: translateX(18px); background: #fff; }
 .cal-chip.imp { font-weight: 700; }
+.imp-star { color: #FBBF24; }

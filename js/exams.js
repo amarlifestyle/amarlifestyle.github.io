@@ -83,7 +83,7 @@ route("exams", async page => {
     const over = !e.done && new Date(e.due_at) <= now;
     const r = h("div.li" + (e.done || over ? ".over" : ""), { onclick: ev => { if (!x.contains(ev.target) && !r.dataset.swiped) examSheet(e); }, style: { cursor: "pointer" } },
       h("div.ic", EXAM_KINDS[e.kind][0]),
-      h("div.grow", { style: { minWidth: 0 } }, h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.title), h("div.small.muted", [EXAM_KINDS[e.kind][1], e.course, when(e.due_at)].filter(Boolean).join(" · "))),
+      h("div.grow", { style: { minWidth: 0 } }, h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.important ? h("span.imp-star", "★ ") : null, e.title), h("div.small.muted", [EXAM_KINDS[e.kind][1], e.course, when(e.due_at)].filter(Boolean).join(" · "))),
       e.marks_got != null && e.marks_total != null ? h("span.badge.ok", `${+Number(e.marks_got)}/${+Number(e.marks_total)}`) : e.done ? h("span.badge.ok", "✓ " + doneWord(e.kind)) : over ? h("span.small.muted", { style: { whiteSpace: "nowrap" } }, "Time over") : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)), x);
     swipeAway(r, gone);
     return r;
@@ -198,7 +198,7 @@ async function examCalendar(all, openSheet) {
     const ds = `${m.slice(0, 8)}${pad(d)}`, items = (byDay[ds] || []).sort((a, b) => a.due_at.localeCompare(b.due_at)), ev = evDay[ds] || [];
     const c = h("button.cal-c" + (ds === today ? ".today" : "") + (ds < today ? ".past" : "") + (items.length ? ".has" : ""), { type: "button", "aria-label": fmtDate(ds) },
       h("span.cal-n", String(d)),
-      items.slice(0, 2).map(e => h("span.cal-chip" + (e.done ? ".done" : "") + (e.important ? ".imp" : "") + (e.done || new Date(e.due_at) <= new Date() ? ".over" : ""), { style: { "--k": e.important ? "#F87171" : KIND_COLOR[e.kind] || "var(--brand)" } }, e.course ? e.course.split("/")[0].trim() : shortKind(e))),
+      items.slice(0, 2).map(e => h("span.cal-chip" + (e.done ? ".done" : "") + (e.important ? ".imp" : "") + (e.done || new Date(e.due_at) <= new Date() ? ".over" : ""), { style: { "--k": e.important ? "#F87171" : KIND_COLOR[e.kind] || "var(--brand)" } }, (e.important ? "★" : "") + (e.course ? e.course.split("/")[0].trim() : shortKind(e)))),
       items.length > 2 ? h("span.cal-more", `+${items.length - 2}`) : null,
       ev.length ? h("i.cal-ev", { title: ev.map(x => x.title).join(", ") }) : null);
     if (items.length || ev.length) c.onclick = () => sheet(fmtDate(ds, { weekday: "long", day: "numeric", month: "long" }), [

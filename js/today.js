@@ -158,7 +158,7 @@ route("today", async page => {
       const ok = h("button.btn.small", { type: "button", title: doneWord(x.e.kind) }, "✓");
       ok.onclick = busy(ok, async ev => { ev?.stopPropagation?.(); await markExamDone(x.e, true); });
       const hideX = h("button.s-x", { type: "button", "aria-label": "Hide from Today" }, "✕");
-      const r = srow(x.ic, x.title, x.sub, [h("span.s-tag", { style: { color: x.color } }, x.left), ok, hideX], null);
+      const r = srow(x.ic, x.e.important ? h("span", h("span.imp-star", "★ "), x.title) : x.title, x.sub, [h("span.s-tag", { style: { color: x.color } }, x.left), ok, hideX], null);
       hideX.onclick = busy(hideX, async ev => { ev?.stopPropagation?.(); r.dataset.swiped = 1; await hideExam(x.e.id, true); r.remove();
         import("./undo.js").then(U => U.record(`“${x.title}” hidden from Today`, async () => hideExam(x.e.id, false), async () => hideExam(x.e.id, true))); });
       r.style.cursor = "pointer"; r.onclick = ev => { if (!ok.contains(ev.target) && !r.dataset.swiped) examSheet(x.e); };
@@ -643,7 +643,7 @@ export async function focusCard(force = false) {
   ]);
   const left = d => { const m = Math.round((new Date(d) - Date.now()) / 60000); return m < 60 ? m + "m" : m < 1440 ? Math.round(m / 60) + "h" : Math.round(m / 1440) + "d"; };
   const items = [
-    ...ex.filter(e => new Date(e.due_at) > now && (e.important || new Date(e.due_at) < new Date(soon))).map(e => ({ ic: e.kind === "lab" ? "flask" : "edit", c: "#FBBF24", t: e.title, s: [e.course, "due in " + left(e.due_at)].filter(Boolean).join(" · "), hot: e.important || new Date(e.due_at) - Date.now() < 24 * 3600e3, imp: e.important })),
+    ...ex.filter(e => new Date(e.due_at) > now && (e.important || new Date(e.due_at) < new Date(soon))).map(e => ({ ic: e.kind === "lab" ? "flask" : "edit", c: "#FBBF24", t: (e.important ? "★ " : "") + e.title, s: [e.course, "due in " + left(e.due_at)].filter(Boolean).join(" · "), hot: e.important || new Date(e.due_at) - Date.now() < 24 * 3600e3, imp: e.important })),
     ...next.filter(x => new Date(x.start_at) > now).map(x => ({ ic: "clock", c: "#38BDF8", t: x.title, s: "starts " + fmtTime(x.start_at) + " · in " + left(x.start_at) })),
     ...notes.map(n => ({ ic: "pin", c: "#A78BFA", t: n.text, s: "Note for today" })),
   ].slice(0, 6);
