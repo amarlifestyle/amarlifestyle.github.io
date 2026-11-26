@@ -61,7 +61,7 @@ route("me", async page => {
     page.append(h("div.theme-row", sw)); }
   // owner's diary — all entries in one place (only accounts that have them)
   { const pq = api.LS.get("al_pq") || [];
-    if (pq.length) page.append(h("button.btn.block", { style: { marginBottom: "12px" }, onclick: async () => { let pq2 = pq; try { pq2 = await api.select("personal_quotes", "select=label,short,body&order=id"); api.LS.set("al_pq", pq2); api.LS.set("al_pq_at", Date.now()); } catch {} sheet("My diary", [...pq2].sort((x, y) => { const k = l => { const m = l.match(/^(\d+) (\w{3}) (\d{4})/); return m ? +m[3] * 1e4 + "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[2]) / 3 * 100 + +m[1] : 9e9; }; return k(x.label) - k(y.label); }).map(q => h("div.diary-paper", h("div.diary-date", q.label), h("p.diary-full", q.body)))); } }, "📖 My diary — read all")); }
+    page.append(h("button.btn.block", { style: { marginBottom: "12px" }, onclick: async () => { let pq2 = pq; try { pq2 = await api.select("personal_quotes", "select=label,short,body&order=id"); api.LS.set("al_pq", pq2); api.LS.set("al_pq_at", Date.now()); } catch {} sheet("My diary", [await diaryWriter(), ...[...pq2].sort((x, y) => { const k = l => { const m = l.match(/^(\d+) (\w{3}) (\d{4})/); return m ? +m[3] * 1e4 + "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[2]) / 3 * 100 + +m[1] : 9e9; }; return k(x.label) - k(y.label); }).map(q => h("div.diary-paper", h("div.diary-date", q.label), h("p.diary-full", q.body)))]); } }, pq.length ? "📖 My diary" : "📖 My diary — write your first page")); }
   page.append(h("div.hero", { style: { flexDirection: "column", alignItems: "stretch" } },
     h("div.row.between", h("span.level-pill", icon("medal"), `${lv.name} · this month`), h("span.small.muted", new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" }))),
     h("div", h("span.big", s.month_dp), h("span.muted", " DP points")),
@@ -239,3 +239,23 @@ route("habit", async (page, id) => {
 }, { tab: "me" });
 
 
+
+// write a new diary page (typed, or spoken where the phone types speech itself — the words never go to AI)
+async function diaryWriter() {
+  const box = h("textarea.diary-full", { rows: 4, placeholder: "আজ কী লিখবে… / Write today…", style: { width: "100%", background: "transparent", border: "0", resize: "vertical", outline: "none" } });
+  let mic = null;
+  const { dictation } = await import("./voice.js");
+  // spoken words become text (iPhone: the recording is turned into text by AI, only for this) and the page saves itself
+  mic = dictation(box, { live: true, transcribe: audio => api.ai("transcribe", { audio }), label: "🎙️ বলো — লেখা হয়ে ডায়েরিতে যাবে" });
+  let was = "", cancelled = false;
+  mic.addEventListener("click", e => { if (/Cancel/.test(e.target.closest("button")?.textContent || "")) cancelled = true; }, true);
+  setTimeout(() => new MutationObserver(() => { const st = mic.dataset.state; if (st === "idle" && (was === "rec" || was === "paused" || was === "busy") && box.value.trim() && !cancelled) save.click(); if (st === "idle") cancelled = false; was = st; }).observe(mic, { attributes: true, attributeFilter: ["data-state"] }));
+  const label = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  var save = h("button.btn.primary.block", { onclick: async () => {
+    const body = box.value.trim(); if (!body) return toast("Write something first");
+    const short = (body.split(/(?<=[.!?।])\s/)[0] || body).slice(0, 90);
+    try { await api.insert("personal_quotes", { label, short, body }); api.LS.set("al_pq_at", 0); toast("Added to your diary ✓", "ok"); box.value = ""; document.querySelector(".backdrop")?.click(); }
+    catch { toast("Couldn't save — try again"); }
+  } }, "Save to diary");
+  return h("div", { style: { marginBottom: "14px" } }, h("div.diary-paper", h("div.diary-date", label + " · New page"), box), mic, h("div", { style: { marginTop: "8px" } }, save));
+}

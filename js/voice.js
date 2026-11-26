@@ -167,8 +167,8 @@ export function voiceRecorder(onAudio, { label = "Tap and speak" } = {}) {
 // pause / resume / cancel, then the person reads, fixes and sends. Nothing is done until they press Send.
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
-export function dictation(box, { transcribe, lang = "bn-BD", label = "🎙️ বলুন" } = {}) {
-  const live = !!SR && !IOS; // Chrome/Android: live Bangla words. iPhone: record → AI writes it
+export function dictation(box, { transcribe, lang = "bn-BD", label = "🎙️ বলুন", live: wantLive = false } = {}) {
+  let live = !!SR && (!IOS || wantLive); // Chrome/Android: live Bangla words. iPhone: record → AI writes it
   let state = "idle", rec = null, base = "", said = "", stream = null, mr = null, chunks = [], sec = 0, timer = null, raf = 0, an = null, actx = null;
   const bars = h("div.dict-wave", [...Array(18)].map(() => h("i")));
   const status = h("span.dict-status", label);
@@ -200,6 +200,7 @@ export function dictation(box, { transcribe, lang = "bn-BD", label = "🎙️ �
     let finalTxt = said;
     rec.onresult = e => { let interim = ""; for (let k = e.resultIndex; k < e.results.length; k++) { const r = e.results[k]; if (r.isFinal) finalTxt += (finalTxt ? " " : "") + r[0].transcript.trim(); else interim += r[0].transcript; } said = (finalTxt + (interim ? " " + interim : "")).trim(); write(); };
     rec.onerror = e => { if (e.error === "no-speech" || e.error === "aborted") return;
+      if (IOS && transcribe && e.error !== "not-allowed") { live = false; wrap.classList.remove("live"); state = "idle"; stopAll(true); toast("এই ফোনে সাথে সাথে লেখা চলে না — আবার 🎙️ চাপো, বলা শেষে লেখা আসবে"); return; }
       toast(e.error === "not-allowed" || e.error === "service-not-allowed" ? "Microphone is blocked — allow it in the browser (🔒 in the address bar → Microphone → Allow)." : "Voice stopped (" + e.error + "). Try again or type.", "bad");
       state = "idle"; stopAll(true); };
     rec.onend = () => { said = finalTxt; write(); if (state === "rec") { try { rec.start(); } catch { /* restarts after a pause in speech */ } } };
