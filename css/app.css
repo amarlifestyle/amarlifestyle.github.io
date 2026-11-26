@@ -1196,3 +1196,14 @@ b, strong, .v { font-weight: 600; }
   --brand:#2DD4BF; --brand-ink:#04211D; --cyan:#38BDF8; --green:#4ADE80; --pink:#E879F9; --g1:#22D3EE; --g2:#4ADE80; --grad:linear-gradient(135deg,#22D3EE 0%,#4ADE80 100%); }
 :root[data-skin="black"] .nav { background: rgba(0,0,0,.92) !important; }
 :root[data-skin="black"] .btn.primary, :root[data-skin="black"] .fab, :root[data-skin="black"] .chip.on { background: var(--brand); color: var(--brand-ink); }
+.theme-row { display: flex; align-items: center; justify-content: space-between; margin: 0 0 12px; }
+.theme-seg { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 3px; }
+.theme-seg button { display: flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 9px; cursor: pointer; }
+.theme-seg button.on { background: var(--card2); color: var(--text); }
+.theme-seg .sw { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); }
+.theme-seg .sw.blue { background: #0F172A; } .theme-seg .sw.black { background: #000; }
+.theme-row { justify-content: flex-end; margin-top: -6px; }
+.theme-sw { position: relative; width: 62px; height: 32px; border-radius: 16px; border: 1px solid var(--line2); cursor: pointer; padding: 0;
+  background: linear-gradient(90deg, #0F172A 50%, #000 50%); }
+.theme-sw i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--brand); transition: transform .25s cubic-bezier(.34,1.4,.64,1); }
+.theme-sw.on i { transform: translateX(30px); }
