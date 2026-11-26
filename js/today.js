@@ -656,7 +656,7 @@ export async function focusCard(force = false) {
     ...notes.map(n => ({ ic: "pin", c: "#A78BFA", t: n.text, s: "Note for today" })),
   ].slice(0, 6);
   if (!items.length) return;
-  if (!force && st.day === day && st.done && !ex.some(e => e.important)) { focusShown = false; return; }
+  if (!force && st.day === day && (st.skip || (st.done && !ex.some(e => e.important)))) { focusShown = false; return; }
   // never on top of something the user already opened (a sheet, the tour) or after leaving Today
   if (!force && (document.querySelector(".backdrop,.tour,[class*=tour-]") || !location.hash.startsWith("#/today"))) { focusShown = false; return; }
   const save = o => { try { localStorage.setItem("al_focus", JSON.stringify({ day, ...o })); } catch {} };
@@ -673,7 +673,7 @@ export async function focusCard(force = false) {
       h("button.btn.primary", { onclick: () => { save({ done: true }); close(); } }, "OK, got it"),
       h("div.row", { style: { gap: "8px" } },
         h("button.btn.grow", { onclick: () => { save({ until: Date.now() + 3600e3 }); focusShown = false; close(); toast("I'll remind you in 1 hour", "ok"); } }, icon("clock"), " Remind in 1h"),
-        h("button.btn.grow", { onclick: () => { save({ done: true }); close(); } }, "Skip today"))));
+        h("button.btn.grow", { onclick: () => { save({ done: true, skip: true }); close(); } }, "Skip today"))));
   ov.append(card); ov.addEventListener("click", e => { if (e.target === ov) close(); });
   document.body.appendChild(ov);
   if (navigator.vibrate) navigator.vibrate(12);
