@@ -1191,3 +1191,8 @@ b, strong, .v { font-weight: 600; }
 @media print { .report { border-top-color: #0F766E; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 .rp-script { white-space: nowrap; }
 .rp-seal-in b { font-size: 11px; } .rp-seal-in span { font-size: 6.5px; letter-spacing: .4px; }
+/* ---- Black theme: pure black + the same teal accent as Blue ---- */
+:root[data-skin="black"]:not([data-theme="light"]) { --bg:#000; --bg2:#0A0A0B; --card:#121214; --card2:#1A1A1D; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14); --text:#F4F4F5; --muted:#A1A1AA; --faint:#8A8A93;
+  --brand:#2DD4BF; --brand-ink:#04211D; --cyan:#38BDF8; --green:#4ADE80; --pink:#E879F9; --g1:#22D3EE; --g2:#4ADE80; --grad:linear-gradient(135deg,#22D3EE 0%,#4ADE80 100%); }
+:root[data-skin="black"] .nav { background: rgba(0,0,0,.92) !important; }
+:root[data-skin="black"] .btn.primary, :root[data-skin="black"] .fab, :root[data-skin="black"] .chip.on { background: var(--brand); color: var(--brand-ink); }
