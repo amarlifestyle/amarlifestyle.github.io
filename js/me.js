@@ -61,7 +61,7 @@ route("me", async page => {
     page.append(h("div.theme-row", sw)); }
   // owner's diary — all entries in one place (only accounts that have them)
   { const pq = api.LS.get("al_pq") || [];
-    if (pq.length) page.append(h("button.btn.block", { style: { marginBottom: "12px" }, onclick: () => sheet("My diary", [...pq].sort((x, y) => { const k = l => { const m = l.match(/^(\d+) (\w{3}) (\d{4})/); return m ? +m[3] * 1e4 + "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[2]) / 3 * 100 + +m[1] : 9e9; }; return k(x.label) - k(y.label); }).map(q => h("div", { style: { marginBottom: "18px" } }, h("div.small.muted", q.label), h("p.diary-full", q.body)))) }, "📖 My diary — read all")); }
+    if (pq.length) page.append(h("button.btn.block", { style: { marginBottom: "12px" }, onclick: async () => { let pq2 = pq; try { pq2 = await api.select("personal_quotes", "select=label,short,body&order=id"); api.LS.set("al_pq", pq2); api.LS.set("al_pq_at", Date.now()); } catch {} sheet("My diary", [...pq2].sort((x, y) => { const k = l => { const m = l.match(/^(\d+) (\w{3}) (\d{4})/); return m ? +m[3] * 1e4 + "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[2]) / 3 * 100 + +m[1] : 9e9; }; return k(x.label) - k(y.label); }).map(q => h("div", { style: { marginBottom: "18px" } }, h("div.small.muted", q.label), h("p.diary-full", q.body)))); } }, "📖 My diary — read all")); }
   page.append(h("div.hero", { style: { flexDirection: "column", alignItems: "stretch" } },
     h("div.row.between", h("span.level-pill", icon("medal"), `${lv.name} · this month`), h("span.small.muted", new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" }))),
     h("div", h("span.big", s.month_dp), h("span.muted", " DP points")),
