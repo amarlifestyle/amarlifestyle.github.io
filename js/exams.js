@@ -84,7 +84,7 @@ route("exams", async page => {
     const r = h("div.li" + (e.done || over ? ".over" : ""), { onclick: ev => { if (!x.contains(ev.target) && !r.dataset.swiped) examSheet(e); }, style: { cursor: "pointer" } },
       h("div.ic", EXAM_KINDS[e.kind][0]),
       h("div.grow", { style: { minWidth: 0 } }, h("b", { style: { textDecoration: e.done ? "line-through" : "" } }, e.important ? h("span.imp-star", "★ ") : null, e.title), h("div.small.muted", [EXAM_KINDS[e.kind][1], e.course, when(e.due_at)].filter(Boolean).join(" · "))),
-      e.marks_got != null && e.marks_total != null ? h("span.badge.ok", `${+Number(e.marks_got)}/${+Number(e.marks_total)}`) : e.done ? h("span.badge.ok", "✓ " + doneWord(e.kind)) : over ? h("span.small.muted", { style: { whiteSpace: "nowrap" } }, "Time over") : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)), x);
+      e.done ? h("span.badge.ok", "✓ " + doneWord(e.kind)) : over ? h("span.small.muted", { style: { whiteSpace: "nowrap" } }, "Time over") : h("span.small", { style: { color: urgency(e.due_at), fontWeight: 600, whiteSpace: "nowrap" } }, leftLabel(e.due_at)), x);
     swipeAway(r, gone);
     return r;
   };
@@ -108,7 +108,9 @@ route("exams", async page => {
         h("div.list", items.filter(e => dk(e) === d).map(row))))));
   }
   page.append(h("p.hint.mt", "Reminders: daily → twice a day in the last week → 3 times in the last 3 days → every 3 hours in the last 2 days → every 2 hours on the last day → every hour in the last 3 hours."));
-  if (isStudy()) page.append(resultsBlock(all));
+  // what got finished this month
+  { const m0 = todayStr().slice(0, 7), doneM = all.filter(e => e.done && (e.due_at || "").slice(0, 7) === m0).sort((a, b) => b.due_at.localeCompare(a.due_at));
+    if (doneM.length) page.append(h("div.section-title", h("h2", "Completed this month"), h("span.small.faint", String(doneM.length))), h("div.list", doneM.map(row))); }
   if (past.length) page.append(h("div.section-title", h("h2", "Done & past")), h("div.list", past.map(row)), h("p.small.muted.mt", "Items whose time is over disappear after one day · swipe left or ✕ to delete now."));
 }, { tab: "week" });
 
@@ -247,7 +249,7 @@ export function examSheet(e) {
     h("div.grid2", h("label.f", h("span", "Due date"), date), h("label.f", h("span", "Time"), time)),
     h("label.f", h("span", "Notes"), note),
     imp,
-    e && isStudy() ? h("div.grid2", h("label.f", h("span", "Marks got"), got), h("label.f", h("span", "Out of"), tot)) : null], {
+    null], {
     actions: close => {
       const save = h("button.btn.primary", "Save");
       save.onclick = busy(save, async () => {
@@ -255,7 +257,6 @@ export function examSheet(e) {
         const due = new Date(`${date.value}T${time.value || "10:00"}:00+06:00`);
         if (!e && due < new Date()) throw new Error("Pick a time in the future.");
         const row = { kind, title: title.value.trim(), course: course.value.trim() || null, due_at: due.toISOString(), note: note.value.trim() || null, important };
-        if (e && isStudy()) Object.assign(row, readMarks(got, tot));
         if (e) await api.update("exams", `id=eq.${e.id}`, row); else await api.insert("exams", { ...row, user_id: api.userId() });
         toast("Saved ✓ — reminders are set", "ok"); close(true); rerender();
       });
