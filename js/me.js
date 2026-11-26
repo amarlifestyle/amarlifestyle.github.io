@@ -59,6 +59,23 @@ route("me", async page => {
   { const sw = h("button.theme-sw" + ((api.LS.get("al_skin") || "black") === "black" ? ".on" : ""), { type: "button", "aria-label": "Switch theme", title: "Blue / Black theme" }, h("i"));
     sw.onclick = () => { const k = sw.classList.toggle("on") ? "black" : "blue"; api.LS.set("al_skin", k); document.documentElement.dataset.skin = k; };
     page.append(h("div.theme-row", sw)); }
+  // owner's diary — all entries in one place (only accounts that have them)
+  { const pq = api.LS.get("al_pq") || [];
+    if (pq.length) page.append(h("button.btn.block", { style: { marginBottom: "12px" }, onclick: () => sheet("My diary", pq.map(q => h("div", { style: { marginBottom: "18px" } }, h("div.small.muted", q.label), h("p.diary-full", q.body)))) }, "📖 My diary — read all")); }
+  // lifetime task record: done / marked not done / left unmarked
+  { const card = h("div.card", { style: { marginBottom: "12px" } }, h("div.small.muted", "My task record · all time"), h("div.small.muted", "Loading…"));
+    page.append(card);
+    api.select("tasks", "select=status&day=lt." + todayStr()).then(r => {
+      const n = r.length, c = k => r.filter(x => k.includes(x.status)).length;
+      const done = c(["completed", "late_completed"]), late = c(["late_completed"]), nd = c(["not_completed"]), miss = c(["missed"]);
+      const pc = v => n ? Math.round(v / n * 100) : 0;
+      const row = (lab, v, col) => h("div", { style: { margin: "8px 0" } }, h("div.row.between", h("span", lab), h("b", pc(v) + "%", h("span.small.muted", "  (" + v + ")"))), h("div.bar", h("i", { style: { width: pc(v) + "%", background: col } })));
+      card.replaceChildren(h("div.small.muted", "My task record · all time"),
+        h("div", h("span.big", pc(done) + "%"), h("span.muted", " of my tasks completed")),
+        h("div.small.muted", n + " tasks so far" + (late ? " · " + late + " of the completed ones were late" : "")),
+        row("✅ Completed", done, "#22c55e"), row("✖️ Marked not complete", nd, "#f97316"), row("⏳ Left without marking", miss, "#ef4444"),
+        h("div.small.muted", "Not completed in total: " + pc(nd + miss) + "%"));
+    }).catch(() => card.lastChild.textContent = "Couldn't load right now."); }
   page.append(h("div.hero", { style: { flexDirection: "column", alignItems: "stretch" } },
     h("div.row.between", h("span.level-pill", icon("medal"), `${lv.name} · this month`), h("span.small.muted", new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" }))),
     h("div", h("span.big", s.month_dp), h("span.muted", " DP points")),

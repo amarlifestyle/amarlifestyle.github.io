@@ -557,7 +557,7 @@ function tipTicker(today) {
     if (!cur?.full) return askSheet();
     sheet("From my diary", [h("div.small.muted", cur.full.label), h("p.diary-full", cur.full.body)], { actions: close => [h("button.btn.primary", { onclick: () => close() }, "Close")] });
   } });
-  if (!api.LS.get("al_pq_at") || Date.now() - api.LS.get("al_pq_at") > 864e5) api.select("personal_quotes", "select=label,short,body&order=id").then(r => { api.LS.set("al_pq", r); api.LS.set("al_pq_at", Date.now()); }).catch(() => {});
+  if (!api.LS.get("al_pq_at") || Date.now() - api.LS.get("al_pq_at") > 36e5) api.select("personal_quotes", "select=label,short,body&order=id").then(r => { api.LS.set("al_pq", r); api.LS.set("al_pq_at", Date.now()); }).catch(() => {});
   const items = () => {
     const c = api.LS.get("al_coach") || {};
     const list = [...(c.alerts || []).map(a => ({ ic: "⚠️", t: a.title, d: a.text, warn: true })), ...(c.tips || []).map(x => ({ ic: "💡", t: x.title, d: x.text }))];
