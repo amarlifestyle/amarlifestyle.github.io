@@ -74,7 +74,11 @@ export function applyTheme() { // dark only
   document.documentElement.dataset.theme = "dark";
   setTimeout(() => document.body.classList.add("settled"), 2500);
   navigator.serviceWorker?.addEventListener("message", e => { const g = e.data?.go; if (typeof g === "string" && /^#\/[\w/-]*$/.test(g)) go(g); });
-  try { document.documentElement.dataset.skin = JSON.parse(localStorage.getItem("al_skin")) || "blue"; } catch { document.documentElement.dataset.skin = "blue"; }
+  // Black is the default theme; everyone is moved to it once and told how to switch back
+  let skinNote = false;
+  try { if (!localStorage.getItem("al_skin_v2")) { localStorage.setItem("al_skin_v2", "1"); if (localStorage.getItem("al_skin")) skinNote = true; localStorage.setItem("al_skin", JSON.stringify("black")); } } catch {}
+  try { document.documentElement.dataset.skin = JSON.parse(localStorage.getItem("al_skin")) || "black"; } catch { document.documentElement.dataset.skin = "black"; }
+  if (skinNote || !localStorage.getItem("al_skin_told")) setTimeout(() => { try { if (api.getSession()) { localStorage.setItem("al_skin_told", "1"); toast("New Black theme is on. Want the old Blue look? Me → tap the theme switch under your name.", "ok"); } } catch {} }, 3500);
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#0B1220");
 }
 

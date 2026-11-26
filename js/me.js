@@ -55,7 +55,7 @@ route("me", async page => {
   const prog = lv.next_min ? (s.month_dp - lv.cur_min) / (lv.next_min - lv.cur_min) : 1;
   page.append(h("header.topbar", h("div", h("h1", p.name), h("div.sub", { style: { whiteSpace: "normal", overflow: "visible" } }, [myRoles(p).map(k => ROLES[k].icon + " " + ROLES[k].label).join(" + ") || null, RELIGIONS[p.religion] && p.religion !== "other" ? RELIGIONS[p.religion].split(" · ")[0] : null].filter(Boolean).map(x => x + " · ").join(""), "Member since " + fmtDate(p.created_at.slice(0, 10), { month: "long", year: "numeric" }), " · ", h("a", { href: "#/settings/profile" }, "Edit profile")))));
   // one-tap theme switch (Blue ↔ Black)
-  { const sw = h("button.theme-sw" + ((api.LS.get("al_skin") || "blue") === "black" ? ".on" : ""), { type: "button", "aria-label": "Switch theme", title: "Blue / Black theme" }, h("i"));
+  { const sw = h("button.theme-sw" + ((api.LS.get("al_skin") || "black") === "black" ? ".on" : ""), { type: "button", "aria-label": "Switch theme", title: "Blue / Black theme" }, h("i"));
     sw.onclick = () => { const k = sw.classList.toggle("on") ? "black" : "blue"; api.LS.set("al_skin", k); document.documentElement.dataset.skin = k; };
     page.append(h("div.theme-row", sw)); }
   page.append(h("div.hero", { style: { flexDirection: "column", alignItems: "stretch" } },
