@@ -185,7 +185,7 @@ async function render() {
 function navBar(active) {
   return h("nav.nav", { "aria-label": "Main" }, h("div.nav-inner",
     NAV.map(([k, href, label]) => k === "ai"
-      ? h("button.nav-ai", { type: "button", "aria-label": "AI assistant", onclick: () => import("./assistant.js").then(m => m.askSheet()) }, h("span.nav-ai-orb", icon("ai", "ic-nav")), h("small", "AI"))
+      ? h("button.nav-ai", { type: "button", "aria-label": "AI assistant", onclick: () => import("./assistant.js").then(m => m.askSheet()) }, h("span.nav-ai-orb", icon("ai", "ic-nav")), h("small.nav-ai-l", "AI"))
       : h("a" + (k === active ? ".on" : ""), { href, "aria-current": k === active ? "page" : null }, icon(k, k === active ? "ic-fill" : "ic-nav"), t(label)))));
 }
 // 🔔 Alerts and ⋯ More sit at the top right of the main pages

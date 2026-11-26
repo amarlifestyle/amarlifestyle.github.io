@@ -43,7 +43,8 @@ export function statCharts(s) {
   return [
     h("div.card", h("h3", "DP — last 30 days"), barChart(s.daily.map(d => ({ l: d.day.slice(8), v: d.dp })))),
     parts.length ? h("div.card", h("h3", "Where your time went (30 days)"), donut(parts, { center: parts.reduce((a, p) => a + p.v, 0).toFixed(0) + "h" })) : null,
-    s.months?.length ? h("div.card", h("h3", "DP by month (this year)"), barChart(s.months.map(m => ({ l: new Date(m.month + "-01").toLocaleDateString("en-GB", { month: "short" }), v: m.dp })), { color: "var(--amber)" })) : null,
+    s.months?.length ? h("div.card", h("h3", "DP by month (this year)"), barChart((() => { const y = todayStr().slice(0, 4), cur = todayStr().slice(0, 7), by = Object.fromEntries(s.months.map(m => [m.month, m.dp]));
+      return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((l, i) => { const k = `${y}-${String(i + 1).padStart(2, "0")}`; return { l, v: by[k] || 0, c: k === cur ? "var(--brand)" : "color-mix(in srgb, var(--brand) 45%, transparent)" }; }); })(), { color: "var(--brand)" })) : null,
     h("div.card", h("h3", "Your year"), h("p.hint", "Each square is a day. Greener = more tasks done."), heatmap(s.heatmap)),
   ];
 }

@@ -401,7 +401,7 @@ export function askSheet(opts = {}) {
     try { photo = await shrink(f); thumb.replaceChildren(h("div.row", { style: { gap: "8px", marginTop: "8px" } }, h("img", { src: photo.url, style: { width: "56px", height: "56px", objectFit: "cover", borderRadius: "10px" } }), h("span.small.muted.grow", "Photo added — now say what to do"), h("button.btn.small.ghost", { type: "button", onclick: () => { photo = null; thumb.replaceChildren(); } }, "✕"))); }
     catch (e) { toast(e.message, "bad"); }
   };
-  const photoBtn = h("button.btn.small", { type: "button", onclick: () => takePhoto() }, "📷 Photo");
+  const photoBtn = h("button.btn.small", { type: "button", onclick: () => takePhoto() }, icon("camera"), "Photo");
   if (opts.text) setTimeout(() => { q.value = opts.text; }, 0);
   if (opts.photo) setTimeout(() => takePhoto(), 450);
 
@@ -415,7 +415,7 @@ export function askSheet(opts = {}) {
     if (r.answer) box.append(h("div.ai-answer", r.answer));
     if (bad) { box.append(h("p.small.warn", `${bad} item(s) skipped — not clear or not possible.`)); issue("partial", lastQ, `${bad} action(s) could not be used`); }
     // did the AI get it wrong? one tap tells the admin
-    const wrong = h("button.linkbtn.small", { type: "button" }, "👎 Wrong?");
+    const wrong = h("button.linkbtn.small", { type: "button" }, "Not right?");
     wrong.onclick = () => { issue("wrong", lastQ, (r.answer || "").slice(0, 300) + ((r.actions || []).length ? ` [${r.actions.length} actions]` : "")); wrong.replaceWith(h("span.small.muted", "Thanks — reported.")); };
     box.append(h("div", { style: { textAlign: "right", marginTop: "4px" } }, wrong));
     if (!items.length) { pending = null; out.replaceChildren(box); return; }
@@ -472,18 +472,18 @@ export function askSheet(opts = {}) {
   // speak → words appear in the box → fix if needed → Send (nothing happens before Send)
   const voice = dictation(q, { transcribe: audio => api.ai("transcribe", { audio }), label: "Tap and speak" });
   // what the AI can do — tap one to put an example in the box
-  const CAN = [["✅", "Tasks", "আজ Leon-এর টিউশন নেই, টাস্কটা বাদ দাও"], ["🗓️", "Routine", "প্রতি শনি ও সোমবার বিকাল ৫টা থেকে ৬টা Physics পড়াব"], ["📷", "Photo", "এই ছবি দেখে আমার সাপ্তাহিক রুটিন বানাও"],
-    ["💳", "Money", "আজ রিকশা ভাড়ায় ২০০ টাকা খরচ হয়েছে"], ["🎓", "Fees", "Leon নভেম্বর মাসের টিউশন ফি দিয়েছে"], ["📝", "Exams", "রবিবার সকাল ১০টায় Physics CT আছে"],
-    ["🚭", "Habits", "আজ ৩টা সিগারেট খেয়েছি, প্রতিটা ১৫ টাকা"], ["💬", "Ask", "এই সপ্তাহে কোন কাজে সবচেয়ে পিছিয়ে আছি?"]];
+  const CAN = [["check", "Tasks", "আজ Leon-এর টিউশন নেই, টাস্কটা বাদ দাও"], ["cal", "Routine", "প্রতি শনি ও সোমবার বিকাল ৫টা থেকে ৬টা Physics পড়াব"], ["📷", "Photo", "এই ছবি দেখে আমার সাপ্তাহিক রুটিন বানাও"],
+    ["wallet", "Money", "আজ রিকশা ভাড়ায় ২০০ টাকা খরচ হয়েছে"], ["student", "Fees", "Leon নভেম্বর মাসের টিউশন ফি দিয়েছে"], ["edit", "Exams", "রবিবার সকাল ১০টায় Physics CT আছে"],
+    ["habit", "Habits", "আজ ৩টা সিগারেট খেয়েছি, প্রতিটা ১৫ টাকা"], ["chat", "Ask", "এই সপ্তাহে কোন কাজে সবচেয়ে পিছিয়ে আছি?"]];
   // fit the examples to the person: no tuition → a bill; not a student → their own kind of deadline
   const roles = myRoles();
-  if (!showTuition()) CAN[4] = ["🧾", "Bills", "প্রতি মাসের ১০ তারিখে ইন্টারনেট বিল ৮০০ টাকা দিতে হবে"];
-  if (roles.length && !roles.some(r => ["student", "school", "teacher"].includes(r))) CAN[5] = ["📌", "Deadline", roles.includes("business") ? "শুক্রবার বিকাল ৪টায় Rahim Traders-কে ৫০ পিস ডেলিভারি" : roles.includes("homemaker") ? "রবিবার সকাল ১০টায় ডাক্তারের অ্যাপয়েন্টমেন্ট" : "বৃহস্পতিবার সকাল ১১টায় মাসিক রিপোর্ট জমা"];
-  const grid = h("div.ai-can", CAN.map(([ic, t, ex]) => h("button", { type: "button", onclick: () => { q.value = ex; q.focus(); } }, h("span", ic), h("b", t))));
+  if (!showTuition()) CAN[4] = ["receipt", "Bills", "প্রতি মাসের ১০ তারিখে ইন্টারনেট বিল ৮০০ টাকা দিতে হবে"];
+  if (roles.length && !roles.some(r => ["student", "school", "teacher"].includes(r))) CAN[5] = ["flag", "Deadline", roles.includes("business") ? "শুক্রবার বিকাল ৪টায় Rahim Traders-কে ৫০ পিস ডেলিভারি" : roles.includes("homemaker") ? "রবিবার সকাল ১০টায় ডাক্তারের অ্যাপয়েন্টমেন্ট" : "বৃহস্পতিবার সকাল ১১টায় মাসিক রিপোর্ট জমা"];
+  const grid = h("div.ai-can", CAN.map(([ic, t, ex]) => h("button", { type: "button", onclick: () => { q.value = ex; q.focus(); } }, h("span", icon(ic)), h("b", t))));
   const guide = h("div", h("div.row.between", { style: { margin: "0 0 6px" } }, h("b.small", "What AI can do"), h("span.small.faint", "tap for an example")), grid,
     h("p.small.muted", { style: { margin: "6px 0 10px" } }, "Type, speak (Bangla or English) or add a photo. Nothing changes until you confirm."));
   const tipsFold = h("details.ai-fold", h("summary", "Today's advice"), coachBox());
-  return sheet("✨ AI", [
+  return sheet("AI Assistant", [
     guide,
     q, voice, h("div.row", { style: { gap: "8px", marginTop: "6px" } }, photoBtn, fileIn), thumb, out, tipsFold], {
     actions: close => {
@@ -507,8 +507,8 @@ function coachBox() {
     re.onclick = busy(re, () => load(true));
     box.replaceChildren(...[
       r.summary ? h("p.small", { style: { margin: "0 0 6px" } }, r.summary) : null,
-      ...alerts.map(a => h("div.ai-alert" + (a.level === "high" ? ".high" : ""), h("b.small", "⚠️ ", a.title), h("div.small", a.text))),
-      ...tips.slice(0, 3).map(t => h("div.ai-tip", h("b.small", "💡 ", t.title), h("div.small.muted", t.text))),
+      ...alerts.map(a => h("div.ai-alert" + (a.level === "high" ? ".high" : ""), h("b.small", a.title), h("div.small", a.text))),
+      ...tips.slice(0, 3).map(t => h("div.ai-tip", h("b.small", t.title), h("div.small.muted", t.text))),
       h("div", { style: { textAlign: "right" } }, re)].filter(Boolean));
   };
   const load = async refresh => {

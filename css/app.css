@@ -1238,3 +1238,11 @@ b, strong, .v { font-weight: 600; }
 .pw-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border: 0; background: none; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 10px; }
 .pw-eye svg { width: 20px; height: 20px; }
 :root[data-skin="black"] .nav, :root[data-skin="black"] .nav-inner { background: #000 !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+/* AI button: back to the round button, standard sparkle mark */
+.nav-ai-orb { background: var(--brand) !important; color: var(--brand-ink) !important; border: 0 !important; }
+.nav-ai-orb svg { width: 26px !important; height: 26px !important; }
+@media (min-width: 760px) { .nav-ai-orb { width: 30px !important; height: 30px !important; border-radius: 50% !important; } .nav-ai-orb svg { width: 17px !important; height: 17px !important; } }
+.ai-can button span { color: var(--brand); display: flex; } .ai-can button span svg { width: 22px; height: 22px; }
+/* phone: AI is one clean round icon, no label */
+@media (max-width: 759px) { .nav-ai-l { display: none; } .nav-ai-orb { width: 48px !important; height: 48px !important; margin-top: -14px !important; box-shadow: 0 4px 14px rgba(0,0,0,.35) !important; } .nav-ai-orb::after, .nav-ai-orb::before { display: none !important; } }
+.nav a svg { width: 25px; height: 25px; }
