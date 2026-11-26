@@ -106,7 +106,7 @@ export async function openNotes() {
 // open notes count on the 📝 button
 export async function refreshNotesBadge() {
   try {
-    const n = (await api.select("notes", `select=id&day=eq.${todayStr()}&done=eq.false&limit=20`)).length;
+    const n = (await api.select("notes", `select=id&day=lte.${todayStr()}&done=eq.false&limit=60`)).length;
     document.querySelectorAll(".top-notes").forEach(b => { b.querySelector(".nav-badge")?.remove(); if (n) b.append(h("i.nav-badge.soft", String(n))); });
   } catch { /* offline */ }
 }

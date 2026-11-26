@@ -1231,3 +1231,9 @@ b, strong, .v { font-weight: 600; }
   .grid-wide { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (min-width: 760px) { .nav a svg, .nav-ai-orb svg { width: 22px !important; height: 22px !important; } .nav-ai-orb { background: none !important; border: 0 !important; width: 22px !important; height: 22px !important; color: inherit !important; } }
+/* task card tinted with its own colour (balanced) */
+.task:not(.done) { background: color-mix(in srgb, var(--c, var(--brand)) 8%, var(--card)); border-color: color-mix(in srgb, var(--c, var(--brand)) 22%, var(--line)); }
+.nav a.on::after { display: none !important; }
+.pw-wrap { position: relative; } .pw-wrap .input { padding-right: 46px; }
+.pw-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border: 0; background: none; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 10px; }
+.pw-eye svg { width: 20px; height: 20px; }

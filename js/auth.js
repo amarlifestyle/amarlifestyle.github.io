@@ -6,7 +6,14 @@ import { route, go, loadBasics, store, occupationPicker, saveOccupation, genderP
 import { religionPicker, saveReligion } from "./prayer.js";
 import { aboutContent } from "./more.js";
 
-const field = (label, attrs) => { const i = h("input.input", attrs); return [h("label.f", h("span", label), i), i]; };
+const field = (label, attrs) => {
+  const i = h("input.input", attrs);
+  if (attrs.type !== "password") return [h("label.f", h("span", label), i), i];
+  // show / hide password
+  const eye = h("button.pw-eye", { type: "button", "aria-label": "Show password", title: "Show password" }, icon("eye"));
+  eye.onclick = e => { e.preventDefault(); const show = i.type === "password"; i.type = show ? "text" : "password"; eye.replaceChildren(icon(show ? "eyeoff" : "eye")); eye.setAttribute("aria-label", show ? "Hide password" : "Show password"); };
+  return [h("label.f", h("span", label), h("div.pw-wrap", i, eye)), i];
+};
 
 function shell(...kids) {
   return h("div.auth", h("img.logo", { src: document.documentElement.dataset.theme === "light" ? "assets/logo-light.png" : "assets/logo-dark.png", alt: "Amar Lifestyle" }), ...kids);
