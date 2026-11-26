@@ -1,7 +1,7 @@
 /* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — More: routine, calendar, goals, reports, settings, about, download
 import * as api from "./api.js";
-import { h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";
+import { savePdf, h, icon, t, toast, sheet, confirmBox, busy, askPin, tk, todayStr, addDays, fmtDate, fmtHM, durLabel, DAYS, PALETTE, pad, colorPicker } from "./ui.js";
 import { RELIGIONS, religionPicker } from "./prayer.js";
 import { route, store, catColor, catNames, catDp, rerender, backbar, topbar, applyTheme, loadBasics, go, ROLES, occupationPicker, myRoles, role, setUnread, genderPicker } from "./app.js";
 import { codeResetForm } from "./auth.js";
@@ -513,7 +513,7 @@ export function reportView(rep, verifyMode = false, extra = {}) {
 }
 
 route("report", async (page, id) => {
-  page.append(backbar("Report", "#/reports", h("button.btn.small.primary.noprint", { onclick: () => window.print() }, icon("download"), "Save PDF")));
+  page.append(backbar("Report", "#/reports", h("button.btn.small.primary.noprint", { onclick: () => savePdf() }, icon("download"), "Save PDF")));
   const rows = await api.select("reports", `select=*&id=eq.${id}`);
   if (!rows.length) throw new Error("Report not found.");
   const rep = rows[0], from = rep.period_start, to = rep.period_end;
@@ -586,8 +586,10 @@ async function alertFolds(p) {
     const con = h("button.btn.primary.block", "Connect Telegram");
     con.onclick = busy(con, async () => {
       const code = await api.rpc("telegram_link_code");
-      window.open(`https://t.me/${api.TG_BOT}?start=${code}`, "_blank");
-      toast("Tap START in Telegram, then come back here.", "ok");
+      const url = `https://t.me/${api.TG_BOT}?start=${code}`;
+      // phones block pop-ups opened after waiting for the server, so give a real link to tap
+      con.replaceWith(h("div.tg-go", h("a.btn.primary.block", { href: url, target: "_blank", rel: "noopener" }, icon("send"), "Open Telegram (@" + api.TG_BOT + ")"),
+        h("p.small.muted", { style: { margin: "6px 0 0" } }, "In Telegram tap START, then come back and tap “I've pressed START — refresh”.")));
     });
     tgBody.push(h("p.hint.keep", "Forgot your password or PIN? Get a code here. Important reminders also come to Telegram with its own sound."), con,
       h("button.linkbtn.small", { onclick: () => rerender() }, "I've pressed START — refresh"));

@@ -2,7 +2,7 @@
 // Amar Lifestyle — one honest page for any stretch of time: this week (Friday report), any month, or the whole history.
 // Every part can be ticked in or out, then saved as one PDF (Save PDF → "Save as PDF").
 import * as api from "./api.js";
-import { h, icon, todayStr, addDays, fmtDate, durLabel, tk as money, busy, barChart, toast } from "./ui.js";
+import { savePdf, h, icon, todayStr, addDays, fmtDate, durLabel, tk as money, busy, barChart, toast } from "./ui.js";
 import { route, store, catColor } from "./app.js";
 import { isMuslim } from "./prayer.js";
 import { levelOf } from "./me.js";
@@ -63,7 +63,7 @@ function facts(D) {
 // the page itself — a clean paper-like document that prints well
 async function render(page, { from, to, title, sub, aiKey, aiAsk, back = "#/reports", nav = null, share = false }) {
   // title on its own line; the buttons sit in a row under it so nothing covers the title
-  const acts = h("div.row.doc-acts.noprint", h("button.btn.small.primary", { onclick: () => window.print() }, icon("download"), "Save PDF"));
+  const acts = h("div.row.doc-acts.noprint", h("button.btn.small.primary", { onclick: () => savePdf() }, icon("download"), "Save PDF"));
   page.append(h("header.topbar.noprint", h("div.row", { style: { gap: "10px", minWidth: 0 } }, h("a.icon-btn", { href: back, "aria-label": "Back" }, icon("back")), h("div", { style: { minWidth: 0 } }, h("h1", title), h("div.sub", sub)))), acts);
   // money and habits are inside: PIN first (if one is set)
   const { pinGate, lockedCard } = await import("./pin.js");

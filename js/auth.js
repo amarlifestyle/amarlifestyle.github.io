@@ -30,7 +30,7 @@ route("login", page => {
   form.addEventListener("submit", e => { e.preventDefault(); login(); });
   let wrong = 0;
   const login = async () => {
-    btn.disabled = true;
+    btn.disabled = true; btn.classList.add("loading");
     try {
       await api.account("login", { phone: phone.value, password: pass.value });
       store.profile = null; await loadBasics(); go("#/today");
@@ -41,7 +41,7 @@ route("login", page => {
         h("b.bad", e.message), h("p.small.muted", { style: { margin: "4px 0 8px" } },
           e.code === "no_account" ? "Check the number, or make a new account." : wrong >= 2 ? "Forgot it? Get a code on Telegram and set a new one." : "Check your password, or reset it."),
         e.code === "no_account" ? h("a.btn.small.primary", { href: "#/register" }, t("Create account")) : h("a.btn.small" + (wrong >= 2 ? ".primary" : ""), { href: "#/forgot" }, "Forgot password?")));
-    } finally { btn.disabled = false; }
+    } finally { btn.disabled = false; btn.classList.remove("loading"); }
   };
   page.append(shell(h("p.tag", "Build a disciplined life, one task at a time."), form,
     h("p.center.small.faint", h("a", { href: "#/home" }, "← Welcome page"), " · ", h("a", { href: "#/privacy" }, "Privacy Policy"))));
@@ -105,7 +105,7 @@ export function codeResetForm(target, phoneInput, done) {
 }
 
 route("forgot", page => {
-  const [pf, phone] = field(t("Phone number"), { type: "tel", inputmode: "numeric", placeholder: "01XXXXXXXXX", value: sessionStorage.getItem("al_last_phone") || "" });
+  const [pf, phone] = field(t("Phone number"), { type: "tel", inputmode: "numeric", placeholder: "01XXXXXXXXX", value: (/^\+?\d[\d\s-]{9,}$/.test(sessionStorage.getItem("al_last_phone") || "") ? sessionStorage.getItem("al_last_phone") : "") });
   page.append(shell(h("div.card", h("h2", "Forgot password"), pf, codeResetForm("password", phone, () => go("#/login")),
     h("div.center.mt", h("button.linkbtn", { onclick: () => go("#/login") }, "Back to login")))));
 }, { public: true });

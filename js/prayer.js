@@ -10,7 +10,7 @@ export const RELIGIONS = {
 };
 export const isMuslim = () => store.profile?.religion === "muslim";
 export function religionPicker(current, onPick) {
-  const box = h("div.row.wrap", { style: { gap: "6px" } });
+  const box = h("div.row.wrap.rel-pick", { style: { gap: "6px" } });
   const draw = cur => box.replaceChildren(...Object.entries(RELIGIONS).map(([k, l]) =>
     h("button.btn.small" + (k === cur ? ".primary" : ""), { type: "button", onclick: () => { draw(k); onPick(k); } }, l)));
   draw(current);

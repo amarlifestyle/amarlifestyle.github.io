@@ -126,7 +126,7 @@ const EMO = {
   "🍽️": "food", "🍵": "cup", "🎂": "gift", "🎁": "gift", "🤝": "people", "👥": "people", "📌": "pin", "✨": "spark", "🤖": "spark", "📷": "camera", "📸": "camera", "🎙️": "mic", "🎤": "mic",
   "💬": "chat", "✉️": "chat", "🚭": "habit", "🚬": "smoke", "📤": "share", "🔐": "lock", "🔒": "lock", "👤": "user", "🙂": "user", "👨": "user", "👩": "user", "🌙": "moon", "☀️": "sun",
   "📦": "box", "🩺": "health", "🛒": "shop", "🎉": "party", "🖨️": "report", "📽️": "video", "🔁": "repeat", "↻": "repeat", "⚡": "zap", "📴": "wifi", "🏠": "today", "⬇️": "download",
-  "💪": "fire", "👋": "", "😟": "chat", "🐞": "warn", "🛠️": "wrench", "🛠": "wrench", "🔧": "wrench", "📁": "box", "🗂️": "box", "📚️": "book", "🎨": "edit", "🔄": "repeat", "1️⃣": "cal", "🧩": "info", "👎": "warn", "💤": "sleep", "😴": "sleep", "💧": "water", "🚌": "bus", "🍞": "food", "🛍️": "shop", "🛍": "shop", "🎮": "party",
+  "💪": "fire", "😟": "chat", "🐞": "warn", "🛠️": "wrench", "🛠": "wrench", "🔧": "wrench", "📁": "box", "🗂️": "box", "📚️": "book", "🎨": "edit", "🔄": "repeat", "1️⃣": "cal", "🧩": "info", "👎": "warn", "💤": "sleep", "😴": "sleep", "💧": "water", "🚌": "bus", "🍞": "food", "🛍️": "shop", "🛍": "shop", "🎮": "party",
 };
 const EMO_RE = new RegExp([...Object.keys(EMO)].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + "|\\p{Extended_Pictographic}\\uFE0F?", "gu");
 const BADTXT = /(^|[\s·(:])(null|undefined|NaN)(?=$|[\s·),.])/g;
@@ -277,8 +277,8 @@ export function askPin(reason = "Enter your 4-digit PIN") {
 export function busy(btn, fn) {
   return async (...a) => {
     if (btn.disabled) return;
-    btn.disabled = true;
-    try { return await fn(...a); } catch (e) { toast(e.message || String(e), "bad"); } finally { btn.disabled = false; }
+    btn.disabled = true; btn.classList.add("loading");
+    try { return await fn(...a); } catch (e) { toast(e.message || String(e), "bad"); } finally { btn.disabled = false; btn.classList.remove("loading"); }
   };
 }
 
@@ -490,4 +490,12 @@ export function confetti(x = innerWidth / 2, y = innerHeight / 2) {
     box.appendChild(b);
   }
   document.body.appendChild(box); setTimeout(() => box.remove(), 1300);
+}
+
+// Save PDF: the phone app (home-screen mode on iPhone/iPad) can't print, so open the same page in the browser where it can
+export function savePdf() {
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (ios && standalone) { toast("Opening in Safari — tap Share → Print → pinch out → Save to Files.", "ok"); setTimeout(() => window.open(location.href, "_blank"), 600); return; }
+  try { window.print(); } catch { toast("Your browser can't save PDF here. Open the app in Chrome or Safari.", "bad"); }
 }

@@ -9,7 +9,7 @@ import { deadlines } from "./exams.js";
 const study = () => (store.profile?.roles || [store.profile?.occupation]).some(r => ["student", "school"].includes(r));
 // every slide; NEW marks the ones added in the latest update (shown once as "What's new" to people who saw the old guide)
 const steps = () => [
-  ["👋", "Welcome!", ["Please take 5 minutes for this guide — it helps you get the most out of the app."]],
+  ["🎉", "Welcome!", ["Please take 5 minutes for this guide — it helps you get the most out of the app."]],
   ["✅", "Today", ["Your tasks in order — the first one has a coloured countdown (blue later · amber soon · green running · red ending).", "Near the end of a task, tap Completed or Not Completed. Unmarked tasks lose DP at midnight.", "Finished tasks move to the bottom."]],
   ["📌", "The box on top of Today", ["Prayer, bills, events — and your next CT / lab / exam, always shown however far away.", "✕ or swipe left hides a row; ↶ Undo brings it back."], "NEW"],
   ["✨", "AI — the middle button", ["Type, speak (Bangla or English) or send a photo — a routine, an exam schedule, a book's contents page.", "It can do almost anything in the app; it shows the changes first and nothing happens until you confirm."]],
@@ -25,7 +25,7 @@ const steps = () => [
   ["🏅", "Me", ["This month's level, Bronze → Diamond, and each month of the year.", "Habits, water, sleep, mood and diary."]],
   ["🔔", "Turn on notifications", ["Tap 🔔 (top right) → Turn on.", "Connect Telegram for loud important reminders."]],
   ["🤝", "Connect your own Claude", ["⋯ More → Settings → Connect to Claude: make a key and add it in Claude.", "Then Claude can read and update your account — with the same rules as the app."], "NEW"],
-  ["🚀", "Let's start", ["First set your routine — type it, tell AI, or send a photo.", "Replay any time: ⋯ More → How to use."]],
+  ["✅", "Let's start", ["First set your routine — type it, tell AI, or send a photo.", "Replay any time: ⋯ More → How to use."]],
 ];
 
 export function showTour(force = false) {

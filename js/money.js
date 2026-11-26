@@ -139,7 +139,7 @@ async function overview(body, m, me) {
   body.append(h("div.grid3",
     h("div.stat", h("div.k", t("Income")), h("div.v.ok", tk(inc))),
     h("div.stat", h("div.k", t("Expense")), h("div.v.bad", tk(exp))),
-    h("div.stat", h("div.k", "Saved"), h("div.v", tk(inc - exp)))));
+    h("div.stat", h("div.k", inc - exp < 0 ? "Overspent" : "Saved"), h("div.v" + (inc - exp < 0 ? ".neg" : ""), tk(Math.abs(inc - exp))))));
   body.append(h("p.small.muted", { style: { margin: "8px 2px 14px" } }, `Total savings (all time): `, h("b", tk(totalSaved)), " = all income − all expenses."));
   if (m === monthStart(todayStr())) await dailyCard(body, m, me);
   await billsCard(body, m, inc - exp);

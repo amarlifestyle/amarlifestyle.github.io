@@ -13,7 +13,7 @@ export async function setPinFlow() {
 }
 // true = go ahead
 export async function pinGate(area, reason = "Enter your PIN") {
-  if (Date.now() - (opened[area] || 0) < 90000) return true;
+  if (Date.now() - (opened[area] || 0) < 90000) { opened[area] = Date.now(); return true; } // still in use: keep it open (locks after 90 s of no use)
   let has = false;
   try { has = await api.rpc("has_pin"); } catch { return true; } // offline: nothing new can be loaded anyway
   if (!has) {
@@ -26,7 +26,10 @@ export async function pinGate(area, reason = "Enter your PIN") {
     if (r === "skip") { api.LS.set("al_pin_skip", Date.now()); return true; }
     return false;
   }
-  const pin = await askPin(reason + ""); if (!pin) return false;
+  // hide whatever is on screen while the PIN is asked, so private text never shows behind the box
+  document.body.classList.add("pin-ask");
+  let pin; try { pin = await askPin(reason + ""); } finally { document.body.classList.remove("pin-ask"); }
+  if (!pin) { document.querySelector("#app .page")?.replaceChildren(); return false; }
   try { if (!(await api.rpc("check_pin", { p_pin: pin }))) { toast("Wrong PIN.", "bad"); return false; } } catch (e) { toast(e.message || "Wrong PIN.", "bad"); return false; }
   opened[area] = Date.now();
   return true;

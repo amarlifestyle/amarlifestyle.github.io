@@ -103,7 +103,7 @@ route("life", async page => {
   plus.onclick = busy(plus, async () => { await save({ water: (L.water || 0) + 1 }); wv.textContent = L.water; });
   const minus = h("button.btn", "−");
   minus.onclick = busy(minus, async () => { if (L.water > 0) { await save({ water: L.water - 1 }); wv.textContent = L.water; } });
-  page.append(h("div.card", h("h3", "💧 Water today"), h("div.row.between", h("div", wv, h("span.muted", " glasses")), h("div.row", minus, plus))));
+  page.append(h("div.card", h("h3", "💧 Water today"), h("div.row.between", h("div", wv, h("span.muted", " glass(es)")), h("div.row", minus, plus))));
 
   // sleep
   const sa = h("input.input", { type: "time", value: L.slept_at?.slice(0, 5) || "" });
@@ -117,8 +117,8 @@ route("life", async page => {
     lastN.length ? h("p.small.muted.mt.mb0", `Average last ${lastN.length} nights: ${(lastN.reduce((a, l) => a + hrs(l), 0) / lastN.length).toFixed(1)} hours`) : null));
 
   // mood + diary
-  const moods = [["great", "😀"], ["okay", "😐"], ["bad", "😞"]];
-  const mrow = h("div.seg", moods.map(([k, e]) => h("button" + (L.mood === k ? ".on" : ""), { type: "button", style: { fontSize: "22px" }, "aria-label": k, onclick: async ev => { await save({ mood: k }); mrow.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === ev.currentTarget)); } }, e)));
+  const moods = [["great", "😀 Good"], ["okay", "😐 Okay"], ["bad", "😞 Bad"]];
+  const mrow = h("div.seg", moods.map(([k, e]) => h("button" + (L.mood === k ? ".on" : ""), { type: "button", style: { fontSize: "15px" }, "aria-label": k, onclick: async ev => { await save({ mood: k }); mrow.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === ev.currentTarget)); } }, e)));
   const diary = h("textarea.input", { placeholder: "How was your day? (only you can see this)", maxlength: "2000" }, L.diary || "");
   const db = h("button.btn.block.mt", t("Save"));
   db.onclick = busy(db, async () => { await save({ diary: diary.value }); toast("Diary saved ✓", "ok"); });

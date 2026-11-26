@@ -199,7 +199,9 @@ export function dictation(box, { transcribe, lang = "bn-BD", label = "🎙️ �
     rec = new SR(); rec.lang = lang; rec.continuous = true; rec.interimResults = true;
     let finalTxt = said;
     rec.onresult = e => { let interim = ""; for (let k = e.resultIndex; k < e.results.length; k++) { const r = e.results[k]; if (r.isFinal) finalTxt += (finalTxt ? " " : "") + r[0].transcript.trim(); else interim += r[0].transcript; } said = (finalTxt + (interim ? " " + interim : "")).trim(); write(); };
-    rec.onerror = e => { if (e.error === "not-allowed") { toast("মাইক্রোফোনের অনুমতি দিন।", "bad"); stopAll(true); } };
+    rec.onerror = e => { if (e.error === "no-speech" || e.error === "aborted") return;
+      toast(e.error === "not-allowed" || e.error === "service-not-allowed" ? "Microphone is blocked — allow it in the browser (🔒 in the address bar → Microphone → Allow)." : "Voice stopped (" + e.error + "). Try again or type.", "bad");
+      state = "idle"; stopAll(true); };
     rec.onend = () => { said = finalTxt; write(); if (state === "rec") { try { rec.start(); } catch { /* restarts after a pause in speech */ } } };
     rec.start();
   };
@@ -220,7 +222,7 @@ export function dictation(box, { transcribe, lang = "bn-BD", label = "🎙️ �
     if (!navigator.onLine) { toast("ভয়েসের জন্য ইন্টারনেট লাগবে।", "bad"); return; }
     base = box.value.trim(); said = ""; sec = 0;
     try { if (live) startLive(); else await startRec(); } // live mode: bars pulse by CSS (a second mic stream can stop speech typing on Android)
-    catch { toast("মাইক্রোফোনের অনুমতি দিন (ঠিকানা বারের 🔒 → Microphone → Allow)।", "bad"); stopAll(); return; }
+    catch { toast("Microphone is blocked — allow it in the browser (🔒 in the address bar → Microphone → Allow).", "bad"); state = "idle"; stopAll(true); return; }
     set("rec"); tick();
   };
   const finish = async () => {

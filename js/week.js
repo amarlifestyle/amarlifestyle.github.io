@@ -57,7 +57,7 @@ route("week", async (page, offset = "0") => {
     const list = tasks.filter(x => x.day === d && x.status !== "running");
     const dow = new Date(d + "T00:00:00").getDay();
     return h("div.wday" + (d < today ? ".past" : ""),
-      h("div.h" + (d === today ? ".today" : ""), DAYS[dow], h("small", d < today ? "done" : fmtDate(d))),
+      h("div.h" + (d === today ? ".today" : ""), DAYS[dow], h("small", fmtDate(d))),
       list.map(tk => {
         const st = (["completed", "late_completed"].includes(tk.status) ? ".done" : ["missed", "not_completed"].includes(tk.status) ? ".missed" : "")
           + (d === today && new Date(tk.end_at) <= new Date() || /completed|missed/.test(tk.status) ? ".over" : ""); // finished / time over → black & white

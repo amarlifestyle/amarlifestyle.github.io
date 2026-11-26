@@ -179,7 +179,7 @@ function subjectSheet(s = null) {
 }
 
 function chapterSheet(s, c, exams, ex = null) {
-  const title = h("input.input", { value: c?.title || "", placeholder: "e.g. Chapter 3 — Motion", maxlength: "120" });
+  const title = c ? h("input.input", { value: c.title || "", placeholder: "e.g. Chapter 3 — Motion", maxlength: "120" }) : h("textarea.input", { placeholder: "e.g. Chapter 3 — Motion\n(several chapters? one per line)", style: { minHeight: "64px" } });
   let picked = new Set(c?.exam_ids || (ex ? [ex.id] : []));
   const exBox = h("div.row.wrap", { style: { gap: "6px" } });
   const draw = () => exBox.replaceChildren(...exams.map(e => h("button.chip" + (picked.has(e.id) ? ".on" : ""), { type: "button", onclick: () => { picked.has(e.id) ? picked.delete(e.id) : picked.add(e.id); draw(); } }, e.name)));
@@ -202,7 +202,8 @@ function chapterSheet(s, c, exams, ex = null) {
         if (!title.value.trim()) throw new Error("Write a name.");
         const row = { title: title.value.trim(), exam_ids: [...picked], stars, note: note.value.trim() || null };
         if (c) await api.update("syl_chapters", `id=eq.${c.id}`, { ...row, done_on: done.value || null, revised: Math.max(0, Number(rev.value) || 0) });
-        else await api.insert("syl_chapters", { ...row, user_id: api.userId(), subject_id: s.id, sort: 999 });
+        else { const names = title.value.split("\n").map(x => x.trim()).filter(Boolean).map(x => x.slice(0, 120));
+          await api.insert("syl_chapters", names.map((t, i) => ({ ...row, title: t, user_id: api.userId(), subject_id: s.id, sort: 999 + i }))); }
         close(true); rerender();
       });
       const out = [h("button.btn", { onclick: () => close(null) }, "Cancel"), save];
