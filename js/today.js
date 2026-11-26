@@ -552,17 +552,25 @@ function emergencySheet(tasks) {
 let tickTimer = null;
 function tipTicker(today) {
   clearTimeout(tickTimer);
-  const box = h("button.ticker", { type: "button", onclick: () => askSheet(), "aria-label": "Open AI" });
+  let cur = null;
+  const box = h("button.ticker", { type: "button", "aria-label": "Open", onclick: () => {
+    if (!cur?.full) return askSheet();
+    sheet("From my diary", [h("div.small.muted", cur.full.label), h("p.diary-full", cur.full.body)], { actions: close => [h("button.btn.primary", { onclick: () => close() }, "Close")] });
+  } });
+  if (!api.LS.get("al_pq_at") || Date.now() - api.LS.get("al_pq_at") > 864e5) api.select("personal_quotes", "select=label,short,body&order=id").then(r => { api.LS.set("al_pq", r); api.LS.set("al_pq_at", Date.now()); }).catch(() => {});
   const items = () => {
     const c = api.LS.get("al_coach") || {};
     const list = [...(c.alerts || []).map(a => ({ ic: "⚠️", t: a.title, d: a.text, warn: true })), ...(c.tips || []).map(x => ({ ic: "💡", t: x.title, d: x.text }))];
     for (let k = 0; k < 2; k++) { const [q, by] = quoteFor(store.profile?.occupation, today, k); list.push({ ic: "❝", t: q, d: by, quote: true }); }
+    // the owner's own diary lines (only on accounts that have them)
+    const pq = api.LS.get("al_pq") || [];
+    if (pq.length) { const q = pq[Math.floor(Math.random() * pq.length)]; list.push({ ic: "❝", t: q.short, d: q.label, quote: true, full: q }); }
     return list;
   };
   let i = Number(api.LS.get("al_tick_i", 0)) || 0;
   const show = () => {
     const L = items(); if (!L.length) return 7000;
-    const it = L[i % L.length];
+    const it = L[i % L.length]; cur = it;
     const line = h("span.tk-in" + (it.quote ? ".quote" : ""), h("span.tk-ic", it.ic), h("span.tk-txt", h("b", it.t), it.d ? h("span", it.quote ? "— " + it.d : it.d) : null));
     box.classList.toggle("warn", !!it.warn);
     const old = box.querySelector(".tk-in:not(.tk-out)");

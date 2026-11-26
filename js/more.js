@@ -25,7 +25,14 @@ route("more", page => {
   if (store.profile?.is_admin) page.append(h("div.list", li("ops-7k2q/", "shield", "Admin panel", "Only you can see this")));
   const out = h("button.btn.block.danger", icon("out"), "Log out");
   out.onclick = async () => { if (await confirmBox("Log out?", "You'll need your phone number and password to log in again.", "Log out", true)) { api.logout(); localStorage.removeItem("al_basics"); store.profile = null; go("#/login"); } };
-  page.append(out, h("p.center.small.faint.mt", "Amar Lifestyle · made by Musfiqur Rahman"));
+  // delete my account: waits 7 days; logging in again within 7 days offers to recover it
+  const del = h("button.linkbtn.small", { style: { color: "var(--red)", display: "block", margin: "14px auto 0" } }, "Delete my account");
+  del.onclick = async () => {
+    if (!(await confirmBox("Delete your account?", "Your account and all your data will be deleted after 7 days. If you log in again within 7 days, you can recover it.", "Delete account", true))) return;
+    try { await api.rpc("request_account_delete"); toast("Account will be deleted in 7 days. Log in again before then to recover it.", "ok"); api.logout(); localStorage.removeItem("al_basics"); store.profile = null; go("#/login"); }
+    catch (e) { toast(e.message, "bad"); }
+  };
+  page.append(out, del, h("p.center.small.faint.mt", "Amar Lifestyle · made by Musfiqur Rahman"));
 }, { tab: "more" });
 
 // ---------- share with friends: the phone's own share menu, with the link and a few lines on why

@@ -134,7 +134,7 @@ const POLICY = [
   ["7. University routine", "If you sign up with a supported university email, your batch's class routine and deadlines may be added to your account automatically. Only university classes and deadlines are shared — nothing from your account goes to anyone."],
   ["8. Offline use", "You can use the app without internet. Your changes are saved on your phone and sent automatically when the internet comes back."],
   ["9. Security", "Keep your password and PIN private. Old months are locked so past records can't be changed. A password can be reset with a code sent to your Telegram."],
-  ["10. Your rights", "You can download a backup of your data any time, and ask the administrators to delete your account."],
+  ["10. Your rights", "You can download a backup of your data any time. You can delete your account yourself (More → Delete my account): it is erased with all its data after 7 days, and logging in again within those 7 days lets you recover it."],
   ["11. Changes", "This policy may be updated. Important changes will be shown in the app."],
   ["12. Contact", "Questions? Use Report a problem in the app, or the contact links on the About Us page."],
 ];

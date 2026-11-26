@@ -1,7 +1,7 @@
 /* © 2026 Musfiqur Rahman. All rights reserved. Unauthorized copying is prohibited. Proprietary — see LICENSE. */
 // Amar Lifestyle — app shell, router and shared state
 import * as api from "./api.js";
-import { h, icon, t, toast, todayStr, addDays, chime } from "./ui.js";
+import { h, icon, t, toast, todayStr, addDays, chime, confirmBox, sheet } from "./ui.js";
 
 export const store = { profile: null, cfg: {}, userCats: [], announcements: [] };
 
@@ -69,6 +69,14 @@ export async function loadBasics() {
   api.LS.set("al_basics", { profile: store.profile, cfg: store.cfg, userCats: cats, announcements: ann });
   applyTheme(store.profile.theme);
   api.LS.set("al_lang", store.profile.lang);
+  if (store.profile.delete_at) await askRecover();
+}
+// logged in during the 7-day wait → offer to recover the account
+async function askRecover() {
+  const when = new Date(store.profile.delete_at).toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+  const ok = await confirmBox("Recover your account?", `You deleted your account. It will be erased on ${when}. Do you want to recover it and keep all your data?`, "Recover my account");
+  if (ok) { await api.rpc("cancel_account_delete"); store.profile.delete_at = null; toast("Welcome back! Your account is recovered.", "ok"); }
+  else { api.logout(); localStorage.removeItem("al_basics"); store.profile = null; location.hash = "#/login"; throw Object.assign(new Error("Account is waiting to be deleted."), { quiet: true }); }
 }
 export function applyTheme() { // dark only
   document.documentElement.dataset.theme = "dark";

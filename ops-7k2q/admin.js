@@ -119,6 +119,9 @@ async function users(b) {
       h("button.btn.small.primary", { onclick: () => notifySheet(u) }, "🔔 Notify"),
       h("button.btn.small", { onclick: () => loginsOf(u) }, "Logins"),
       h("button.btn.small", { onclick: () => dataCheck(u) }, "Data"),
+      h("button.btn.small", { style: { color: "var(--red)" }, onclick: async () => {
+        if (!confirm(`Delete ${u.name}'s account and ALL their data now? This cannot be undone.`)) return;
+        try { await api.rpc("admin_delete_user", { p_user: u.id }); toast("Account deleted.", "ok"); location.reload(); } catch (e) { toast(e.message, "bad"); } } }, "Delete"),
       u.is_admin ? null : h("button.btn.small" + (u.blocked ? "" : ".danger"), { onclick: async () => {
         if (!(await confirmBox(u.blocked ? "Unblock user?" : "Block user?", u.blocked ? `${u.name} can use Amar Lifestyle again.` : `${u.name} won't be able to log in.`, u.blocked ? "Unblock" : "Block", !u.blocked))) return;
         try { await api.rpc("admin_set_blocked", { p_user: u.id, p_blocked: !u.blocked }); toast("Done ✓", "ok"); render(); } catch (e) { toast(e.message, "bad"); }

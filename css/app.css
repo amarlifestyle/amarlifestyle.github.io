@@ -1255,3 +1255,4 @@ body.pin-ask #app { filter: blur(18px); pointer-events: none; }
 @media (min-width: 760px) { .week, .week.z0, .week.z1, .week.z2 { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; } .week-scroll { margin: 0; padding: 0 0 6px; } .week .cell { min-width: 0; overflow: hidden; } }
 @media (min-width: 760px) { .nav-ai-orb { background: transparent !important; color: inherit !important; box-shadow: none !important; } .nav-ai-orb svg { width: 22px !important; height: 22px !important; } }
 .rel-pick .btn { flex: 0 0 auto !important; width: auto !important; max-width: none !important; white-space: nowrap; overflow: visible; text-overflow: clip; }
+.diary-full { white-space: pre-line; line-height: 1.6; font-size: 15.5px; margin-top: 8px; }
