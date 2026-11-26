@@ -198,7 +198,7 @@ async function examCalendar(all, openSheet) {
     const ds = `${m.slice(0, 8)}${pad(d)}`, items = (byDay[ds] || []).sort((a, b) => a.due_at.localeCompare(b.due_at)), ev = evDay[ds] || [];
     const c = h("button.cal-c" + (ds === today ? ".today" : "") + (ds < today ? ".past" : "") + (items.length ? ".has" : ""), { type: "button", "aria-label": fmtDate(ds) },
       h("span.cal-n", String(d)),
-      items.slice(0, 2).map(e => h("span.cal-chip" + (e.done ? ".done" : "") + (e.done || new Date(e.due_at) <= new Date() ? ".over" : ""), { style: { "--k": KIND_COLOR[e.kind] || "var(--brand)" } }, shortKind(e))),
+      items.slice(0, 2).map(e => h("span.cal-chip" + (e.done ? ".done" : "") + (e.important ? ".imp" : "") + (e.done || new Date(e.due_at) <= new Date() ? ".over" : ""), { style: { "--k": e.important ? "#F87171" : KIND_COLOR[e.kind] || "var(--brand)" } }, e.course ? e.course.split("/")[0].trim() : shortKind(e))),
       items.length > 2 ? h("span.cal-more", `+${items.length - 2}`) : null,
       ev.length ? h("i.cal-ev", { title: ev.map(x => x.title).join(", ") }) : null);
     if (items.length || ev.length) c.onclick = () => sheet(fmtDate(ds, { weekday: "long", day: "numeric", month: "long" }), [
@@ -239,10 +239,14 @@ export function examSheet(e) {
   const note = h("textarea.input", { placeholder: myRoles().some(k => ["student", "school"].includes(k)) ? "Syllabus, chapters… (optional)" : "Details (optional)", style: { minHeight: "56px" } }, e?.note || "");
   const got = h("input.input", { type: "number", inputmode: "decimal", min: "0", step: "0.25", placeholder: "e.g. 17", value: e?.marks_got ?? "" });
   const tot = h("input.input", { type: "number", inputmode: "decimal", min: "1", step: "0.25", placeholder: "e.g. 20", value: e?.marks_total ?? "" });
+  let important = !!e?.important;
+  const imp = h("button.imp-tog" + (important ? ".on" : ""), { type: "button", onclick: () => { important = !important; imp.classList.toggle("on", important); } },
+    icon("flag"), h("span", h("b", "Important exam"), h("small", "Semester final / main exam — reminds you every time you open the app, from 3 days before")), h("i.sw"));
   sheet(e ? "Edit" : R.add, [
     h("label.f", h("span", "Type"), seg), h("label.f", h("span", "Title"), title), isStudy() ? h("label.f", h("span", myRoles()[0] === "teacher" ? "Class / subject" : "Course"), course) : h("label.f", h("span", "With / where (optional)"), course),
     h("div.grid2", h("label.f", h("span", "Due date"), date), h("label.f", h("span", "Time"), time)),
     h("label.f", h("span", "Notes"), note),
+    imp,
     e && isStudy() ? h("div.grid2", h("label.f", h("span", "Marks got"), got), h("label.f", h("span", "Out of"), tot)) : null], {
     actions: close => {
       const save = h("button.btn.primary", "Save");
@@ -250,7 +254,7 @@ export function examSheet(e) {
         if (!title.value.trim()) throw new Error("Write a title.");
         const due = new Date(`${date.value}T${time.value || "10:00"}:00+06:00`);
         if (!e && due < new Date()) throw new Error("Pick a time in the future.");
-        const row = { kind, title: title.value.trim(), course: course.value.trim() || null, due_at: due.toISOString(), note: note.value.trim() || null };
+        const row = { kind, title: title.value.trim(), course: course.value.trim() || null, due_at: due.toISOString(), note: note.value.trim() || null, important };
         if (e && isStudy()) Object.assign(row, readMarks(got, tot));
         if (e) await api.update("exams", `id=eq.${e.id}`, row); else await api.insert("exams", { ...row, user_id: api.userId() });
         toast("Saved ✓ — reminders are set", "ok"); close(true); rerender();

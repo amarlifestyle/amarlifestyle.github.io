@@ -633,21 +633,22 @@ let focusShown = false;
 export async function focusCard(force = false) {
   if ((focusShown && !force) || document.querySelector(".focus-bd")) return;
   const day = todayStr(), st = (() => { try { return JSON.parse(localStorage.getItem("al_focus") || "null") || {}; } catch { return {}; } })();
-  if (!force && st.day === day && (st.done || Date.now() < (st.until || 0))) return;
+  if (!force && st.day === day && Date.now() < (st.until || 0)) return;
   focusShown = true;
   const now = new Date(), soon = new Date(Date.now() + 48 * 3600e3).toISOString();
   const [ex, notes, next] = await Promise.all([
-    api.select("exams", `select=id,title,kind,course,due_at&done=eq.false&due_at=gt.${now.toISOString()}&due_at=lt.${soon}&order=due_at&limit=4`).catch(() => []),
+    api.select("exams", `select=id,title,kind,course,due_at,important&done=eq.false&due_at=gt.${now.toISOString()}&due_at=lt.${new Date(Date.now() + 72 * 3600e3).toISOString()}&order=important.desc,due_at&limit=6`).catch(() => []),
     api.select("notes", `select=id,text&day=eq.${day}&done=eq.false&order=created_at&limit=3`).catch(() => []),
     api.select("tasks", `select=id,title,start_at,pinned&day=eq.${day}&status=eq.pending&start_at=gt.${now.toISOString()}&order=pinned.desc,start_at&limit=2`).catch(() => []),
   ]);
   const left = d => { const m = Math.round((new Date(d) - Date.now()) / 60000); return m < 60 ? m + "m" : m < 1440 ? Math.round(m / 60) + "h" : Math.round(m / 1440) + "d"; };
   const items = [
-    ...ex.filter(e => new Date(e.due_at) > now).map(e => ({ ic: e.kind === "lab" ? "flask" : "edit", c: "#FBBF24", t: e.title, s: [e.course, "due in " + left(e.due_at)].filter(Boolean).join(" · "), hot: new Date(e.due_at) - Date.now() < 24 * 3600e3 })),
+    ...ex.filter(e => new Date(e.due_at) > now && (e.important || new Date(e.due_at) < new Date(soon))).map(e => ({ ic: e.kind === "lab" ? "flask" : "edit", c: "#FBBF24", t: e.title, s: [e.course, "due in " + left(e.due_at)].filter(Boolean).join(" · "), hot: e.important || new Date(e.due_at) - Date.now() < 24 * 3600e3, imp: e.important })),
     ...next.filter(x => new Date(x.start_at) > now).map(x => ({ ic: "clock", c: "#38BDF8", t: x.title, s: "starts " + fmtTime(x.start_at) + " · in " + left(x.start_at) })),
     ...notes.map(n => ({ ic: "pin", c: "#A78BFA", t: n.text, s: "Note for today" })),
   ].slice(0, 6);
   if (!items.length) return;
+  if (!force && st.day === day && st.done && !ex.some(e => e.important)) { focusShown = false; return; }
   // never on top of something the user already opened (a sheet, the tour) or after leaving Today
   if (!force && (document.querySelector(".backdrop,.tour,[class*=tour-]") || !location.hash.startsWith("#/today"))) { focusShown = false; return; }
   const save = o => { try { localStorage.setItem("al_focus", JSON.stringify({ day, ...o })); } catch {} };
@@ -659,7 +660,7 @@ export async function focusCard(force = false) {
     h("div.focus-list", items.map((x, i) => h("div.focus-it" + (x.hot ? ".hot" : ""), { style: { animationDelay: 180 + i * 90 + "ms" } },
       h("div.focus-ic", { style: { color: x.c, background: x.c + "1F" } }, icon(x.ic)),
       h("div.grow", { style: { minWidth: 0 } }, h("b.ell", x.t), h("div.small.muted.ell", x.s)),
-      x.hot ? h("span.focus-hot", "Soon") : null))),
+      x.hot ? h("span.focus-hot", x.imp ? "Final" : "Soon") : null))),
     h("div.focus-btns",
       h("button.btn.primary", { onclick: () => { save({ done: true }); close(); } }, "OK, got it"),
       h("div.row", { style: { gap: "8px" } },

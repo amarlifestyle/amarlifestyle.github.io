@@ -1207,3 +1207,10 @@ b, strong, .v { font-weight: 600; }
   background: linear-gradient(90deg, #0F172A 50%, #000 50%); }
 .theme-sw i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--brand); transition: transform .25s cubic-bezier(.34,1.4,.64,1); }
 .theme-sw.on i { transform: translateX(30px); }
+.imp-tog { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px; border-radius: 14px; border: 1px solid var(--line2); background: var(--card); color: var(--text); font: inherit; cursor: pointer; margin-bottom: 10px; }
+.imp-tog > svg { width: 22px; height: 22px; color: #F87171; flex-shrink: 0; }
+.imp-tog span { flex: 1; display: flex; flex-direction: column; } .imp-tog small { color: var(--muted); font-size: 12px; }
+.imp-tog .sw { width: 42px; height: 24px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line2); position: relative; flex-shrink: 0; }
+.imp-tog .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .2s; }
+.imp-tog.on { border-color: rgba(248,113,113,.5); } .imp-tog.on .sw { background: #F87171; } .imp-tog.on .sw::after { transform: translateX(18px); background: #fff; }
+.cal-chip.imp { font-weight: 700; }
